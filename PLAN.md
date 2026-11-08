@@ -1,0 +1,91 @@
+# Velocity v2 – build plan and progress
+
+The rebuild of Velocity as a full personal task workspace, following the FYP
+report (Project I: *Velocity: A Web-Based Task Management System Using
+Multi-Criteria Task Prioritization*, Nilai University).
+
+- **Ranking:** only the report's formula – Simple Additive Weighting over four
+  fixed-bound criteria (importance, urgency, deadline proximity, workload
+  pressure), AHP default weights 42 / 23 / 23 / 12, contrastive explanations,
+  adjustable weights. Every list, suggestion and map uses this one score.
+  Other signals (status, energy, target dates) may filter or label tasks, never
+  add points. Engine: `app/Domain/Prioritization` (ported unchanged from the FYP
+  app, with its tests in `tests/Unit/Prioritization`).
+- **Stack:** Laravel 12 (PHP 8.2) + Inertia 2 + React 19 + TypeScript +
+  Tailwind 4, MariaDB/MySQL from XAMPP. No hosted services needed.
+- **Approved design:** clickable mockups in
+  `C:\Users\abdul\OneDrive\Desktop\Velocity\design\mockups` (open `index.html`).
+  The real screens must match them.
+
+## Decisions the user approved
+
+1. Look: warm neutrals, violet accent; colour always means something
+   (blue/orange/green/amber = the four score parts only, red = overdue only,
+   violet = you/actions, rose/teal/olive = goals).
+2. Navigation: the seven sections (Home, Tasks, Planner, Notes, Habits, People,
+   Review) in a top bar; each section has its own side menu; Home has none.
+   Phone: bottom bar (Home, Tasks, +, Planner, More) and the section's side menu
+   as a drawer opened from the screen title.
+3. A project is its own world: header in its goal colour, milestones, tasks with
+   steps (a step can become a real ranked task), the project's own habits,
+   notes, people and files.
+4. Goals Map: a real mind map (You → goals → projects → tasks → steps, plus
+   notes and habits), pan/zoom, glowing path to the #1 task, fold/unfold, focus,
+   search, minimap, outline view.
+
+**Pending feedback from the user:** small changes to how the side menus are
+organised (to be given later – ask before Phase 2 is finished).
+
+## Phases
+
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Project setup, design system, app shell, demo data | in progress |
+| 1 | The report's core: tasks, inbox, areas, projects, goals, statuses; waiting/blocked tasks leave the ranking; formula, explanations, weights, history; Study mode | in progress |
+| 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | – |
+| 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | – |
+| 4 | Notes (editor, links to tasks, journal, files, canvas last) | – |
+| 5 | Habits (schedules, check-ins, streaks, routines) | – |
+| 6 | People (contacts, dates, follow-ups) | – |
+| 7 | Home, Review charts, global search | – |
+| 8 | API for Mark (personal tokens with scopes) + GitHub | – |
+
+## Phase 0 / 1 checklist
+
+- [x] Laravel React starter kit created at `C:\Projects\Velocity-v2`
+- [x] MySQL database `velocity_v2`, `config/velocity.php`, clock override (`VELOCITY_NOW`)
+- [x] Ranking engine + 44 unit tests ported and passing
+- [x] Schema: areas, goals, projects, milestones, tasks (parent, statuses,
+      dependencies, available-from, soft delete), steps, events, weights,
+      notes, habits + entries, study log
+- [x] Ranking service: eligibility first (waiting / blocked / not yet → "not
+      ready", never scored lower), then the engine. Tests prove the demo ranks
+      exactly like the mockups (85.1, 78.7, 67.5 … at Mon 9 Nov 2026, 9:00)
+- [x] Demo seeder: student "Aina" (login in `database/seeders/DemoSeeder.php`)
+- [x] Design system: mockup CSS in `resources/css/velocity.css` (tokens renamed
+      to avoid Tailwind/starter clashes: --line, --text-3, --violet, --r-*,
+      --sh-*); starter variables mapped onto them in `app.css`
+- [x] App shell `resources/js/layouts/velocity-shell.tsx`: top bar, Tasks side
+      menu, phone bars + drawer + More sheet, Ctrl K search, Ctrl Shift K quick
+      add (with live "lands at #n" preview), toasts with Undo
+- [x] Home, Up next (+ task panel, filters, near ties, weights popover that
+      re-ranks while dragging), Project world, Goals map (engine in
+      `resources/js/features/goals-map/engine.ts`), Weights & method (AHP
+      table), History (FR10)
+- [x] 84 tests passing (engine, ranking, every page and action, ownership)
+- [ ] Study mode switch (hide extra sections during the evaluation) + export of
+      the study log for the Spearman analysis
+- [ ] Inbox and "not ready" as their own filtered views in the side menu
+- [ ] Settings: time zone picker; restyle the remaining starter screens
+- [ ] Browser checks at phone and tablet sizes for the real pages
+- [ ] Tech debt: the Goals map engine is a `@ts-nocheck` port – add types
+
+## Run it
+
+```bash
+composer install && npm install
+php artisan migrate --seed      # demo account: see database/seeders/DemoSeeder.php
+npm run build                   # or: npm run dev (hot reload)
+php artisan serve --port=8200   # http://localhost:8200
+php vendor/bin/phpunit
+```

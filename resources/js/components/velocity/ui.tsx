@@ -1,0 +1,100 @@
+import { CRIT, fmt1 } from '@/lib/velocity';
+import type { CriterionKey } from '@/types/velocity';
+import { Icon } from './icon';
+
+/** The score as a bar: its length is the priority out of 100, each colour one part of the formula. */
+export function PriorityBar({ contrib, size = '', score }: { contrib: Record<CriterionKey, number>; size?: '' | 'pbar-sm' | 'pbar-lg'; score?: number }) {
+    const total = score ?? CRIT.reduce((s, c) => s + contrib[c.k], 0);
+    const label = `Priority ${fmt1(total)} out of 100: ${CRIT.map((c) => `${c.name.toLowerCase()} ${fmt1(contrib[c.k])}`).join(', ')}`;
+    return (
+        <span className={`pbar ${size}`} role="img" aria-label={label}>
+            {CRIT.filter((c) => contrib[c.k] > 0.05).map((c) => (
+                <i key={c.k} className={`s-${c.k}`} style={{ width: `${contrib[c.k]}%` }} />
+            ))}
+            <i className="s-rest" />
+        </span>
+    );
+}
+
+export function ScoreCell({ score, contrib }: { score: number; contrib: Record<CriterionKey, number> }) {
+    return (
+        <div className="score-cell">
+            <span className="score-num">{fmt1(score)}</span>
+            <PriorityBar contrib={contrib} size="pbar-sm" score={score} />
+        </div>
+    );
+}
+
+export function Check({ done, onClick, label, size = '' }: { done: boolean; onClick?: () => void; label: string; size?: '' | 'check-lg' }) {
+    return (
+        <button
+            type="button"
+            className={`check ${size} ${done ? 'is-done' : ''}`}
+            aria-label={label}
+            aria-pressed={done}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick?.();
+            }}
+        >
+            <Icon name="check" />
+        </button>
+    );
+}
+
+export function Dots({ n, c, onPick }: { n: number; c: 'I' | 'U'; onPick?: (v: number) => void }) {
+    return (
+        <span className="dots" data-c={c} role={onPick ? 'radiogroup' : undefined}>
+            {[1, 2, 3, 4, 5].map((i) =>
+                onPick ? (
+                    <i
+                        key={i}
+                        className={i <= n ? 'on' : ''}
+                        role="radio"
+                        aria-checked={i === n}
+                        aria-label={`${i} of 5`}
+                        tabIndex={0}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => onPick(i)}
+                        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPick(i)}
+                    />
+                ) : (
+                    <i key={i} className={i <= n ? 'on' : ''} />
+                ),
+            )}
+        </span>
+    );
+}
+
+export function Ring({ pct, size = 44, stroke = 5 }: { pct: number; size?: number; stroke?: number }) {
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    return (
+        <svg className="ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+            <circle className="ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
+            <circle
+                className="ring-fill"
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                strokeWidth={stroke}
+                strokeDasharray={c.toFixed(2)}
+                strokeDashoffset={(c * (1 - pct / 100)).toFixed(2)}
+                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+        </svg>
+    );
+}
+
+export function Legend({ contrib }: { contrib: Record<CriterionKey, number> }) {
+    return (
+        <div className="legend">
+            {CRIT.map((c) => (
+                <span key={c.k}>
+                    <i className={`sw sw-${c.k}`} />
+                    {c.name} <b>{fmt1(contrib[c.k])}</b>
+                </span>
+            ))}
+        </div>
+    );
+}
