@@ -1,7 +1,6 @@
 import { Icon } from '@/components/velocity/icon';
-import { Legend, PriorityBar, ScoreCell } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock, dueInfo, fmt1, fmtHours, plainWhy } from '@/lib/velocity';
+import { Clock, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
 import type { HabitToday, NotReadyTask, RankedTask, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 
@@ -12,7 +11,11 @@ interface Props extends VelocityShared {
     dueSoon: number;
     upcoming: RankedTask[];
     habits: HabitToday[];
-    attention: { overdue: RankedTask[]; notReady: NotReadyTask[]; milestones: { title: string; project: string; projectId: number; dueDate: string }[] };
+    attention: {
+        overdue: RankedTask[];
+        notReady: NotReadyTask[];
+        milestones: { title: string; project: string; projectId: number; dueDate: string }[];
+    };
     week: { days: { day: string; count: number }[]; done: number; onTime: number | null; avgScore: number | null };
 }
 
@@ -32,7 +35,7 @@ export default function Home() {
                             {clock.greeting()}, {first}
                         </h1>
                         <p className="page-sub">
-                            {props.total} tasks ranked
+                            {props.total} tasks
                             {props.overdue > 0 && (
                                 <>
                                     {' '}
@@ -72,9 +75,7 @@ function DoNext({ task, next, total, clock }: { task: RankedTask; next: RankedTa
                     </span>
                     <div className="hero-score">
                         <b>{fmt1(task.score)}</b>
-                        <span>
-                            priority · #1 of {total}
-                        </span>
+                        <span>#1 of {total}</span>
                     </div>
                 </div>
                 <h2 className="hero-title">{task.title}</h2>
@@ -89,19 +90,15 @@ function DoNext({ task, next, total, clock }: { task: RankedTask; next: RankedTa
                     <span>{fmtHours(task.estHours)} of work</span>
                     {task.status === 'doing' && <span className="chip is-doing">Doing</span>}
                 </div>
-                <div className="hero-bar">
-                    <PriorityBar contrib={task.contrib} size="pbar-lg" score={task.score} />
-                </div>
-                <Legend contrib={task.contrib} />
-                <p className="hero-why">
-                    <strong>Why first:</strong> {plainWhy(task, clock)}
-                </p>
                 <div className="hero-actions">
                     <Link href={`/tasks?task=${task.id}`} className="btn btn-primary btn-lg">
                         <Icon name="play" />
                         Open and start
                     </Link>
-                    <button className="btn btn-secondary btn-lg" onClick={() => router.post(route('tasks.complete', task.id), {}, { preserveScroll: true })}>
+                    <button
+                        className="btn btn-secondary btn-lg"
+                        onClick={() => router.post(route('tasks.complete', task.id), {}, { preserveScroll: true })}
+                    >
                         <Icon name="check" />
                         Done
                     </button>
@@ -144,7 +141,7 @@ function DoNext({ task, next, total, clock }: { task: RankedTask; next: RankedTa
                                         <span>{fmtHours(n.estHours)}</span>
                                     </div>
                                 </div>
-                                <ScoreCell score={n.score} contrib={n.contrib} />
+                                <span className="score-num">{fmt1(n.score)}</span>
                             </Link>
                         );
                     })}
@@ -161,8 +158,7 @@ function EmptyHero() {
                 <Icon name="zap" />
                 Do next
             </span>
-            <h2 className="hero-title">Nothing to rank yet</h2>
-            <p className="hero-why">Add a task with the + button (or Ctrl Shift K). It’s ranked the moment you save it.</p>
+            <h2 className="hero-title">Nothing to do</h2>
         </section>
     );
 }
@@ -192,7 +188,8 @@ function Upcoming({ tasks, clock }: { tasks: RankedTask[]; clock: Clock }) {
                                 <Link className="tl-block" href={`/tasks?task=${t.id}`}>
                                     <div className="tl-title">{t.title}</div>
                                     <div className="tl-sub">
-                                        <Icon name="rank" className="ic-xs" />#{t.rank} · <span className={d.late ? 'is-late' : ''}>{d.text}</span> · {fmtHours(t.estHours)}
+                                        <Icon name="rank" className="ic-xs" />#{t.rank} · <span className={d.late ? 'is-late' : ''}>{d.text}</span> ·{' '}
+                                        {fmtHours(t.estHours)}
                                     </div>
                                 </Link>
                             </li>
@@ -221,7 +218,11 @@ function Habits({ habits }: { habits: HabitToday[] }) {
                 {habits.map((h) => (
                     <div className="habit" key={h.id}>
                         {h.target > 1 && !h.doneToday ? (
-                            <span className="habit-btn is-partial" style={{ ['--p' as string]: (h.today / h.target) * 100 }} aria-label={`${h.name}: ${h.today} of ${h.target}`}>
+                            <span
+                                className="habit-btn is-partial"
+                                style={{ ['--p' as string]: (h.today / h.target) * 100 }}
+                                aria-label={`${h.name}: ${h.today} of ${h.target}`}
+                            >
                                 <span>{h.today}</span>
                             </span>
                         ) : (
@@ -249,9 +250,33 @@ function Habits({ habits }: { habits: HabitToday[] }) {
 
 function Attention({ attention, clock }: { attention: Props['attention']; clock: Clock }) {
     const rows = [
-        ...attention.overdue.map((t) => ({ key: `o${t.id}`, icon: 'alert', critical: true, title: t.title, detail: dueInfo(t, clock).long, href: `/tasks?task=${t.id}`, action: 'Open' })),
-        ...attention.notReady.map((t) => ({ key: `n${t.id}`, icon: t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : 'calendar', critical: false, title: t.title, detail: t.why, href: `/tasks?task=${t.id}`, action: t.kind === 'waiting' ? 'Follow up' : '' })),
-        ...attention.milestones.map((m) => ({ key: `m${m.title}`, icon: 'flag', critical: false, title: `${m.title} · ${m.project}`, detail: `Milestone due ${clock.date(m.dueDate)}`, href: `/projects/${m.projectId}`, action: 'Open' })),
+        ...attention.overdue.map((t) => ({
+            key: `o${t.id}`,
+            icon: 'alert',
+            critical: true,
+            title: t.title,
+            detail: dueInfo(t, clock).long,
+            href: `/tasks?task=${t.id}`,
+            action: 'Open',
+        })),
+        ...attention.notReady.map((t) => ({
+            key: `n${t.id}`,
+            icon: t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : 'calendar',
+            critical: false,
+            title: t.title,
+            detail: t.why,
+            href: `/tasks?task=${t.id}`,
+            action: t.kind === 'waiting' ? 'Follow up' : '',
+        })),
+        ...attention.milestones.map((m) => ({
+            key: `m${m.title}`,
+            icon: 'flag',
+            critical: false,
+            title: `${m.title} · ${m.project}`,
+            detail: `Milestone due ${clock.date(m.dueDate)}`,
+            href: `/projects/${m.projectId}`,
+            action: 'Open',
+        })),
     ];
     return (
         <section className="card" aria-labelledby="att-title">
@@ -317,10 +342,19 @@ function Week({ week, clock }: { week: Props['week']; clock: Clock }) {
                     <span>avg. priority</span>
                 </div>
             </div>
-            <div className="week" role="img" aria-label={`Tasks done per day: ${week.days.map((d) => `${clock.weekday(d.day + 'T12:00:00Z')} ${d.count}`).join(', ')}`}>
+            <div
+                className="week"
+                role="img"
+                aria-label={`Tasks done per day: ${week.days.map((d) => `${clock.weekday(d.day + 'T12:00:00Z')} ${d.count}`).join(', ')}`}
+            >
                 <div className="week-bars">
                     {week.days.map((d) => (
-                        <i key={d.day} className={d.count ? '' : 'is-zero'} style={{ height: `${d.count ? (d.count / max) * 100 : 3}%` }} title={`${clock.date(d.day + 'T12:00:00Z', { weekday: 'short', day: 'numeric', month: 'short' })}: ${d.count} done`} />
+                        <i
+                            key={d.day}
+                            className={d.count ? '' : 'is-zero'}
+                            style={{ height: `${d.count ? (d.count / max) * 100 : 3}%` }}
+                            title={`${clock.date(d.day + 'T12:00:00Z', { weekday: 'short', day: 'numeric', month: 'short' })}: ${d.count} done`}
+                        />
                     ))}
                 </div>
                 <div className="week-labels">
@@ -334,4 +368,3 @@ function Week({ week, clock }: { week: Props['week']; clock: Clock }) {
         </section>
     );
 }
-

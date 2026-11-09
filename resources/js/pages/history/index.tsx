@@ -7,10 +7,18 @@ import { usePage } from '@inertiajs/react';
 interface Props extends VelocityShared {
     weeks: { start: string; done: number; onTime: number; withDue: number }[];
     totals: { done: number; onTimePct: number | null; avgScore: number | null };
-    recent: { id: number; title: string; project: string | null; completedAt: string; dueAt: string | null; onTime: boolean | null; score: number | null }[];
+    recent: {
+        id: number;
+        title: string;
+        project: string | null;
+        completedAt: string;
+        dueAt: string | null;
+        onTime: boolean | null;
+        score: number | null;
+    }[];
 }
 
-/** FR10: tasks completed per week, and how many were finished on time. */
+/** The last 12 weeks: tasks done per week, and how many were on time. */
 export default function History() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
@@ -23,7 +31,6 @@ export default function History() {
                     <div>
                         <p className="eyebrow">Review</p>
                         <h1 className="h1">History</h1>
-                        <p className="page-sub">The last 12 weeks: what you finished, and whether it was on time. Full Review charts arrive in Phase 7.</p>
                     </div>
                 </header>
                 <section className="card" style={{ paddingBottom: 18 }}>
@@ -55,15 +62,31 @@ export default function History() {
                             No due date
                         </span>
                     </div>
-                    <div className="week" role="img" aria-label={`Tasks done per week: ${props.weeks.map((w) => `${clock.date(w.start + 'T12:00:00Z')} ${w.done}`).join(', ')}`}>
+                    <div
+                        className="week"
+                        role="img"
+                        aria-label={`Tasks done per week: ${props.weeks.map((w) => `${clock.date(w.start + 'T12:00:00Z')} ${w.done}`).join(', ')}`}
+                    >
                         <div className="week-bars" style={{ gridTemplateColumns: 'repeat(12, 1fr)', height: 160, gap: 8 }}>
                             {props.weeks.map((w) => {
                                 const late = w.withDue - w.onTime;
                                 const none = w.done - w.withDue;
                                 const label = `Week of ${clock.date(w.start + 'T12:00:00Z')}: ${w.done} done, ${w.onTime} on time, ${late} late`;
                                 return (
-                                    <span key={w.start} title={label} style={{ display: 'flex', flexDirection: 'column-reverse', gap: 2, height: `${(w.done / max) * 100}%`, minHeight: 3 }}>
-                                        {w.onTime > 0 && <i style={{ flex: w.onTime, background: 'var(--violet)', borderRadius: '0 0 0 0', minHeight: 2 }} />}
+                                    <span
+                                        key={w.start}
+                                        title={label}
+                                        style={{
+                                            display: 'flex',
+                                            flexDirection: 'column-reverse',
+                                            gap: 2,
+                                            height: `${(w.done / max) * 100}%`,
+                                            minHeight: 3,
+                                        }}
+                                    >
+                                        {w.onTime > 0 && (
+                                            <i style={{ flex: w.onTime, background: 'var(--violet)', borderRadius: '0 0 0 0', minHeight: 2 }} />
+                                        )}
                                         {late > 0 && <i style={{ flex: late, background: 'var(--critical)', minHeight: 2 }} />}
                                         {none > 0 && <i style={{ flex: none, background: 'var(--track)', minHeight: 2 }} />}
                                         {w.done === 0 && <i className="is-zero" style={{ flex: 1 }} />}
@@ -96,7 +119,8 @@ export default function History() {
                                 <div>
                                     <div className="att-title">{r.title}</div>
                                     <div className="att-detail">
-                                        {r.project ?? 'No project'} · done {clock.date(r.completedAt, { weekday: 'short', day: 'numeric', month: 'short' })}
+                                        {r.project ?? 'No project'} · done{' '}
+                                        {clock.date(r.completedAt, { weekday: 'short', day: 'numeric', month: 'short' })}
                                         {r.onTime === false ? ' · late' : r.onTime ? ' · on time' : ''}
                                     </div>
                                 </div>

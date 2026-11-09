@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './velocity.css';
+@import './fyp.css';
 
 @plugin 'tailwindcss-animate';
 

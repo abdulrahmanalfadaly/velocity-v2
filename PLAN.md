@@ -17,6 +17,26 @@ Multi-Criteria Task Prioritization*, Nilai University).
   `C:\Users\abdul\OneDrive\Desktop\Velocity\design\mockups` (open `index.html`).
   The real screens must match them.
 
+## Two versions in one app
+
+A per-account switch, **Settings → FYP mode**, chooses between them. Both use
+the same tasks and the same report formula, so the order is always the same.
+
+| | FYP mode | Personal Velocity |
+|---|---|---|
+| Screens | My tasks, History, Weights & method (the first version's screens) | Home, Tasks, Planner, Notes, Habits, People, Review, Goals map, projects |
+| Explanations | All of them: score parts, breakdown table, "reproduce by hand", contrastive sentence, AHP | None: just the order, due dates and scores |
+| Extras | Load the Table 3.4 scenario set, export the ranking (JSON) | – |
+| Study log | Records every ranking shown and every weight change | Off |
+
+- FYP code lives apart: `resources/js/pages/fyp`, `resources/js/components/fyp`,
+  `resources/js/layouts/fyp-shell.tsx`, `resources/css/fyp.css`,
+  `app/Http/Controllers/FypController.php`. Personal-only routes use the
+  `personal` middleware (FYP accounts are sent to My tasks).
+- **Rule:** FYP mode stays exactly as the report describes; change it only when
+  the user asks. Everything new is personal-only, with no explanation text.
+- `VELOCITY_FYP_DEFAULT=true` makes new accounts start in FYP mode (for the study).
+
 ## Decisions the user approved
 
 1. Look: warm neutrals, violet accent; colour always means something
@@ -72,9 +92,13 @@ organised (to be given later – ask before Phase 2 is finished).
       re-ranks while dragging), Project world, Goals map (engine in
       `resources/js/features/goals-map/engine.ts`), Weights & method (AHP
       table), History (FR10)
-- [x] 84 tests passing (engine, ranking, every page and action, ownership)
-- [ ] Study mode switch (hide extra sections during the evaluation) + export of
-      the study log for the Spearman analysis
+- [x] FYP mode (replaces "Study mode"): Settings switch, the first version's
+      screens and explanations, task form with live preview, Table 3.4
+      scenario set, ranking export, study log only in FYP mode; personal mode
+      without explanation text
+- [x] 95 tests passing (engine, ranking, both modes, every page and action,
+      Table 3.4 reproduced through the whole app, ownership)
+- [ ] Export of the study log itself (CSV) for the Spearman analysis
 - [ ] Inbox and "not ready" as their own filtered views in the side menu
 - [ ] Settings: time zone picker; restyle the remaining starter screens
 - [ ] Browser checks at phone and tablet sizes for the real pages

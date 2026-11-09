@@ -580,6 +580,9 @@ kbd {
 .p-title-row { display: flex; gap: 12px; align-items: flex-start; }
 .p-title-row .check { margin-top: 2px; }
 .p-title { font-family: var(--font-display); font-size: 21px; line-height: 1.28; font-weight: 700; letter-spacing: -0.016em; outline: none; border-radius: 6px; }
+.p-rank { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.p-rank:empty { display: none; }
+.p-rank .score-num { font-size: 13px; }
 .seg { display: inline-flex; gap: 2px; padding: 3px; margin: 16px 0 18px; border-radius: 10px; background: var(--surface-3); }
 .seg button { height: 28px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-2); }
 .seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }

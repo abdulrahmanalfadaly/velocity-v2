@@ -13,5 +13,9 @@ return [
     'timezone' => env('VELOCITY_TIMEZONE', 'Asia/Kuala_Lumpur'),
 
     // Record every ranking shown and every weight change for the evaluation study.
+    // Only accounts in FYP mode are recorded.
     'study_log' => (bool) env('VELOCITY_STUDY_LOG', true),
+
+    // New accounts start in FYP mode (turn on while running the study).
+    'fyp_default' => (bool) env('VELOCITY_FYP_DEFAULT', false),
 ];

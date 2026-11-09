@@ -6,7 +6,7 @@
  * Task numbers are their places in your ranked list (the report formula), and a
  * glowing violet path runs from you to the task you should do next.
  */
-import { Clock, critValue, dueInfo, fmt1, fmtHours, plainWhy, signed, CRIT } from '@/lib/velocity';
+import { Clock, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
 
 const P = {
     tasks: '<rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
@@ -19,7 +19,8 @@ const P = {
     chevR: '<path d="m9.5 6 6 6-6 6"/>',
     inbox: '<path d="M3.5 13.5h5l1.5 2.5h4l1.5-2.5h5"/><path d="M6 5h12l2.5 8.5v5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-5z"/>',
     rank: '<path d="M4 6.5h9M4 12h6.5M4 17.5h4"/><path d="M18 19.5v-14M15 8.5l3-3 3 3"/>',
-    hourglass: '<path d="M6.5 3h11M6.5 21h11"/><path d="M7.5 3v3a4.5 4.5 0 0 0 1.8 3.6L12 12l2.7-2.4A4.5 4.5 0 0 0 16.5 6V3M7.5 21v-3a4.5 4.5 0 0 1 1.8-3.6L12 12l2.7 2.4a4.5 4.5 0 0 1 1.8 3.6v3"/>',
+    hourglass:
+        '<path d="M6.5 3h11M6.5 21h11"/><path d="M7.5 3v3a4.5 4.5 0 0 0 1.8 3.6L12 12l2.7-2.4A4.5 4.5 0 0 0 16.5 6V3M7.5 21v-3a4.5 4.5 0 0 1 1.8-3.6L12 12l2.7 2.4a4.5 4.5 0 0 1 1.8 3.6v3"/>',
     folder: '<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
     target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
@@ -44,10 +45,6 @@ const ring = (pct, size = 44, stroke = 5) => {
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
     return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="ring-track" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}"/><circle class="ring-fill" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - pct / 100)).toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
-};
-const pbar = (contrib, cls = '', score = null) => {
-    const segs = CRIT.filter((c) => contrib[c.k] > 0.05).map((c) => `<i class="s-${c.k}" style="width:${contrib[c.k]}%"></i>`).join('');
-    return `<span class="pbar ${cls}" role="img" aria-label="Priority ${fmt1(score ?? 0)} out of 100">${segs}<i class="s-rest"></i></span>`;
 };
 const KIND_ICON = { waiting: 'hourglass', blocked: 'lock', later: 'calendar', done: 'check' };
 const KIND_LABEL = { waiting: 'Waiting', blocked: 'Blocked', later: 'Not yet', done: 'Done' };
@@ -78,7 +75,16 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     const clock = ctx.clock;
 
     /* ------------------------------------------------------------ the tree */
-    const SIZE = { root: [176, 176], goal: [292, 84], inbox: [240, 60], project: [248, 64], task: [296, 56], step: [218, 34], note: [218, 36], habit: [218, 36] };
+    const SIZE = {
+        root: [176, 176],
+        goal: [292, 84],
+        inbox: [240, 60],
+        project: [248, 64],
+        task: [296, 56],
+        step: [218, 34],
+        note: [218, 36],
+        habit: [218, 36],
+    };
     const COLS = [0, 156, 524, 860, 1244, 1580];
     const GAP = { goal: 64, inbox: 64, project: 24, task: 12, step: 6, note: 8, habit: 8 };
     const WIDTH = { 1: [26, 9], 2: [9, 4.4], 3: [4.2, 2.4], 4: [2.4, 1.4], 5: [1.8, 1.2] };
@@ -89,7 +95,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         nodes.set(n.id, n);
         return n;
     };
-    const stateOf = (t) => (t.kind && t.kind !== 'ranked' ? t.kind : t.status === 'doing' ? 'doing' : t.days != null && t.days <= 0 ? 'overdue' : 'open');
+    const stateOf = (t) =>
+        t.kind && t.kind !== 'ranked' ? t.kind : t.status === 'doing' ? 'doing' : t.days != null && t.days <= 0 ? 'overdue' : 'open';
     const orderOf = (t) => (t.kind === 'ranked' ? t.rank : t.kind === 'done' ? 10000 + t.id : 5000 + t.id);
     function taskNodes(tasks, hue) {
         const byParent = new Map();
@@ -102,7 +109,19 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const build = (t) => {
             const steps = (t.steps || []).map((s) => make('step', { id: `s${s.id}`, stepId: s.id, title: s.title, done: s.done, hue }));
             const kids = (byParent.get(t.id) || []).sort((a, b) => orderOf(a) - orderOf(b)).map(build);
-            const n = make('task', { id: `t${t.id}`, title: t.title, task: t, state: stateOf(t), hue, rank: t.kind === 'ranked' ? t.rank : null, open: t.id === data.nextId }, [...steps, ...kids]);
+            const n = make(
+                'task',
+                {
+                    id: `t${t.id}`,
+                    title: t.title,
+                    task: t,
+                    state: stateOf(t),
+                    hue,
+                    rank: t.kind === 'ranked' ? t.rank : null,
+                    open: t.id === data.nextId,
+                },
+                [...steps, ...kids],
+            );
             if (t.id === data.nextId) NEXT = n;
             return n;
         };
@@ -113,7 +132,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const projects = g.projects.map((p) => {
             const kids = taskNodes(p.tasks, g.color);
             p.notes.forEach((nt) => kids.push(make('note', { id: `n${nt.id}`, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id })));
-            p.habits.forEach((h) => kids.push(make('habit', { id: `h${h.id}`, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: p.id })));
+            p.habits.forEach((h) =>
+                kids.push(make('habit', { id: `h${h.id}`, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: p.id })),
+            );
             return make('project', { id: `p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
         });
         root.children.push(make('goal', { id: `g${g.id}`, title: g.title, goal: g, hue: g.color }, projects));
@@ -145,7 +166,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
 
     /* ---------------------------------------------------------------- layout */
     const show = { path: true, extras: true, done: true };
-    const kidsOf = (n) => (n.open ? n.children.filter((c) => (show.extras || (c.type !== 'note' && c.type !== 'habit')) && (show.done || c.state !== 'done')) : []);
+    const kidsOf = (n) =>
+        n.open ? n.children.filter((c) => (show.extras || (c.type !== 'note' && c.type !== 'habit')) && (show.done || c.state !== 'done')) : [];
     function measure(n) {
         n.kids = kidsOf(n);
         if (!n.kids.length) return (n.H = n.h);
@@ -214,7 +236,10 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         })(root);
     }
     function bounds(arr) {
-        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        let x0 = Infinity,
+            y0 = Infinity,
+            x1 = -Infinity,
+            y1 = -Infinity;
         arr.forEach((n) => {
             x0 = Math.min(x0, n.x);
             x1 = Math.max(x1, n.x + n.w);
@@ -237,7 +262,12 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     /* ------------------------------------------------------------------- DOM */
     const totals = tally(root);
     const projectCount = data.goals.reduce((s, g) => s + g.projects.length, 0);
-    const initials = data.userName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+    const initials = data.userName
+        .split(' ')
+        .map((w) => w[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
     mount.innerHTML = `
         <div class="gm-bar">
             <button class="icon-btn gm-menu" data-gm-side title="Show the Tasks menu" aria-label="Show the Tasks menu">${ic('menu')}</button>
@@ -279,7 +309,6 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 <span class="gm-zsep"></span>
                 <button data-gm-fit aria-label="See everything" title="See everything (0)">${ic('expand')}</button><button data-gm-gonext aria-label="Go to your next task" title="Go to your next task (N)">${ic('zap')}</button>
             </div>
-            <div class="gm-hint" data-gm-hint>Drag to move · Scroll or pinch to zoom · Click anything for details</div>
             <aside class="gm-panel" aria-label="Details" hidden></aside>
         </div>
         <div class="gm-outline" hidden></div>`;
@@ -306,14 +335,22 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
 
     function label(n) {
         switch (n.type) {
-            case 'root': return `You: ${data.goals.length} goals, ${totals.pct}% of tasks done`;
-            case 'goal': return `Goal: ${n.title}, ${tally(n).pct}% done`;
-            case 'project': return `Project: ${n.title}, ${tally(n).done} of ${tally(n).total} tasks done`;
-            case 'inbox': return `Inbox: ${n.children.length} tasks not in a project`;
-            case 'task': return n.rank ? `Task #${n.rank}: ${n.title}, priority ${fmt1(n.task.score)}` : `Task: ${n.title}, ${KIND_LABEL[n.state] ?? ''}`;
-            case 'step': return `Step: ${n.title}${n.done ? ', done' : ''}`;
-            case 'note': return `Note: ${n.title}`;
-            default: return `Habit: ${n.title}, ${n.streak}-day streak`;
+            case 'root':
+                return `You: ${data.goals.length} goals, ${totals.pct}% of tasks done`;
+            case 'goal':
+                return `Goal: ${n.title}, ${tally(n).pct}% done`;
+            case 'project':
+                return `Project: ${n.title}, ${tally(n).done} of ${tally(n).total} tasks done`;
+            case 'inbox':
+                return `Inbox: ${n.children.length} tasks not in a project`;
+            case 'task':
+                return n.rank ? `Task #${n.rank}: ${n.title}, priority ${fmt1(n.task.score)}` : `Task: ${n.title}, ${KIND_LABEL[n.state] ?? ''}`;
+            case 'step':
+                return `Step: ${n.title}${n.done ? ', done' : ''}`;
+            case 'note':
+                return `Note: ${n.title}`;
+            default:
+                return `Habit: ${n.title}, ${n.streak}-day streak`;
         }
     }
     function classOf(n) {
@@ -401,8 +438,14 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     }
 
     /* -------------------------------------------------------------- branches */
-    const bez = (a, b, c, d, t) => { const u = 1 - t; return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d; };
-    const dbez = (a, b, c, d, t) => { const u = 1 - t; return 3 * u * u * (b - a) + 6 * u * t * (c - b) + 3 * t * t * (d - c); };
+    const bez = (a, b, c, d, t) => {
+        const u = 1 - t;
+        return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+    };
+    const dbez = (a, b, c, d, t) => {
+        const u = 1 - t;
+        return 3 * u * u * (b - a) + 6 * u * t * (c - b) + 3 * t * t * (d - c);
+    };
     function ribbon(Pt, w0, w1) {
         const L = [];
         const R = [];
@@ -431,7 +474,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const k = Math.abs(x1 - x0) * 0.56;
         return [x0, y0, x0 + s * k, y0, x1 - s * k, y1, x1, y1];
     }
-    const curve = (Pt) => `M${Pt[0].toFixed(1)},${Pt[1].toFixed(1)} C${Pt[2].toFixed(1)},${Pt[3].toFixed(1)} ${Pt[4].toFixed(1)},${Pt[5].toFixed(1)} ${Pt[6].toFixed(1)},${Pt[7].toFixed(1)}`;
+    const curve = (Pt) =>
+        `M${Pt[0].toFixed(1)},${Pt[1].toFixed(1)} C${Pt[2].toFixed(1)},${Pt[3].toFixed(1)} ${Pt[4].toFixed(1)},${Pt[5].toFixed(1)} ${Pt[6].toFixed(1)},${Pt[7].toFixed(1)}`;
     function drawLinks() {
         let out = '';
         VIS.forEach((c) => {
@@ -470,7 +514,10 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     }
     if (!reduceMotion) {
         sparksG.innerHTML = [0, 1, 2, 3, 4, 5]
-            .map((i) => `<circle class="gm-spark" r="${i % 3 === 0 ? 4.5 : 3}"><animateMotion dur="4.8s" repeatCount="indefinite" begin="${(-i * 0.8).toFixed(1)}s" calcMode="spline" keyPoints="0;1" keyTimes="0;1" keySplines="0.35 0 0.25 1"><mpath href="#gm-next-path"/></animateMotion></circle>`)
+            .map(
+                (i) =>
+                    `<circle class="gm-spark" r="${i % 3 === 0 ? 4.5 : 3}"><animateMotion dur="4.8s" repeatCount="indefinite" begin="${(-i * 0.8).toFixed(1)}s" calcMode="spline" keyPoints="0;1" keyTimes="0;1" keySplines="0.35 0 0.25 1"><mpath href="#gm-next-path"/></animateMotion></circle>`,
+            )
             .join('');
     }
 
@@ -479,7 +526,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const b = bounds(VIS);
         const pad = 140;
         miniSvg.setAttribute('viewBox', `${b.x0 - pad} ${b.y0 - pad} ${b.x1 - b.x0 + pad * 2} ${b.y1 - b.y0 + pad * 2}`);
-        miniNodes.innerHTML = VIS.map((n) => (n.type === 'root' ? `<circle class="mm mm-root" cx="0" cy="0" r="${n.w / 2}"/>` : `<rect class="mm mm-${n.type} h${n.hue}" x="${n.x.toFixed(0)}" y="${(n.cy - n.h / 2).toFixed(0)}" width="${n.w}" height="${n.h}" rx="${n.h / 2.6}"/>`)).join('');
+        miniNodes.innerHTML = VIS.map((n) =>
+            n.type === 'root'
+                ? `<circle class="mm mm-root" cx="0" cy="0" r="${n.w / 2}"/>`
+                : `<rect class="mm mm-${n.type} h${n.hue}" x="${n.x.toFixed(0)}" y="${(n.cy - n.h / 2).toFixed(0)}" width="${n.w}" height="${n.h}" rx="${n.h / 2.6}"/>`,
+        ).join('');
         drawMiniViewport();
     }
     function drawMiniViewport() {
@@ -540,7 +591,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const step = (now) => {
             const t = Math.min(1, (now - t0) / ms);
             const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
-            set(Math.exp(Math.log(from.k) + (Math.log(target.k) - Math.log(from.k)) * e), from.cx + (target.cx - from.cx) * e, from.cy + (target.cy - from.cy) * e);
+            set(
+                Math.exp(Math.log(from.k) + (Math.log(target.k) - Math.log(from.k)) * e),
+                from.cx + (target.cx - from.cx) * e,
+                from.cy + (target.cy - from.cy) * e,
+            );
             if (t < 1) flyRaf = requestAnimationFrame(step);
         };
         flyRaf = requestAnimationFrame(step);
@@ -660,7 +715,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
 
     /* ----------------------------------------------------------------- panel */
     const pfoot = (inside) => `<div class="panel-foot">${inside}</div>`;
-    const phead = (crumbs) => `<div class="panel-head"><div class="crumbs">${crumbs}</div><div class="panel-tools"><button class="icon-btn" data-gm-close aria-label="Close">${ic('x')}</button></div></div>`;
+    const phead = (crumbs) =>
+        `<div class="panel-head"><div class="crumbs">${crumbs}</div><div class="panel-tools"><button class="icon-btn" data-gm-close aria-label="Close">${ic('x')}</button></div></div>`;
     const crumbsOf = (n) => {
         const parts = [];
         for (let p = n.parent; p && p.type !== 'root'; p = p.parent) parts.unshift(esc(p.title));
@@ -669,18 +725,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     const goalStyle = (n) => (n.hue ? `style="--g:var(--goal-${n.hue})"` : '');
     function rankedPanel(n) {
         const t = n.task;
-        const below = t.below ? `<div class="vs"><p class="vs-title">Why it’s above #${t.rank + 1} <span class="muted">· ${esc(t.below.title)}</span></p>
-            <div class="dv">${CRIT.map((c) => {
-                const v = t.deltas[c.k];
-                const max = Math.max(0.1, ...CRIT.map((x) => Math.abs(t.deltas[x.k])));
-                return `<div class="dv-row"><span class="n">${c.name}</span><span class="dv-neg">${v < -0.05 ? `<i style="width:${(-v / max) * 100}%;background:var(--c-${c.k})"></i>` : ''}</span><span class="dv-pos">${v > 0.05 ? `<i style="width:${(v / max) * 100}%;background:var(--c-${c.k})"></i>` : ''}</span><span class="v">${signed(v)}</span></div>`;
-            }).join('')}</div>
-            <p class="vs-sentence">${esc(t.contrast)} <strong>${fmt1(t.gap ?? 0)} points ahead.</strong></p></div>` : '';
         return `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
-            <div class="gp-head"><span class="rank-badge" style="width:40px;height:40px;font-size:15px;border-radius:12px">${t.rank}</span><div><h2 class="p-title">${esc(t.title)}</h2><p class="gp-why">${plainWhy(t, clock)}</p></div></div>
-            <section class="why" style="margin-top:16px"><div class="why-label">Priority</div><div class="why-score"><b>${fmt1(t.score)}</b><span>#${t.rank} of ${data.totalRanked}</span></div>
-            ${pbar(t.contrib, 'pbar-lg', t.score)}
-            <ul class="contrib">${CRIT.map((c) => `<li><i class="sw sw-${c.k}"></i><span class="name">${c.name}</span><span class="val">${esc(critValue(t, c.k))}</span><b>+${fmt1(t.contrib[c.k])}</b></li>`).join('')}</ul>${below}</section>
+            <div class="gp-head"><span class="rank-badge" style="width:40px;height:40px;font-size:15px;border-radius:12px">${t.rank}</span><div><h2 class="p-title">${esc(t.title)}</h2><p class="gp-why">#${t.rank} of ${data.totalRanked} · ${fmt1(t.score)} · ${esc(dueInfo(t, clock).text)} · ${fmtHours(t.estHours)}</p></div></div>
         </div>${pfoot(`<a class="btn btn-primary btn-lg" href="/tasks?task=${t.id}">${ic('arrowUpRight')}Open in Tasks</a><button class="btn btn-secondary btn-lg" data-gm-done="${t.id}">${ic('check')}Done</button>`)}`;
     }
     function showPanel(n) {
@@ -692,19 +738,21 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 <div class="gp-head"><span class="gdot gdot-lg">${ic(n.goal.icon || 'target')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${esc(n.goal.why || '')}</p></div></div>
                 <div class="gp-stats"><span class="mn-pct">${ring(t.pct, 64, 6)}<span>${t.pct}%</span></span><div><b>${t.done} of ${t.total} tasks done</b><span>${n.goal.target ? `Target: ${esc(n.goal.target)}` : ''}</span></div></div>
                 <h3 class="p-section-title gp-h">Projects</h3>
-                <div class="gp-projects">${n.children.map((p) => {
-                    const pt = tally(p);
-                    const next = p.children.find((c) => c.type === 'task' && c.rank);
-                    return `<a class="gp-project" href="/projects/${p.pid}"><span class="pdot">${ic('folder')}</span><div><b>${esc(p.title)}</b><span class="gp-bar"><i style="--p:${pt.pct}%"></i></span><small>${pt.done}/${pt.total} done${next ? ` · next: #${next.rank} ${esc(next.title)}` : ''}</small></div></a>`;
-                }).join('')}</div>
+                <div class="gp-projects">${n.children
+                    .map((p) => {
+                        const pt = tally(p);
+                        const next = p.children.find((c) => c.type === 'task' && c.rank);
+                        return `<a class="gp-project" href="/projects/${p.pid}"><span class="pdot">${ic('folder')}</span><div><b>${esc(p.title)}</b><span class="gp-bar"><i style="--p:${pt.pct}%"></i></span><small>${pt.done}/${pt.total} done${next ? ` · next: #${next.rank} ${esc(next.title)}` : ''}</small></div></a>`;
+                    })
+                    .join('')}</div>
             </div>${pfoot(`<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom to this goal</button>`)}`;
         } else if (n.type === 'project' || n.type === 'inbox') {
             const t = tally(n);
             const open = n.children.filter((c) => c.type === 'task' && c.rank).sort((a, b) => a.rank - b.rank);
             const next = open[0];
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
-                <div class="gp-head"><span class="pdot pdot-lg">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${n.type === 'inbox' ? 'Tasks you added without a project. They are still ranked.' : `${t.done} of ${t.total} tasks done · ${count(n, 'note')} notes · ${count(n, 'habit')} habits`}</p></div></div>
-                ${next ? `<div class="why gp-next"><div class="why-label">Next action here · #${next.rank} in your whole list</div><p class="gp-next-title">${esc(next.title)}</p>${pbar(next.task.contrib, 'pbar-lg', next.task.score)}<p class="vs-sentence" style="margin-top:10px">${plainWhy(next.task, clock)}</p></div>` : '<p class="card-empty">Nothing open here right now.</p>'}
+                <div class="gp-head"><span class="pdot pdot-lg">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${n.type === 'inbox' ? 'No project' : `${t.done} of ${t.total} tasks done · ${count(n, 'note')} notes · ${count(n, 'habit')} habits`}</p></div></div>
+                ${next ? `<div class="why gp-next"><div class="why-label">Next · #${next.rank}</div><p class="gp-next-title">${esc(next.title)}</p></div>` : '<p class="card-empty">Nothing open here.</p>'}
                 <h3 class="p-section-title gp-h">Open tasks</h3>
                 <div class="gp-tasks">${open.map((x) => `<button class="gp-task" data-gm-goto="${x.id}"><span class="rank-badge">${x.rank}</span><span>${esc(x.title)}</span><b>${fmt1(x.task.score)}</b></button>`).join('') || '<p class="card-empty">None.</p>'}</div>
             </div>${pfoot(n.type === 'project' ? `<a class="btn btn-primary btn-lg" href="/projects/${n.pid}">${ic('arrowUpRight')}Open project</a><button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom in</button>` : `<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom in</button>`)}`;
@@ -712,25 +760,27 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             const t = n.task;
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
                 <div class="gp-head"><span class="kind kind-lg">${ic(KIND_ICON[n.state] || 'info')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${KIND_LABEL[n.state] ?? ''}${t.why && n.state !== 'done' ? ` · ${esc(t.why)}` : ''}</p></div></div>
-                <p class="vs-sentence gp-note">${n.state === 'done' ? 'Done tasks stay on the map, faded, so you can see how far each goal has come.' : 'Not ranked yet: it joins your list as soon as it can start.'}</p>
             </div>${pfoot(`<a class="btn btn-secondary btn-lg" href="/tasks?task=${t.id}">${ic('arrowUpRight')}Open in Tasks</a>`)}`;
         } else if (n.type === 'step') {
             const parent = n.parent;
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
                 <div class="gp-head"><span class="sdot sdot-lg${n.done ? ' is-done' : ''}">${ic('check')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">Step of “${esc(parent.title)}”${parent.rank ? ` (#${parent.rank})` : ''}</p></div></div>
-                <p class="vs-sentence gp-note">A step is a small part of a task. If it grows, make it a task: it gets its own due date, importance and urgency, and it is ranked in your list like any other task.</p>
             </div>${pfoot(`<button class="btn btn-primary btn-lg" data-gm-promote="${n.stepId}">${ic('rank')}Make it a task</button>`)}`;
         } else if (n.type === 'note' || n.type === 'habit') {
             const isNote = n.type === 'note';
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
                 <div class="gp-head"><span class="pdot pdot-lg">${ic(isNote ? 'notes' : 'habits')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${isNote ? `Note${n.when ? ` · edited ${clock.date(n.when)}` : ''}` : `Habit · ${n.streak}-day streak · ${n.today ? 'done today' : 'not done yet today'}`}</p></div></div>
-                <p class="vs-sentence gp-note">${isNote ? 'Notes live inside their project, next to the tasks they help with. The full Notes section arrives in Phase 4.' : 'Habits can belong to a project, so the small daily work shows up next to the big goal it feeds.'}</p>
             </div>${pfoot(`<a class="btn btn-secondary btn-lg" href="/projects/${n.pid}">${ic('folder')}Open project</a>`)}`;
         } else {
             html = `${phead('<span>You</span>')}<div class="panel-body">
                 <div class="gp-head"><span class="avatar avatar-lg">${esc(initials)}</span><div><h2 class="p-title">${esc(data.userName)}</h2><p class="gp-why">${data.goals.length} goals · ${projectCount} projects · ${totals.total} tasks</p></div></div>
                 <div class="gp-stats"><span class="mn-pct">${ring(totals.pct, 64, 6)}<span>${totals.pct}%</span></span><div><b>${totals.done} of ${totals.total} tasks done</b><span>${NEXT ? `Your next task is #1: ${esc(NEXT.title)}` : ''}</span></div></div>
-                <div class="gp-projects">${data.goals.map((g) => { const gt = tally(nodes.get(`g${g.id}`)); return `<button class="gp-project" data-gm-goto="g${g.id}" style="--g:var(--goal-${g.color})"><span class="gdot">${ic(g.icon || 'target')}</span><div><b>${esc(g.title)}</b><span class="gp-bar"><i style="--p:${gt.pct}%"></i></span><small>${gt.done}/${gt.total} done${g.target ? ` · by ${esc(g.target)}` : ''}</small></div></button>`; }).join('')}</div>
+                <div class="gp-projects">${data.goals
+                    .map((g) => {
+                        const gt = tally(nodes.get(`g${g.id}`));
+                        return `<button class="gp-project" data-gm-goto="g${g.id}" style="--g:var(--goal-${g.color})"><span class="gdot">${ic(g.icon || 'target')}</span><div><b>${esc(g.title)}</b><span class="gp-bar"><i style="--p:${gt.pct}%"></i></span><small>${gt.done}/${gt.total} done${g.target ? ` · by ${esc(g.target)}` : ''}</small></div></button>`;
+                    })
+                    .join('')}</div>
             </div>${NEXT ? pfoot(`<button class="btn btn-primary btn-lg" data-gm-goto="${NEXT.id}">${ic('zap')}Go to your next task</button>`) : ''}`;
         }
         panel.innerHTML = html;
@@ -746,13 +796,29 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 if (n.state === 'done' && !show.done) return;
                 let lead = '';
                 let meta = '';
-                if (n.type === 'goal') { lead = `<span class="gdot">${ic(n.goal.icon || 'target')}</span>`; meta = `${tally(n).pct}% done${n.goal.target ? ` · by ${esc(n.goal.target)}` : ''}`; }
-                else if (n.type === 'project' || n.type === 'inbox') { const t = tally(n); lead = `<span class="pdot">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span>`; meta = `${t.done}/${t.total} tasks done`; }
-                else if (n.type === 'task' && n.rank) { lead = `<span class="rank-badge">${n.rank}</span>`; meta = `${dueInfo(n.task, clock).text} · priority ${fmt1(n.task.score)}`; }
-                else if (n.type === 'task') { lead = `<span class="kind">${ic(KIND_ICON[n.state] || 'info')}</span>`; meta = KIND_LABEL[n.state] ?? ''; }
-                else if (n.type === 'step') { lead = `<span class="sdot${n.done ? ' is-done' : ''}">${ic('check')}</span>`; meta = n.done ? 'Done' : 'Step'; }
-                else { lead = ic(n.type === 'note' ? 'notes' : 'habits'); meta = n.type === 'note' ? 'Note' : `Habit · ${n.streak}-day streak`; }
-                rows.push(`<button class="go-row go-${n.type} h${n.hue}${n === NEXT ? ' is-next' : ''}${n.state === 'done' ? ' is-done' : ''}" data-go="${n.id}" style="--lv:${lv - 1}" role="treeitem" aria-level="${lv}">${lead}<span class="go-title">${esc(n.title)}</span><span class="go-meta">${meta}</span></button>`);
+                if (n.type === 'goal') {
+                    lead = `<span class="gdot">${ic(n.goal.icon || 'target')}</span>`;
+                    meta = `${tally(n).pct}% done${n.goal.target ? ` · by ${esc(n.goal.target)}` : ''}`;
+                } else if (n.type === 'project' || n.type === 'inbox') {
+                    const t = tally(n);
+                    lead = `<span class="pdot">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span>`;
+                    meta = `${t.done}/${t.total} tasks done`;
+                } else if (n.type === 'task' && n.rank) {
+                    lead = `<span class="rank-badge">${n.rank}</span>`;
+                    meta = `${dueInfo(n.task, clock).text} · priority ${fmt1(n.task.score)}`;
+                } else if (n.type === 'task') {
+                    lead = `<span class="kind">${ic(KIND_ICON[n.state] || 'info')}</span>`;
+                    meta = KIND_LABEL[n.state] ?? '';
+                } else if (n.type === 'step') {
+                    lead = `<span class="sdot${n.done ? ' is-done' : ''}">${ic('check')}</span>`;
+                    meta = n.done ? 'Done' : 'Step';
+                } else {
+                    lead = ic(n.type === 'note' ? 'notes' : 'habits');
+                    meta = n.type === 'note' ? 'Note' : `Habit · ${n.streak}-day streak`;
+                }
+                rows.push(
+                    `<button class="go-row go-${n.type} h${n.hue}${n === NEXT ? ' is-next' : ''}${n.state === 'done' ? ' is-done' : ''}" data-go="${n.id}" style="--lv:${lv - 1}" role="treeitem" aria-level="${lv}">${lead}<span class="go-title">${esc(n.title)}</span><span class="go-meta">${meta}</span></button>`,
+                );
             }
             n.children.forEach((c) => walk(c, lv + 1));
         })(root, 0);
@@ -831,20 +897,25 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     };
     on(view, 'pointerup', endPointer);
     on(view, 'pointercancel', endPointer);
-    on(view, 'wheel', (e) => {
-        e.preventDefault();
-        hideHint();
-        const r = view.getBoundingClientRect();
-        const trackpadScroll = !e.ctrlKey && (Math.abs(e.deltaX) > 0.5 || (e.deltaMode === 0 && !Number.isInteger(e.deltaY)));
-        if (trackpadScroll) {
-            cancelAnimationFrame(flyRaf);
-            cam.x -= e.deltaX;
-            cam.y -= e.deltaY;
-            applyCam();
-            return;
-        }
-        zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0018) * (e.deltaMode === 1 ? 16 : 1)));
-    }, { passive: false });
+    on(
+        view,
+        'wheel',
+        (e) => {
+            e.preventDefault();
+            hideHint();
+            const r = view.getBoundingClientRect();
+            const trackpadScroll = !e.ctrlKey && (Math.abs(e.deltaX) > 0.5 || (e.deltaMode === 0 && !Number.isInteger(e.deltaY)));
+            if (trackpadScroll) {
+                cancelAnimationFrame(flyRaf);
+                cam.x -= e.deltaX;
+                cam.y -= e.deltaY;
+                applyCam();
+                return;
+            }
+            zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0018) * (e.deltaMode === 1 ? 16 : 1)));
+        },
+        { passive: false },
+    );
     on(nodesEl, 'click', (e) => {
         if (dragged) {
             dragged = false;
@@ -903,9 +974,28 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     on(view, 'keydown', (e) => {
         const c = { x: view.clientWidth / 2, y: view.clientHeight / 2 };
         const keys = {
-            '+': () => zoomAt(c.x, c.y, 1.25), '=': () => zoomAt(c.x, c.y, 1.25), '-': () => zoomAt(c.x, c.y, 0.8), 0: () => fitAll(), n: goNext, N: goNext,
-            ArrowLeft: () => { cam.x += 80; applyCam(); }, ArrowRight: () => { cam.x -= 80; applyCam(); },
-            ArrowUp: () => { cam.y += 80; applyCam(); }, ArrowDown: () => { cam.y -= 80; applyCam(); },
+            '+': () => zoomAt(c.x, c.y, 1.25),
+            '=': () => zoomAt(c.x, c.y, 1.25),
+            '-': () => zoomAt(c.x, c.y, 0.8),
+            0: () => fitAll(),
+            n: goNext,
+            N: goNext,
+            ArrowLeft: () => {
+                cam.x += 80;
+                applyCam();
+            },
+            ArrowRight: () => {
+                cam.x -= 80;
+                applyCam();
+            },
+            ArrowUp: () => {
+                cam.y += 80;
+                applyCam();
+            },
+            ArrowDown: () => {
+                cam.y -= 80;
+                applyCam();
+            },
             Escape: () => select(null),
         };
         if (keys[e.key]) {
@@ -926,19 +1016,36 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         cam.y = view.clientHeight / 2 - w.y * cam.k;
         applyCam();
     };
-    on(mini, 'pointerdown', (e) => { miniDrag = true; mini.setPointerCapture(e.pointerId); miniMove(e); hideHint(); });
-    on(mini, 'pointermove', (e) => { if (miniDrag) miniMove(e); });
-    on(mini, 'pointerup', () => { miniDrag = false; });
+    on(mini, 'pointerdown', (e) => {
+        miniDrag = true;
+        mini.setPointerCapture(e.pointerId);
+        miniMove(e);
+        hideHint();
+    });
+    on(mini, 'pointermove', (e) => {
+        if (miniDrag) miniMove(e);
+    });
+    on(mini, 'pointerup', () => {
+        miniDrag = false;
+    });
     on(mount, 'click', (e) => {
         const t = e.target;
         const z = t.closest('[data-gm-zoom]');
         if (z) return zoomAt(view.clientWidth / 2, view.clientHeight / 2, z.dataset.gmZoom === 'in' ? 1.25 : 0.8);
-        if (t.closest('[data-gm-fit]')) { select(null); return fitAll(); }
+        if (t.closest('[data-gm-fit]')) {
+            select(null);
+            return fitAll();
+        }
         if (t.closest('[data-gm-gonext]')) return goNext();
         if (t.closest('[data-gm-close]')) return select(null);
         if (t.closest('[data-gm-side]')) return ctx.onToggleMenu();
         const goal = t.closest('[data-gm-goal]');
-        if (goal) { const n = nodes.get(goal.dataset.gmGoal); reveal(n); select(n); return focusOn(n); }
+        if (goal) {
+            const n = nodes.get(goal.dataset.gmGoal);
+            reveal(n);
+            select(n);
+            return focusOn(n);
+        }
         const focus = t.closest('[data-gm-focus]');
         if (focus) return focusOn(nodes.get(focus.dataset.gmFocus));
         const go = t.closest('[data-gm-goto], [data-go]');
@@ -950,9 +1057,27 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const mode = t.closest('[data-gm-mode]');
         if (mode) return setMode(mode.dataset.gmMode);
         const layers = t.closest('[data-gm-layers]');
-        if (layers) { const pop = $('#gm-layers'); pop.hidden = !pop.hidden; layers.setAttribute('aria-expanded', String(!pop.hidden)); return; }
-        if (t.closest('[data-gm-unfold]')) { nodes.forEach((n) => { n.open = true; }); relayout(true); setTimeout(() => fitAll(), 440); return; }
-        if (t.closest('[data-gm-fold]')) { nodes.forEach((n) => { n.open = n.type === 'root' || n.type === 'goal' || n.type === 'inbox'; }); relayout(true); setTimeout(() => fitAll(), 440); }
+        if (layers) {
+            const pop = $('#gm-layers');
+            pop.hidden = !pop.hidden;
+            layers.setAttribute('aria-expanded', String(!pop.hidden));
+            return;
+        }
+        if (t.closest('[data-gm-unfold]')) {
+            nodes.forEach((n) => {
+                n.open = true;
+            });
+            relayout(true);
+            setTimeout(() => fitAll(), 440);
+            return;
+        }
+        if (t.closest('[data-gm-fold]')) {
+            nodes.forEach((n) => {
+                n.open = n.type === 'root' || n.type === 'goal' || n.type === 'inbox';
+            });
+            relayout(true);
+            setTimeout(() => fitAll(), 440);
+        }
     });
     on(mount, 'change', (e) => {
         const key = e.target.dataset.gmShow;

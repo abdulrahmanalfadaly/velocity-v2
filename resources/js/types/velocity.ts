@@ -86,8 +86,8 @@ export interface NavData {
 }
 
 export interface VelocityShared {
-    auth: { user: { id: number; name: string; email: string; timezone: string; studyMode: boolean } | null };
-    clock: { now: string; tz: string };
+    auth: { user: { id: number; name: string; email: string; timezone: string; fypMode: boolean } | null };
+    clock: { now: string; tz: string; frozen?: boolean };
     nav: NavData | null;
     flash: { toast: string | null; undo: { action: 'reopen' | 'restore'; id: number } | null };
     [key: string]: unknown;

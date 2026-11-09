@@ -41,7 +41,7 @@ class PagesTest extends TestCase
         $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->has('tasks', 14)->has('notReady', 3)->where('selected', null));
         $this->get("/projects/{$fyp->id}")->assertInertia(fn (Assert $p) => $p->component('projects/show')->where('project.name', 'Final Year Project')->has('milestones', 5));
         $this->get('/goals')->assertInertia(fn (Assert $p) => $p->component('goals/index')->has('goals', 3)->has('inbox', 2));
-        $this->get('/weights')->assertInertia(fn (Assert $p) => $p->component('weights/edit')->where('weights', ['I' => 42, 'U' => 23, 'D' => 23, 'P' => 12])->where('ahp.cr', 0.004));
+        $this->get('/weights')->assertInertia(fn (Assert $p) => $p->component('weights/edit')->where('weights', ['I' => 42, 'U' => 23, 'D' => 23, 'P' => 12])->missing('ahp'));
         $this->get('/history')->assertInertia(fn (Assert $p) => $p->component('history/index')->has('weeks', 12));
         $this->getJson('/search?q=chap')->assertOk()->assertJsonPath('groups.0.label', 'Tasks');
     }
@@ -93,11 +93,10 @@ class PagesTest extends TestCase
         $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->has('tasks', 15));
     }
 
-    public function test_changing_weights_reranks_and_is_logged_for_the_study(): void
+    public function test_changing_weights_reranks(): void
     {
         $this->actingAs($this->user)->put('/weights', ['weights' => ['I' => 20, 'U' => 32, 'D' => 32, 'P' => 16]])->assertRedirect();
         $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->where('tasks.0.title', 'Test plan for Assignment 2'));
-        $this->assertDatabaseHas('study_log', ['user_id' => $this->user->id, 'kind' => 'weights_change']);
 
         $this->delete('/weights');
         $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->where('tasks.0.title', 'Write Chapter 4 – Implementation'));

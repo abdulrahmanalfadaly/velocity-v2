@@ -45,7 +45,10 @@ export class Clock {
 
     time(iso: string | Date): string {
         const d = typeof iso === 'string' ? new Date(iso) : iso;
-        return new Intl.DateTimeFormat('en-US', { timeZone: this.tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(d).toLowerCase().replace(' ', ' ');
+        return new Intl.DateTimeFormat('en-US', { timeZone: this.tz, hour: 'numeric', minute: '2-digit', hour12: true })
+            .format(d)
+            .toLowerCase()
+            .replace(' ', ' ');
     }
 
     weekday(iso: string | Date, style: 'short' | 'long' = 'short'): string {
@@ -71,7 +74,15 @@ export class Clock {
     /** For <input type="datetime-local">: "2026-11-11T23:59" in the user's zone. */
     localInput(iso: string | null): string {
         if (!iso) return '';
-        const p = new Intl.DateTimeFormat('en-CA', { timeZone: this.tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso));
+        const p = new Intl.DateTimeFormat('en-CA', {
+            timeZone: this.tz,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
+        }).formatToParts(new Date(iso));
         const g = (t: string) => p.find((x) => x.type === t)?.value ?? '00';
         return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
     }
@@ -90,31 +101,54 @@ export function dueInfo(task: Pick<BaseTask, 'dueAt'> & { days?: number | null }
     const time = clock.time(task.dueAt);
     const full = `${clock.weekday(task.dueAt)}, ${clock.date(task.dueAt)} · ${time}`;
     const overdue = task.days != null ? task.days <= 0 : new Date(task.dueAt) <= clock.now;
-    if (overdue) return { text: d === -1 ? 'Overdue · yesterday' : d === 0 ? 'Overdue · today' : `Overdue · ${-d} days`, cls: 'is-overdue', long: `Overdue · was ${full}`, late: true };
+    if (overdue)
+        return {
+            text: d === -1 ? 'Overdue · yesterday' : d === 0 ? 'Overdue · today' : `Overdue · ${-d} days`,
+            cls: 'is-overdue',
+            long: `Overdue · was ${full}`,
+            late: true,
+        };
     if (d === 0) return { text: `Today, ${time}`, cls: 'is-today', long: `Today · ${time}`, late: false };
     if (d === 1) return { text: `Tomorrow, ${time}`, cls: '', long: `Tomorrow · ${time}`, late: false };
     if (d < 7) return { text: `${clock.weekday(task.dueAt)}, ${time}`, cls: '', long: full, late: false };
     return { text: `${clock.weekday(task.dueAt)} ${clock.date(task.dueAt)}`, cls: '', long: full, late: false };
 }
 
-/** The values behind each part of the score, in plain words. */
-export function critValue(t: RankedTask, k: CriterionKey): string {
-    if (k === 'I') return `${LEVEL[t.importance]} · ${t.importance}/5`;
-    if (k === 'U') return `${LEVEL[t.urgency]} · ${t.urgency}/5`;
-    if (k === 'D') return t.days == null ? 'No due date' : t.days <= 0 ? 'Overdue' : `Due in ${fmtDays(t.days)}`;
-    if (t.days == null) return `${fmtHours(t.estHours)} of work, no deadline`;
-    return t.days <= 0 ? `${fmtHours(t.estHours)} left, already late` : `${fmtHours(t.estHours)} in ${fmtDays(t.days)}`;
-}
-
-/** "Very important, due in 2 days, and about 8 h of work left." */
-export function plainWhy(t: RankedTask, clock: Clock): string {
-    const imp = ['', 'Not important', 'Not very important', 'Fairly important', 'Important', 'Very important'][t.importance];
-    let due = 'no due date';
-    if (t.dueAt) {
-        const d = clock.dayDiff(t.dueAt);
-        due = t.days != null && t.days <= 0 ? 'already overdue' : d === 0 ? 'due today' : d === 1 ? 'due tomorrow' : `due in ${d} days`;
-    }
-    return `${imp}, ${due}, and about ${fmtHours(t.estHours)} of work left.`;
-}
-
 export const goalVar = (color: number | null | undefined) => (color ? `var(--goal-${color})` : 'var(--goal-0)');
+
+export type WeightSet = Record<CriterionKey, number>;
+export const DEFAULT_WEIGHTS: WeightSet = { I: 42, U: 23, D: 23, P: 12 };
+export const sameWeights = (a: WeightSet, b: WeightSet) => CRIT.every((c) => a[c.k] === b[c.k]);
+
+/** Moving one weight shares the rest among the other three in proportion, rounded so the total stays 100 (FR9). */
+export function adjustWeights(base: WeightSet, key: CriterionKey, v: number): WeightSet {
+    const others = CRIT.map((c) => c.k).filter((k) => k !== key);
+    const rest = 100 - v;
+    const sum = others.reduce((s, k) => s + base[k], 0);
+    const raw = Object.fromEntries(others.map((k) => [k, sum > 0 ? (base[k] / sum) * rest : rest / others.length])) as WeightSet;
+    const out = { [key]: v } as WeightSet;
+    let used = v;
+    others.forEach((k) => {
+        out[k] = Math.floor(raw[k]);
+        used += out[k];
+    });
+    others
+        .slice()
+        .sort((a, b) => raw[b] - out[b] - (raw[a] - out[a]))
+        .forEach((k) => {
+            if (used < 100) {
+                out[k] += 1;
+                used += 1;
+            }
+        });
+    return out;
+}
+
+/** Re-ranks in the browser with S = Σ w·c while a slider moves; the server confirms when the weights are saved. */
+export function rerank<T extends RankedTask>(tasks: T[], weights: WeightSet): T[] {
+    const score = (t: T) => CRIT.reduce((s, c) => s + weights[c.k] * t.criteria[c.k], 0);
+    return tasks
+        .map((t) => ({ ...t, score: score(t), contrib: Object.fromEntries(CRIT.map((c) => [c.k, weights[c.k] * t.criteria[c.k]])) as WeightSet }))
+        .sort((a, b) => b.score - a.score || (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999') || a.estHours - b.estHours || a.id - b.id)
+        .map((t, i, all) => ({ ...t, rank: i + 1, nearTie: i < all.length - 1 && round1(t.score - all[i + 1].score) < 1 }));
+}

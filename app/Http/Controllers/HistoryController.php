@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Task;
+use App\Models\TaskEvent;
 use App\Support\Clock;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,7 +33,7 @@ class HistoryController extends Controller
         });
         $withDue = $done->whereNotNull('due_at');
 
-        return Inertia::render('history/index', [
+        return Inertia::render($user->fyp_mode ? 'fyp/history' : 'history/index', [
             'weeks' => $weeks,
             'totals' => [
                 'done' => $done->count(),
@@ -44,6 +45,12 @@ class HistoryController extends Controller
                 'completedAt' => $t->completed_at->toIso8601ZuluString(), 'dueAt' => $t->due_at?->toIso8601ZuluString(),
                 'onTime' => $t->due_at ? $t->completed_at <= $t->due_at : null, 'score' => $t->score_at_completion,
             ])->values(),
+            // FYP mode also lists recent activity, as the first version did.
+            'activity' => fn () => $user->fyp_mode
+                ? TaskEvent::where('user_id', $user->id)->with('task:id,title')
+                    ->latest('created_at')->latest('id')->limit(12)->get()
+                    ->map(fn ($e) => ['id' => $e->id, 'type' => $e->type, 'title' => $e->task?->title, 'at' => $e->created_at?->toIso8601ZuluString()])->values()
+                : [],
         ]);
     }
 }

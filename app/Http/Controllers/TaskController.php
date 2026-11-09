@@ -6,6 +6,7 @@ use App\Domain\Prioritization\PrioritizationEngine;
 use App\Domain\Prioritization\Rounding;
 use App\Domain\Prioritization\TaskInput;
 use App\Models\Task;
+use App\Models\User;
 use App\Services\QuickAddParser;
 use App\Services\RankingService;
 use App\Services\StudyLogger;
@@ -23,13 +24,22 @@ class TaskController extends Controller
     {
     }
 
-    /** Up next: every task you can work on, in priority order. */
+    /** Every task you can work on, in priority order. */
     public function index(Request $request, StudyLogger $log): Response
     {
         $user = $request->user();
         $list = $this->ranking->rank($user);
         $log->ranking($user, $list, 'tasks');
         $now = $this->ranking->now()->timezone($user->timezone);
+
+        if ($user->fyp_mode) {
+            return Inertia::render('fyp/tasks', [
+                'tasks' => $list->toArray(),
+                'settings' => $list->settings(),
+                'completed' => $user->tasks()->where('status', Task::DONE)->latest('completed_at')->limit(8)->get()->map(fn ($t) => TaskPresenter::base($t)),
+                'selected' => fn () => $this->detail($request),
+            ]);
+        }
 
         return Inertia::render('tasks/index', [
             'tasks' => $list->toArray(),
@@ -67,10 +77,17 @@ class TaskController extends Controller
         ];
     }
 
-    /** Quick add: plain words in, a ranked task out. */
+    /** Quick add (plain words in) or the FYP task form (one field per attribute, FR2). */
     public function store(Request $request, QuickAddParser $parser): RedirectResponse
     {
         $user = $request->user();
+        if (! $request->has('text')) {
+            $task = $user->tasks()->create($this->formFields($request));
+            $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
+
+            return back()->with('toast', $this->placed($task, 'Added'));
+        }
+
         $data = $request->validate([
             'text' => ['required', 'string', 'max:300'],
             'importance' => ['nullable', 'integer', 'between:1,5'],
@@ -91,27 +108,34 @@ class TaskController extends Controller
         $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
         $rank = $this->ranking->rank($user)->rankOf($task->id);
 
-        return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank} in your list" : ''));
+        return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''));
     }
 
-    /** What quick add will understand, and where the task will land – before you save. */
+    /** Where a task will land, before it is saved: from quick-add words or from the FYP form's fields. */
     public function preview(Request $request, QuickAddParser $parser, PrioritizationEngine $engine): JsonResponse
     {
         $user = $request->user();
+        $now = $this->ranking->now()->toDateTimeImmutable();
+
+        if (! $request->has('text')) {
+            $data = $request->validate([
+                'importance' => ['required', 'integer', 'between:1,5'],
+                'urgency' => ['required', 'integer', 'between:1,5'],
+                'due_at' => ['nullable', 'date'],
+                'est_hours' => ['required', 'numeric', 'min:0.05', 'max:500'],
+                'except' => ['nullable', 'integer'],
+            ]);
+            $input = new TaskInput(0, 'preview', (int) $data['importance'], (int) $data['urgency'], $this->fromLocal($data['due_at'] ?? null, $user)?->toDateTimeImmutable(), (float) $data['est_hours'], $now);
+
+            return response()->json(['preview' => $this->place($input, $engine, $user, $data['except'] ?? null)]);
+        }
+
         $data = $request->validate(['text' => ['required', 'string', 'max:300'], 'importance' => ['integer', 'between:1,5'], 'urgency' => ['integer', 'between:1,5']]);
-        $nowLocal = $this->ranking->now()->timezone($user->timezone);
-        $parsed = $parser->parse($data['text'], $nowLocal, $user->projects()->pluck('name', 'id')->all());
+        $parsed = $parser->parse($data['text'], $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all());
         if ($parsed['title'] === '') {
             return response()->json(['parsed' => $parsed, 'preview' => null]);
         }
-        $list = $this->ranking->rank($user);
-        $scored = $engine->score(
-            new TaskInput(0, $parsed['title'], (int) ($data['importance'] ?? 3), (int) ($data['urgency'] ?? 3), $parsed['due']?->toDateTimeImmutable(), $parsed['hours'] ?? 1.0, $this->ranking->now()->toDateTimeImmutable()),
-            $this->ranking->now()->toDateTimeImmutable(),
-            $list->params,
-        );
-        $rank = 1 + count(array_filter($list->scored, fn ($s) => PrioritizationEngine::compare($s, $scored) < 0));
-        $above = $rank > 1 ? $list->tasks[(int) $list->scored[$rank - 2]->task->id]->title : null;
+        $input = new TaskInput(0, $parsed['title'], (int) ($data['importance'] ?? 3), (int) ($data['urgency'] ?? 3), $parsed['due']?->toDateTimeImmutable(), $parsed['hours'] ?? 1.0, $now);
 
         return response()->json([
             'parsed' => [
@@ -121,39 +145,83 @@ class TaskController extends Controller
                 'project' => $parsed['projectId'] ? $user->projects()->find($parsed['projectId'])?->only('id', 'name') : null,
                 'picked' => $parsed['picked'],
             ],
-            'preview' => [
-                'rank' => $rank,
-                'total' => count($list) + 1,
-                'score' => $scored->displayScore(),
-                'contrib' => array_map(fn ($v) => Rounding::halfUp($v, 1), $scored->contributions),
-                'above' => $above,
-            ],
+            'preview' => $this->place($input, $engine, $user),
         ]);
+    }
+
+    /** Scores a task that is not saved yet and finds its place among the others (leaving out $except). */
+    private function place(TaskInput $input, PrioritizationEngine $engine, User $user, ?int $except = null): array
+    {
+        $list = $this->ranking->rank($user);
+        $scored = $engine->score($input, $this->ranking->now()->toDateTimeImmutable(), $list->params);
+        $others = array_values(array_filter($list->scored, fn ($s) => (int) $s->task->id !== $except));
+        $ahead = array_values(array_filter($others, fn ($s) => PrioritizationEngine::compare($s, $scored) < 0));
+
+        return [
+            'rank' => count($ahead) + 1,
+            'total' => count($others) + 1,
+            'score' => $scored->displayScore(),
+            'contrib' => array_map(fn ($v) => Rounding::halfUp($v, 1), $scored->contributions),
+            'criteria' => array_map(fn ($v) => round($v, 4), $scored->criteria),
+            'above' => $ahead ? $list->tasks[(int) end($ahead)->task->id]->title : null,
+            'params' => ['weights' => $list->params->weights->toPercentages(), 'horizonDays' => $list->params->horizonDays, 'hoursPerDay' => $list->params->hoursPerDay],
+        ];
     }
 
     public function update(Request $request, Task $task): RedirectResponse
     {
         $user = $request->user();
         $this->own($task, $user);
-        $data = $request->validate([
-            'title' => ['sometimes', 'required', 'string', 'max:255'],
-            'notes' => ['sometimes', 'nullable', 'string', 'max:20000'],
-            'importance' => ['sometimes', 'integer', 'between:1,5'],
-            'urgency' => ['sometimes', 'integer', 'between:1,5'],
-            'due_at' => ['sometimes', 'nullable', 'date'],
-            'est_hours' => ['sometimes', 'numeric', 'min:0.05', 'max:500'],
-            'status' => ['sometimes', Rule::in([Task::TODO, Task::DOING, Task::WAITING])],
-            'waiting_for' => ['sometimes', 'nullable', 'string', 'max:160'],
-            'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
-        ]);
-        if (array_key_exists('due_at', $data)) {
-            $data['due_at'] = $this->fromLocal($data['due_at'], $user);
+        if ($request->boolean('form')) {
+            $data = $this->formFields($request);
+        } else {
+            $data = $request->validate([
+                'title' => ['sometimes', 'required', 'string', 'max:255'],
+                'notes' => ['sometimes', 'nullable', 'string', 'max:20000'],
+                'importance' => ['sometimes', 'integer', 'between:1,5'],
+                'urgency' => ['sometimes', 'integer', 'between:1,5'],
+                'due_at' => ['sometimes', 'nullable', 'date'],
+                'est_hours' => ['sometimes', 'numeric', 'min:0.05', 'max:500'],
+                'status' => ['sometimes', Rule::in([Task::TODO, Task::DOING, Task::WAITING])],
+                'waiting_for' => ['sometimes', 'nullable', 'string', 'max:160'],
+                'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            ]);
+            if (array_key_exists('due_at', $data)) {
+                $data['due_at'] = $this->fromLocal($data['due_at'], $user);
+            }
         }
         $before = $task->only(array_keys($data));
         $task->update($data);
         $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => ['before' => $before, 'after' => $task->only(array_keys($data))]]);
 
-        return back();
+        return $request->boolean('form') ? back()->with('toast', $this->placed($task, 'Saved')) : back();
+    }
+
+    /** The FYP task form: title, notes, importance, urgency, optional due date, estimated hours (FR2). */
+    private function formFields(Request $request): array
+    {
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:20000'],
+            'importance' => ['required', 'integer', 'between:1,5'],
+            'urgency' => ['required', 'integer', 'between:1,5'],
+            'due_at' => ['nullable', 'date'],
+            'est_hours' => ['required', 'numeric', 'min:0.05', 'max:500'],
+        ], [], ['est_hours' => 'estimated duration', 'due_at' => 'due date']);
+        $data['due_at'] = $this->fromLocal($data['due_at'] ?? null, $request->user());
+
+        return $data;
+    }
+
+    /** "Added “X” – ranked #3 of 11 with a score of 61.0." */
+    private function placed(Task $task, string $verb): string
+    {
+        $list = $this->ranking->rank($task->user);
+        $rank = $list->rankOf($task->id);
+
+        return $rank
+            ? sprintf('%s “%s” – ranked #%d of %d with a score of %.1f.', $verb, $task->title, $rank, count($list), $list->scoreOf($task->id))
+            : "{$verb} “{$task->title}”.";
     }
 
     public function complete(Request $request, Task $task): RedirectResponse

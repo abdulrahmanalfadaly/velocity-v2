@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Task;
 use App\Services\HabitStats;
 use App\Services\RankingService;
-use App\Services\StudyLogger;
 use App\Services\TaskPresenter;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,11 +13,10 @@ use Inertia\Response;
 /** The Goals map: everything you are working towards, as one tree. */
 class GoalController extends Controller
 {
-    public function index(Request $request, RankingService $ranking, StudyLogger $log): Response
+    public function index(Request $request, RankingService $ranking): Response
     {
         $user = $request->user();
         $list = $ranking->rank($user);
-        $log->ranking($user, $list, 'goals_map');
         $ranked = collect($list->toArray())->keyBy('id');
         $notReady = $ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->keyBy('id');
         $todayLocal = $ranking->now()->timezone($user->timezone)->startOfDay();

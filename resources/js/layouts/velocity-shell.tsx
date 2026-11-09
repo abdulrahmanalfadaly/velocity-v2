@@ -1,8 +1,9 @@
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { UserMenuContent } from '@/components/user-menu-content';
 import { Icon, Logo } from '@/components/velocity/icon';
 import { QuickAdd } from '@/components/velocity/quick-add';
 import { SearchPalette } from '@/components/velocity/search-palette';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { UserMenuContent } from '@/components/user-menu-content';
+import { Toast, useToast } from '@/components/velocity/toast';
 import { useAppearance } from '@/hooks/use-appearance';
 import type { User } from '@/types';
 import type { VelocityShared } from '@/types/velocity';
@@ -39,21 +40,12 @@ interface ShellProps {
 export default function VelocityShell({ title, section, active, children, panel, canvas = false, hideSidebar = false }: ShellProps) {
     const { props } = usePage<VelocityShared>();
     const [overlay, setOverlay] = useState<Overlay>(null);
-    const [toast, setToast] = useState<{ text: string; undo: VelocityShared['flash']['undo'] } | null>(null);
+    const [toast, setToast] = useToast();
     const { appearance, updateAppearance } = useAppearance();
     const user = props.auth.user;
     const hasSidebar = section === 'tasks' && !hideSidebar;
-    const isDark = appearance === 'dark' || (appearance === 'system' && typeof window !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
-
-    // One-shot messages from the server ("Done: …", with Undo).
-    useEffect(() => {
-        if (props.flash?.toast) setToast({ text: props.flash.toast, undo: props.flash.undo });
-    }, [props.flash]);
-    useEffect(() => {
-        if (!toast) return;
-        const t = setTimeout(() => setToast(null), 5000);
-        return () => clearTimeout(t);
-    }, [toast]);
+    const isDark =
+        appearance === 'dark' || (appearance === 'system' && typeof window !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
 
     const close = useCallback(() => setOverlay(null), []);
     useEffect(() => {
@@ -71,15 +63,21 @@ export default function VelocityShell({ title, section, active, children, panel,
     }, [overlay]);
     useEffect(() => router.on('navigate', () => setOverlay(null)), []);
 
-    const soon = (s: (typeof SECTIONS)[number]) => setToast({ text: `${s.label} gets its own screens in Phase ${s.phase}.`, undo: null });
+    const soon = (s: (typeof SECTIONS)[number]) => setToast({ text: `${s.label} isn’t built yet.`, undo: null });
     const sectionLink = (s: (typeof SECTIONS)[number], cls: string, withLabel = true) =>
         s.href ? (
-            <Link key={s.key} href={s.href} className={`${cls}${s.key === section ? ' is-active' : ''}`} aria-current={s.key === section ? 'page' : undefined} title={s.label}>
+            <Link
+                key={s.key}
+                href={s.href}
+                className={`${cls}${s.key === section ? ' is-active' : ''}`}
+                aria-current={s.key === section ? 'page' : undefined}
+                title={s.label}
+            >
                 <Icon name={s.icon} />
                 {withLabel && <span className="label">{s.label}</span>}
             </Link>
         ) : (
-            <button key={s.key} type="button" className={cls} title={`${s.label} · Phase ${s.phase}`} onClick={() => soon(s)}>
+            <button key={s.key} type="button" className={cls} title={s.label} onClick={() => soon(s)}>
                 <Icon name={s.icon} />
                 {withLabel && <span className="label">{s.label}</span>}
             </button>
@@ -196,7 +194,9 @@ export default function VelocityShell({ title, section, active, children, panel,
                         }}
                     >
                         {overlay === 'search' && <SearchPalette onClose={close} />}
-                        {overlay === 'add' && <QuickAdd onClose={close} projectId={active?.startsWith('project:') ? Number(active.slice(8)) : undefined} />}
+                        {overlay === 'add' && (
+                            <QuickAdd onClose={close} projectId={active?.startsWith('project:') ? Number(active.slice(8)) : undefined} />
+                        )}
                         {overlay === 'drawer' && (
                             <div className="drawer" role="dialog" aria-modal="true" aria-label="Tasks menu">
                                 <TasksMenu active={active} />
@@ -233,23 +233,7 @@ export default function VelocityShell({ title, section, active, children, panel,
                     </div>
                 )}
 
-                {toast && (
-                    <div className="toast" role="status">
-                        <span>{toast.text}</span>
-                        {toast.undo && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const u = toast.undo!;
-                                    setToast(null);
-                                    router.post(route(u.action === 'reopen' ? 'tasks.reopen' : 'tasks.restore', u.id), {}, { preserveScroll: true });
-                                }}
-                            >
-                                Undo
-                            </button>
-                        )}
-                    </div>
-                )}
+                <Toast toast={toast} onDone={() => setToast(null)} />
             </div>
         </>
     );
@@ -297,7 +281,7 @@ function TasksMenu({ active }: { active?: string }) {
                 ))}
                 <div className="nav-label">More</div>
                 {item('goals', 'target', 'Goals map', '/goals', nav.counts.goals)}
-                {item('weights', 'sliders', 'Weights & method', '/weights')}
+                {item('weights', 'sliders', 'Weights', '/weights')}
                 {item('history', 'review', 'History', '/history')}
             </nav>
         </>

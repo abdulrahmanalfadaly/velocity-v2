@@ -33,7 +33,7 @@ class HandleInertiaRequests extends Middleware
                     'name' => $user->name,
                     'email' => $user->email,
                     'timezone' => $user->timezone,
-                    'studyMode' => $user->study_mode,
+                    'fypMode' => (bool) $user->fyp_mode,
                     'email_verified_at' => $user->email_verified_at,
                 ] : null,
             ],
@@ -41,8 +41,9 @@ class HandleInertiaRequests extends Middleware
             'clock' => fn () => [
                 'now' => app(Clock::class)->now()->toIso8601ZuluString(),
                 'tz' => $user?->timezone ?? config('velocity.timezone'),
+                'frozen' => config('velocity.fixed_now') !== null,
             ],
-            'nav' => fn () => $user ? app(NavData::class)->for($user) : null,
+            'nav' => fn () => $user && ! $user->fyp_mode ? app(NavData::class)->for($user) : null,
             'flash' => fn () => [
                 'toast' => $request->session()->get('toast'),
                 'undo' => $request->session()->get('undo'),

@@ -1,20 +1,22 @@
-import { Clock, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
+import { Clock, dueInfo, fmtHours } from '@/lib/velocity';
 import type { CriterionKey, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
-import { Dots, PriorityBar } from './ui';
+import { Dots } from './ui';
 
 interface Preview {
-    parsed: { title: string; due: string | null; hours: number | null; project: { id: number; name: string } | null; picked: { kind: string; text: string }[] };
+    parsed: {
+        title: string;
+        due: string | null;
+        hours: number | null;
+        project: { id: number; name: string } | null;
+        picked: { kind: string; text: string }[];
+    };
     preview: { rank: number; total: number; score: number; contrib: Record<CriterionKey, number>; above: string | null } | null;
 }
 
-/**
- * Add anything from anywhere (Ctrl Shift K). Dates, hours and #project are
- * picked out of what you type, and it shows where the task will land in your
- * ranking – worked out by the real formula – before you save it.
- */
+/** Add a task from anywhere (Ctrl Shift K). Dates, hours and #project are picked out of what you type. */
 export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectId?: number }) {
     const { props } = usePage<VelocityShared>();
     const clock = Clock.from(props.clock);
@@ -36,7 +38,11 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
             fetch(route('tasks.preview'), {
                 method: 'POST',
                 signal: ctl.signal,
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? '') },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-XSRF-TOKEN': decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''),
+                },
                 body: JSON.stringify({ text, importance, urgency }),
             })
                 .then((r) => (r.ok ? r.json() : null))
@@ -69,11 +75,11 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                     <Icon name="tasks" />
                     Task
                 </button>
-                <button className="qa-tab" role="tab" aria-selected="false" disabled title="Notes arrive in Phase 4">
+                <button className="qa-tab" role="tab" aria-selected="false" disabled>
                     <Icon name="notes" />
                     Note
                 </button>
-                <button className="qa-tab" role="tab" aria-selected="false" disabled title="Events arrive with the Planner in Phase 3">
+                <button className="qa-tab" role="tab" aria-selected="false" disabled>
                     <Icon name="planner" />
                     Event
                 </button>
@@ -85,7 +91,13 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                     submit();
                 }}
             >
-                <input ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder="What do you need to do? Try “Ethics essay fri 3h”" aria-label="What do you need to do?" />
+                <input
+                    ref={input}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="What do you need to do?"
+                    aria-label="What do you need to do?"
+                />
             </form>
             {p && (p.due || p.hours || p.project) ? (
                 <div className="qa-chips">
@@ -117,19 +129,16 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
             </div>
             {data?.preview && (
                 <div className="qa-preview">
-                    <PriorityBar contrib={data.preview.contrib} size="pbar-sm" score={data.preview.score} />
                     <span>
                         Lands at{' '}
                         <b>
                             #{data.preview.rank} of {data.preview.total}
-                        </b>{' '}
-                        with priority <b>{fmt1(data.preview.score)}</b>
-                        {data.preview.above ? `, just below “${data.preview.above}”.` : ' – the top of your list.'}
+                        </b>
                     </span>
                 </div>
             )}
             <div className="qa-foot">
-                <span className="qa-hint">Words like “fri”, “tomorrow 3pm”, “2h” or “#fyp” are picked up for you.</span>
+                <span />
                 <button className="btn btn-primary" onClick={submit} disabled={!text.trim() || saving}>
                     Add task<kbd>Enter</kbd>
                 </button>

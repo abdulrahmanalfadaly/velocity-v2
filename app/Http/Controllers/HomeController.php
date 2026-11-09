@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Task;
 use App\Services\HabitStats;
 use App\Services\RankingService;
-use App\Services\StudyLogger;
 use App\Services\TaskPresenter;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,11 +13,10 @@ use Inertia\Response;
 /** Home answers one question: what should I do now? */
 class HomeController extends Controller
 {
-    public function __invoke(Request $request, RankingService $ranking, StudyLogger $log): Response
+    public function __invoke(Request $request, RankingService $ranking): Response
     {
         $user = $request->user();
         $list = $ranking->rank($user);
-        $log->ranking($user, $list, 'home');
         $all = $list->toArray();
         $now = $ranking->now();
         $local = $now->timezone($user->timezone);

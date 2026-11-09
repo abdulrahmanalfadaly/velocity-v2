@@ -1,13 +1,21 @@
 import { Icon } from '@/components/velocity/icon';
-import { Check, PriorityBar, Ring, ScoreCell } from '@/components/velocity/ui';
+import { Check, Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock, dueInfo, fmt1, fmtHours, goalVar, plainWhy } from '@/lib/velocity';
+import { Clock, dueInfo, fmt1, fmtHours, goalVar } from '@/lib/velocity';
 import type { BaseTask, HabitToday, NotReadyTask, RankedTask, TaskDetail, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 
 interface Props extends VelocityShared {
-    project: { id: number; name: string; description: string | null; dueDate: string | null; daysLeft: number | null; area: string | null; goal: { id: number; title: string; color: number } | null };
+    project: {
+        id: number;
+        name: string;
+        description: string | null;
+        dueDate: string | null;
+        daysLeft: number | null;
+        area: string | null;
+        goal: { id: number; title: string; color: number } | null;
+    };
     stats: { done: number; total: number; pct: number; bestRank: number | null };
     milestones: { id: number; title: string; dueDate: string | null; done: boolean }[];
     tasks: RankedTask[];
@@ -109,7 +117,10 @@ export default function ProjectShow() {
                                 <div className="wstat">
                                     <div>
                                         <b>{project.daysLeft} days</b>
-                                        <span>left · due {clock.date(project.dueDate + 'T12:00:00Z', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                                        <span>
+                                            left · due{' '}
+                                            {clock.date(project.dueDate + 'T12:00:00Z', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                        </span>
                                     </div>
                                 </div>
                             )}
@@ -163,10 +174,10 @@ export default function ProjectShow() {
                                 <div className="pnext-top">
                                     <span className="pill-label">
                                         <Icon name="zap" />
-                                        Next action here
+                                        Next here
                                     </span>
                                     <span className="pnext-rank">
-                                        #{next.rank} in your whole list · <b>{fmt1(next.score)}</b>
+                                        #{next.rank} · <b>{fmt1(next.score)}</b>
                                     </span>
                                 </div>
                                 <h2 className="pnext-title">{next.title}</h2>
@@ -178,12 +189,6 @@ export default function ProjectShow() {
                                     <span className="dotsep" />
                                     <span>{fmtHours(next.estHours)} of work</span>
                                 </div>
-                                <div style={{ marginTop: 14 }}>
-                                    <PriorityBar contrib={next.contrib} size="pbar-lg" score={next.score} />
-                                </div>
-                                <p className="hero-why">
-                                    <strong>Why:</strong> {plainWhy(next, clock)}
-                                </p>
                                 <div className="hero-actions">
                                     <Link className="btn btn-primary" href={`/tasks?task=${next.id}`}>
                                         <Icon name="play" />
@@ -205,12 +210,22 @@ export default function ProjectShow() {
                                     className="ptasks-add"
                                     onSubmit={(e) => {
                                         e.preventDefault();
-                                        if (text.trim()) router.post(route('tasks.store'), { text, project_id: project.id }, { preserveScroll: true, onSuccess: () => setText('') });
+                                        if (text.trim())
+                                            router.post(
+                                                route('tasks.store'),
+                                                { text, project_id: project.id },
+                                                { preserveScroll: true, onSuccess: () => setText('') },
+                                            );
                                     }}
                                 >
                                     <label className="add-row">
                                         <Icon name="plus" />
-                                        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Add a task to ${project.name}`} aria-label={`Add a task to ${project.name}`} />
+                                        <input
+                                            value={text}
+                                            onChange={(e) => setText(e.target.value)}
+                                            placeholder={`Add a task to ${project.name}`}
+                                            aria-label={`Add a task to ${project.name}`}
+                                        />
                                         <kbd>Enter</kbd>
                                     </label>
                                 </form>
@@ -238,7 +253,11 @@ export default function ProjectShow() {
                                                     ) : (
                                                         <span className="pt-caret-gap" />
                                                     )}
-                                                    <Check done={false} label={`Mark “${t.title}” done`} onClick={() => router.post(route('tasks.complete', t.id), {}, { preserveScroll: true })} />
+                                                    <Check
+                                                        done={false}
+                                                        label={`Mark “${t.title}” done`}
+                                                        onClick={() => router.post(route('tasks.complete', t.id), {}, { preserveScroll: true })}
+                                                    />
                                                     <span className="rank-badge">{t.rank}</span>
                                                     <div className="pt-main">
                                                         <div className="row-title">{t.title}</div>
@@ -257,26 +276,54 @@ export default function ProjectShow() {
                                                             {t.status === 'doing' && <span className="chip is-doing">Doing</span>}
                                                         </div>
                                                     </div>
-                                                    <ScoreCell score={t.score} contrib={t.contrib} />
+                                                    <span className="score-num">{fmt1(t.score)}</span>
                                                 </div>
                                                 {(t.steps.length > 0 || kids.length > 0) && (
                                                     <ul className="pt-steps">
                                                         {t.steps.map((s) => (
                                                             <li key={s.id} className={`pt-step${s.done ? ' is-done' : ''}`}>
-                                                                <Check done={s.done} label="Step done" onClick={() => router.patch(route('steps.update', s.id), { done: !s.done }, { preserveScroll: true, preserveState: true })} />
+                                                                <Check
+                                                                    done={s.done}
+                                                                    label="Step done"
+                                                                    onClick={() =>
+                                                                        router.patch(
+                                                                            route('steps.update', s.id),
+                                                                            { done: !s.done },
+                                                                            { preserveScroll: true, preserveState: true },
+                                                                        )
+                                                                    }
+                                                                />
                                                                 <span className="pt-step-title">{s.title}</span>
-                                                                <button className="pt-promote" title="Give this step its own due date and importance, so it is ranked like any task" onClick={() => router.post(route('steps.promote', s.id), {}, { preserveScroll: true, preserveState: true })}>
+                                                                <button
+                                                                    className="pt-promote"
+                                                                    onClick={() =>
+                                                                        router.post(
+                                                                            route('steps.promote', s.id),
+                                                                            {},
+                                                                            { preserveScroll: true, preserveState: true },
+                                                                        )
+                                                                    }
+                                                                >
                                                                     <Icon name="rank" className="ic-xs" />
                                                                     Make it a task
                                                                 </button>
                                                             </li>
                                                         ))}
                                                         {kids.map((c) => (
-                                                            <li key={`c${c.id}`} className="pt-step pt-subtask" onClick={() => router.visit(`/tasks?task=${c.id}`)}>
-                                                                <Check done={false} label={`Mark “${c.title}” done`} onClick={() => router.post(route('tasks.complete', c.id), {}, { preserveScroll: true })} />
+                                                            <li
+                                                                key={`c${c.id}`}
+                                                                className="pt-step pt-subtask"
+                                                                onClick={() => router.visit(`/tasks?task=${c.id}`)}
+                                                            >
+                                                                <Check
+                                                                    done={false}
+                                                                    label={`Mark “${c.title}” done`}
+                                                                    onClick={() =>
+                                                                        router.post(route('tasks.complete', c.id), {}, { preserveScroll: true })
+                                                                    }
+                                                                />
                                                                 <span className="rank-badge">{c.rank}</span>
                                                                 <span className="pt-step-title">{c.title}</span>
-                                                                <span className="pt-real">Its own task · {fmt1(c.score)}</span>
                                                             </li>
                                                         ))}
                                                     </ul>
@@ -287,14 +334,20 @@ export default function ProjectShow() {
                                 </ul>
                                 {props.notReady.length > 0 && (
                                     <>
-                                        <div className="pt-group">Not ready yet · not ranked until they can start</div>
+                                        <div className="pt-group">Not ready yet</div>
                                         <ul className="ptree">
                                             {props.notReady.map((t) => (
                                                 <li key={t.id} className="pt">
-                                                    <div className="pt-row is-quiet" onClick={() => router.visit(`/tasks?task=${t.id}`)} style={{ cursor: 'pointer' }}>
+                                                    <div
+                                                        className="pt-row is-quiet"
+                                                        onClick={() => router.visit(`/tasks?task=${t.id}`)}
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
                                                         <span className="pt-caret-gap" />
                                                         <span className="att-ic">
-                                                            <Icon name={t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : 'calendar'} />
+                                                            <Icon
+                                                                name={t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : 'calendar'}
+                                                            />
                                                         </span>
                                                         <span className="rank-badge is-none">–</span>
                                                         <div className="pt-main">
@@ -319,11 +372,17 @@ export default function ProjectShow() {
                                                 <li key={t.id} className="pt">
                                                     <div className="pt-row is-quiet is-done">
                                                         <span className="pt-caret-gap" />
-                                                        <Check done label={`Mark “${t.title}” not done`} onClick={() => router.post(route('tasks.reopen', t.id), {}, { preserveScroll: true })} />
+                                                        <Check
+                                                            done
+                                                            label={`Mark “${t.title}” not done`}
+                                                            onClick={() => router.post(route('tasks.reopen', t.id), {}, { preserveScroll: true })}
+                                                        />
                                                         <span className="rank-badge is-none">–</span>
                                                         <div className="pt-main">
                                                             <div className="row-title">{t.title}</div>
-                                                            <div className="row-sub">{t.completedAt ? `Done ${clock.date(t.completedAt)}` : 'Done'}</div>
+                                                            <div className="row-sub">
+                                                                {t.completedAt ? `Done ${clock.date(t.completedAt)}` : 'Done'}
+                                                            </div>
                                                         </div>
                                                         <span />
                                                     </div>
@@ -345,7 +404,9 @@ export default function ProjectShow() {
                                     </h2>
                                 </div>
                                 <div style={{ paddingBottom: 6 }}>
-                                    {props.habits.length === 0 && <p className="card-empty">No habits yet. A small daily habit keeps a big project moving.</p>}
+                                    {props.habits.length === 0 && (
+                                        <p className="card-empty">No habits yet. A small daily habit keeps a big project moving.</p>
+                                    )}
                                     {props.habits.map((h) => (
                                         <div className="habit" key={h.id}>
                                             <span className={`habit-btn${h.doneToday ? ' is-done' : ''}`}>
@@ -353,7 +414,13 @@ export default function ProjectShow() {
                                             </span>
                                             <div>
                                                 <div className={`habit-name${h.doneToday ? ' is-done' : ''}`}>{h.name}</div>
-                                                <div className="habit-detail">{h.doneToday ? 'Done today' : h.target > 1 ? `${h.today} of ${h.target} today` : 'Not done yet today'}</div>
+                                                <div className="habit-detail">
+                                                    {h.doneToday
+                                                        ? 'Done today'
+                                                        : h.target > 1
+                                                          ? `${h.today} of ${h.target} today`
+                                                          : 'Not done yet today'}
+                                                </div>
                                             </div>
                                             <span className="streak" title={`${h.streak}-day streak`}>
                                                 <Icon name="flame" />
@@ -371,7 +438,6 @@ export default function ProjectShow() {
                                         <Icon name="notes" />
                                         Notes
                                     </h2>
-                                    <span className="card-sub">Full notes arrive in Phase 4</span>
                                 </div>
                                 <div className="pnotes">
                                     {props.notes.length === 0 && <p className="card-empty">No notes yet.</p>}
@@ -392,4 +458,3 @@ export default function ProjectShow() {
         </VelocityShell>
     );
 }
-

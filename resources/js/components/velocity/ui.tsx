@@ -1,9 +1,17 @@
-import { CRIT, fmt1 } from '@/lib/velocity';
+import { CRIT, fmt1, signed } from '@/lib/velocity';
 import type { CriterionKey } from '@/types/velocity';
 import { Icon } from './icon';
 
 /** The score as a bar: its length is the priority out of 100, each colour one part of the formula. */
-export function PriorityBar({ contrib, size = '', score }: { contrib: Record<CriterionKey, number>; size?: '' | 'pbar-sm' | 'pbar-lg'; score?: number }) {
+export function PriorityBar({
+    contrib,
+    size = '',
+    score,
+}: {
+    contrib: Record<CriterionKey, number>;
+    size?: '' | 'pbar-sm' | 'pbar-lg';
+    score?: number;
+}) {
     const total = score ?? CRIT.reduce((s, c) => s + contrib[c.k], 0);
     const label = `Priority ${fmt1(total)} out of 100: ${CRIT.map((c) => `${c.name.toLowerCase()} ${fmt1(contrib[c.k])}`).join(', ')}`;
     return (
@@ -83,6 +91,27 @@ export function Ring({ pct, size = 44, stroke = 5 }: { pct: number; size?: numbe
                 transform={`rotate(-90 ${size / 2} ${size / 2})`}
             />
         </svg>
+    );
+}
+
+/** Points ahead (right) or behind (left) the task below, per part of the formula. */
+export function Diverging({ deltas, names }: { deltas: Record<CriterionKey, number>; names?: Record<CriterionKey, string> }) {
+    const max = Math.max(0.1, ...CRIT.map((c) => Math.abs(deltas[c.k])));
+    const name = (k: CriterionKey) => names?.[k] ?? CRIT.find((c) => c.k === k)!.name;
+    return (
+        <div className="dv" role="img" aria-label={`Differences in points: ${CRIT.map((c) => `${name(c.k)} ${signed(deltas[c.k])}`).join(', ')}`}>
+            {CRIT.map((c) => {
+                const v = deltas[c.k];
+                return (
+                    <div className="dv-row" key={c.k}>
+                        <span className="n">{name(c.k)}</span>
+                        <span className="dv-neg">{v < -0.05 && <i style={{ width: `${(-v / max) * 100}%`, background: `var(--c-${c.k})` }} />}</span>
+                        <span className="dv-pos">{v > 0.05 && <i style={{ width: `${(v / max) * 100}%`, background: `var(--c-${c.k})` }} />}</span>
+                        <span className="v">{signed(v)}</span>
+                    </div>
+                );
+            })}
+        </div>
     );
 }
 

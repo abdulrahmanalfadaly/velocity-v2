@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Prioritization\AhpCalculator;
 use App\Domain\Prioritization\Weights;
+use App\Services\RankingService;
 use App\Services\StudyLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,16 +14,26 @@ use Inertia\Response;
 /** Your weights (FR9) and how the score is worked out (NFR5). */
 class WeightController extends Controller
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request, RankingService $ranking, StudyLogger $log): Response
     {
-        $profile = $request->user()->weights();
-        $ahp = (new AhpCalculator())->derive(AhpCalculator::velocityMatrix());
-
-        return Inertia::render('weights/edit', [
+        $user = $request->user();
+        $profile = $user->weights();
+        $settings = [
             'weights' => $profile->weights()->toPercentages(),
             'isDefault' => $profile->weights()->isDefault(),
             'horizonDays' => $profile->horizon_days,
             'hoursPerDay' => $profile->hours_per_day,
+        ];
+        if (! $user->fyp_mode) {
+            return Inertia::render('weights/edit', $settings);
+        }
+
+        $list = $ranking->rank($user);
+        $log->ranking($user, $list, 'weights');
+        $ahp = (new AhpCalculator())->derive(AhpCalculator::velocityMatrix());
+
+        return Inertia::render('fyp/weights', $settings + [
+            'tasks' => $list->toArray(),
             'ahp' => [
                 'matrix' => AhpCalculator::velocityMatrix(),
                 'weights' => array_map(fn ($w) => round($w, 4), $ahp['weights']),
@@ -65,6 +76,6 @@ class WeightController extends Controller
         $profile->update(['importance' => 0.42, 'urgency' => 0.23, 'deadline' => 0.23, 'pressure' => 0.12, 'horizon_days' => 7, 'hours_per_day' => 4]);
         $log->weights($request->user(), $before, ['I' => 42, 'U' => 23, 'D' => 23, 'P' => 12]);
 
-        return back()->with('toast', 'Weights are back to the report’s defaults.');
+        return back()->with('toast', $request->user()->fyp_mode ? 'Weights are back to the report’s defaults.' : 'Weights reset.');
     }
 }

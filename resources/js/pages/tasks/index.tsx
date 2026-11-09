@@ -1,11 +1,11 @@
 import { Icon } from '@/components/velocity/icon';
 import { TaskPanel } from '@/components/velocity/task-panel';
-import { Check, ScoreCell } from '@/components/velocity/ui';
+import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock, CRIT, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
+import { adjustWeights, Clock, CRIT, dueInfo, fmt1, fmtHours, rerank, sameWeights } from '@/lib/velocity';
 import type { BaseTask, CriterionKey, NotReadyTask, RankedTask, RankingSettings, TaskDetail, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Props extends VelocityShared {
     tasks: RankedTask[];
@@ -25,32 +25,6 @@ const FILTERS: [Filter, string, (t: RankedTask, c: Clock) => boolean][] = [
     ['inbox', 'No project', (t) => !t.project],
 ];
 
-/** Proportional redistribution with largest-remainder rounding (FR9), as in the report. */
-function adjust(base: Record<CriterionKey, number>, key: CriterionKey, v: number): Record<CriterionKey, number> {
-    const others = CRIT.map((c) => c.k).filter((k) => k !== key);
-    const rest = 100 - v;
-    const sum = others.reduce((s, k) => s + base[k], 0);
-    const raw = Object.fromEntries(others.map((k) => [k, sum > 0 ? (base[k] / sum) * rest : rest / others.length])) as Record<CriterionKey, number>;
-    const out = { [key]: v } as Record<CriterionKey, number>;
-    let used = v;
-    others.forEach((k) => {
-        out[k] = Math.floor(raw[k]);
-        used += out[k];
-    });
-    others
-        .slice()
-        .sort((a, b) => raw[b] - out[b] - (raw[a] - out[a]))
-        .forEach((k) => {
-            if (used < 100) {
-                out[k] += 1;
-                used += 1;
-            }
-        });
-    return out;
-}
-
-const same = (a: Record<CriterionKey, number>, b: Record<CriterionKey, number>) => CRIT.every((c) => a[c.k] === b[c.k]);
-
 export default function TasksIndex() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
@@ -62,15 +36,10 @@ export default function TasksIndex() {
     const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     useEffect(() => setWeights(props.settings.weights), [props.settings.weights]);
 
-    // While a slider moves, re-rank in the browser with S = Σ w·c; the server confirms on save.
-    const list = useMemo(() => {
-        if (same(weights, props.settings.weights)) return props.tasks;
-        const score = (t: RankedTask) => CRIT.reduce((s, c) => s + weights[c.k] * t.criteria[c.k], 0);
-        return props.tasks
-            .map((t) => ({ ...t, score: score(t), contrib: Object.fromEntries(CRIT.map((c) => [c.k, weights[c.k] * t.criteria[c.k]])) as Record<CriterionKey, number> }))
-            .sort((a, b) => b.score - a.score || (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999') || a.estHours - b.estHours || a.id - b.id)
-            .map((t, i, all) => ({ ...t, rank: i + 1, nearTie: i < all.length - 1 && Math.round((t.score - all[i + 1].score) * 10) / 10 < 1 }));
-    }, [props.tasks, props.settings.weights, weights]);
+    const list = useMemo(
+        () => (sameWeights(weights, props.settings.weights) ? props.tasks : rerank(props.tasks, weights)),
+        [props.tasks, props.settings.weights, weights],
+    );
 
     const fn = FILTERS.find((f) => f[0] === filter)![2];
     const shown = list.filter((t) => fn(t, clock));
@@ -78,10 +47,18 @@ export default function TasksIndex() {
         router.get('/tasks', id ? { task: id } : {}, { preserveState: true, preserveScroll: true, only: ['selected'] });
 
     const setWeight = (k: CriterionKey, v: number) => {
-        const next = adjust(snapshot.current, k, v);
+        const next = adjustWeights(snapshot.current, k, v);
         setWeights(next);
         clearTimeout(saveTimer.current);
-        saveTimer.current = setTimeout(() => router.put(route('weights.update'), { weights: next }, { preserveScroll: true, preserveState: true, only: ['tasks', 'settings', 'selected', 'nav'] }), 500);
+        saveTimer.current = setTimeout(
+            () =>
+                router.put(
+                    route('weights.update'),
+                    { weights: next },
+                    { preserveScroll: true, preserveState: true, only: ['tasks', 'settings', 'selected', 'nav'] },
+                ),
+            500,
+        );
     };
 
     return (
@@ -89,7 +66,9 @@ export default function TasksIndex() {
             title="Up next"
             section="tasks"
             active="upnext"
-            panel={props.selected ? <TaskPanel task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} /> : undefined}
+            panel={
+                props.selected ? <TaskPanel task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} /> : undefined
+            }
         >
             <div className="main-inner">
                 <header className="page-head">
@@ -98,33 +77,21 @@ export default function TasksIndex() {
                         <h1 className="h1">
                             Up next <span className="count">{list.length} tasks</span>
                         </h1>
-                        <p className="page-sub">
-                            Ranked by your priority formula:{' '}
-                            {CRIT.map((c, i) => (
-                                <Fragment key={c.k}>
-                                    {i > 0 && ' · '}
-                                    <span style={{ whiteSpace: 'nowrap' }}>
-                                        <i className={`sw sw-${c.k}`} /> {c.name.toLowerCase()} {weights[c.k]}%
-                                    </span>
-                                </Fragment>
-                            ))}
-                            {!same(weights, { I: 42, U: 23, D: 23, P: 12 }) && (
-                                <span className="chip is-doing" style={{ marginLeft: 6 }}>
-                                    Custom
-                                </span>
-                            )}
-                        </p>
                     </div>
                     <div className="page-actions">
                         <div className="pop-wrap">
-                            <button className="btn btn-secondary" aria-expanded={popOpen} aria-controls="weights-pop" onClick={() => setPopOpen((o) => !o)}>
+                            <button
+                                className="btn btn-secondary"
+                                aria-expanded={popOpen}
+                                aria-controls="weights-pop"
+                                onClick={() => setPopOpen((o) => !o)}
+                            >
                                 <Icon name="sliders" />
                                 <span className="btn-label">Weights</span>
                             </button>
                             {popOpen && (
-                                <div className="popover" id="weights-pop" role="dialog" aria-label="Priority weights">
-                                    <p className="pop-title">What matters most to you?</p>
-                                    <p className="pop-sub">Move one slider and the others adjust, so the total stays 100%. The list re-ranks as you drag.</p>
+                                <div className="popover" id="weights-pop" role="dialog" aria-label="Weights">
+                                    <p className="pop-title">Weights</p>
                                     {CRIT.map((c) => (
                                         <div className="w-row" key={c.k}>
                                             <label htmlFor={`w-${c.k}`}>
@@ -145,8 +112,11 @@ export default function TasksIndex() {
                                         </div>
                                     ))}
                                     <div className="pop-foot">
-                                        <span>Defaults come from your report (AHP)</span>
-                                        <button className="link" onClick={() => router.delete(route('weights.reset'), { preserveScroll: true, preserveState: true })}>
+                                        <span />
+                                        <button
+                                            className="link"
+                                            onClick={() => router.delete(route('weights.reset'), { preserveScroll: true, preserveState: true })}
+                                        >
                                             Reset
                                         </button>
                                     </div>
@@ -165,7 +135,7 @@ export default function TasksIndex() {
                         }}
                     >
                         <Icon name="plus" />
-                        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a task — try “Ethics essay fri 3h #fyp”" aria-label="Add a task" />
+                        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a task" aria-label="Add a task" />
                         <kbd>Enter</kbd>
                     </form>
                     <div className="filters" role="group" aria-label="Show">
@@ -178,67 +148,64 @@ export default function TasksIndex() {
                 </div>
 
                 <ol className="rank-list" aria-label="Tasks in priority order">
-                    {shown.length === 0 && <li className="fold-row" style={{ border: 0 }}>Nothing here right now.</li>}
-                    {shown.map((t, i) => {
+                    {shown.length === 0 && (
+                        <li className="fold-row" style={{ border: 0 }}>
+                            Nothing here right now.
+                        </li>
+                    )}
+                    {shown.map((t) => {
                         const due = dueInfo(t, clock);
-                        const nx = shown[i + 1];
                         const done = t.steps.filter((s) => s.done).length;
                         return (
-                            <Fragment key={t.id}>
-                                <li
-                                    className={`row${props.selected?.id === t.id ? ' is-selected' : ''}`}
-                                    tabIndex={0}
-                                    aria-label={`#${t.rank}, ${t.title}, priority ${fmt1(t.score)}`}
-                                    onClick={() => open(props.selected?.id === t.id ? null : t.id)}
-                                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open(t.id))}
-                                >
-                                    <Check done={false} label={`Mark “${t.title}” done`} onClick={() => router.post(route('tasks.complete', t.id), {}, { preserveScroll: true })} />
-                                    <span className="rank">{t.rank}</span>
-                                    <div>
-                                        <div className="row-title">{t.title}</div>
-                                        <div className="row-sub">
-                                            <span>{t.project?.name ?? 'No project'}</span>
-                                            <span className="dotsep" />
-                                            <span>{fmtHours(t.estHours)}</span>
-                                            {t.steps.length > 0 && (
-                                                <>
-                                                    <span className="dotsep" />
-                                                    <span>
-                                                        {done}/{t.steps.length} steps
-                                                    </span>
-                                                </>
-                                            )}
-                                            {t.parent && (
-                                                <>
-                                                    <span className="dotsep" />
-                                                    <span className="is-parent">
-                                                        <Icon name="branch" className="ic-xs" />
-                                                        in “{t.parent.title}”
-                                                    </span>
-                                                </>
-                                            )}
-                                            {t.status === 'doing' && <span className="chip is-doing">Doing</span>}
-                                            <span className={`chip due-mobile ${due.cls}`}>{due.text}</span>
-                                        </div>
+                            <li
+                                key={t.id}
+                                className={`row${props.selected?.id === t.id ? ' is-selected' : ''}`}
+                                tabIndex={0}
+                                aria-label={`#${t.rank}, ${t.title}, priority ${fmt1(t.score)}`}
+                                onClick={() => open(props.selected?.id === t.id ? null : t.id)}
+                                onKeyDown={(e) =>
+                                    (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open(t.id))
+                                }
+                            >
+                                <Check
+                                    done={false}
+                                    label={`Mark “${t.title}” done`}
+                                    onClick={() => router.post(route('tasks.complete', t.id), {}, { preserveScroll: true })}
+                                />
+                                <span className="rank">{t.rank}</span>
+                                <div>
+                                    <div className="row-title">{t.title}</div>
+                                    <div className="row-sub">
+                                        <span>{t.project?.name ?? 'No project'}</span>
+                                        <span className="dotsep" />
+                                        <span>{fmtHours(t.estHours)}</span>
+                                        {t.steps.length > 0 && (
+                                            <>
+                                                <span className="dotsep" />
+                                                <span>
+                                                    {done}/{t.steps.length} steps
+                                                </span>
+                                            </>
+                                        )}
+                                        {t.parent && (
+                                            <>
+                                                <span className="dotsep" />
+                                                <span className="is-parent">
+                                                    <Icon name="branch" className="ic-xs" />
+                                                    in “{t.parent.title}”
+                                                </span>
+                                            </>
+                                        )}
+                                        {t.status === 'doing' && <span className="chip is-doing">Doing</span>}
+                                        <span className={`chip due-mobile ${due.cls}`}>{due.text}</span>
                                     </div>
-                                    <span className={`chip ${due.cls}`}>
-                                        <Icon name="clock" />
-                                        {due.text}
-                                    </span>
-                                    <ScoreCell score={t.score} contrib={t.contrib} />
-                                </li>
-                                {t.nearTie && nx && nx.rank === t.rank + 1 && (
-                                    <li className="tie" aria-hidden="true">
-                                        <Icon name="info" />
-                                        <span>
-                                            <b>
-                                                #{t.rank} and #{nx.rank} are almost tied
-                                            </b>{' '}
-                                            ({fmt1(t.score - nx.score)} apart). Either is a good choice.
-                                        </span>
-                                    </li>
-                                )}
-                            </Fragment>
+                                </div>
+                                <span className={`chip ${due.cls}`}>
+                                    <Icon name="clock" />
+                                    {due.text}
+                                </span>
+                                <span className="score-num">{fmt1(t.score)}</span>
+                            </li>
                         );
                     })}
                 </ol>
@@ -247,7 +214,7 @@ export default function TasksIndex() {
                     <details className="section-fold" open id="not-ready">
                         <summary>
                             <Icon name="chevR" className="chev" />
-                            Not ready yet <span className="hint">· {props.notReady.length} · not ranked until they can start</span>
+                            Not ready yet <span className="hint">· {props.notReady.length}</span>
                         </summary>
                         {props.notReady.map((w) => (
                             <div className="fold-row" key={w.id} onClick={() => open(w.id)} style={{ cursor: 'pointer' }}>
@@ -275,7 +242,11 @@ export default function TasksIndex() {
                         </summary>
                         {props.doneToday.map((d) => (
                             <div className="fold-row" key={d.id}>
-                                <Check done label={`Mark “${d.title}” not done`} onClick={() => router.post(route('tasks.reopen', d.id), {}, { preserveScroll: true })} />
+                                <Check
+                                    done
+                                    label={`Mark “${d.title}” not done`}
+                                    onClick={() => router.post(route('tasks.reopen', d.id), {}, { preserveScroll: true })}
+                                />
                                 <div>
                                     <div className="row-title" style={{ color: 'var(--text-3)' }}>
                                         {d.title}

@@ -14,19 +14,24 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     /** @var list<string> */
-    protected $fillable = ['name', 'email', 'password', 'timezone', 'study_mode'];
+    protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode'];
 
     /** @var list<string> */
     protected $hidden = ['password', 'remember_token'];
 
-    protected $attributes = ['study_mode' => false];
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            $user->fyp_mode ??= (bool) config('velocity.fyp_default');
+        });
+    }
 
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'study_mode' => 'boolean',
+            'fyp_mode' => 'boolean',
         ];
     }
 
