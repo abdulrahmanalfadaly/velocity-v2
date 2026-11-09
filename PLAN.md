@@ -51,7 +51,9 @@ the same tasks and the same report formula, so the order is always the same.
    notes, people and files.
 4. Goals Map: a real mind map (You → goals → projects → tasks → steps, plus
    notes and habits), pan/zoom, glowing path to the #1 task, fold/unfold, focus,
-   search, minimap, outline view.
+   search, minimap, outline view. Dots flow out from you along every branch in
+   its goal's colour; the path to #1 keeps its brighter white sparks (user's
+   request, 9 Nov).
 
 **Pending feedback from the user:** small changes to how the side menus are
 organised (to be given later – ask before Phase 2 is finished).

@@ -41,10 +41,10 @@ const P = {
 };
 const ic = (name, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.info}</svg>`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const ring = (pct, size = 44, stroke = 5) => {
+const progressRing = (pct, size = 44, stroke = 5) => {
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
-    return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="ring-track" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}"/><circle class="ring-fill" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - pct / 100)).toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
+    return `<svg class="progress-ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="progress-ring-track" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}"/><circle class="progress-ring-fill" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - pct / 100)).toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
 };
 const KIND_ICON = { waiting: 'hourglass', blocked: 'lock', later: 'calendar', done: 'check' };
 const KIND_LABEL = { waiting: 'Waiting', blocked: 'Blocked', later: 'Not yet', done: 'Done' };
@@ -296,6 +296,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 <div class="gm-world">
                     <div class="gm-aura"></div>
                     <svg class="gm-links" width="1" height="1" aria-hidden="true"><g data-links></g><path class="gm-next-glow" data-next-glow d=""/><path class="gm-next" id="gm-next-path" d=""/><g data-sparks></g></svg>
+                    <svg class="gm-links gm-flows" width="1" height="1" aria-hidden="true"><g data-flows></g></svg>
                     <div class="gm-nodes"></div>
                 </div>
             </div>
@@ -320,6 +321,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     const nextPath = $('#gm-next-path');
     const nextGlow = $('[data-next-glow]');
     const sparksG = $('[data-sparks]');
+    const flowsG = $('[data-flows]');
     const nodesEl = $('.gm-nodes');
     const miniSvg = $('[data-mini]');
     const miniNodes = $('[data-mini-nodes]');
@@ -369,10 +371,10 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     function inner(n) {
         switch (n.type) {
             case 'root':
-                return `<span class="mn-orbit"></span>${ring(totals.pct, 196, 5)}<span class="avatar">${esc(initials)}</span><b>${esc(data.userName.split(' ')[0])}</b><span>${data.goals.length} goals · ${totals.pct}% done</span>`;
+                return `<span class="mn-orbit"></span>${progressRing(totals.pct, 196, 5)}<span class="avatar">${esc(initials)}</span><b>${esc(data.userName.split(' ')[0])}</b><span>${data.goals.length} goals · ${totals.pct}% done</span>`;
             case 'goal': {
                 const t = tally(n);
-                return `<span class="gdot">${ic(n.goal.icon || 'target')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${count(n, 'project')} projects${n.goal.target ? ` · by ${esc(n.goal.target)}` : ''}</div></div><span class="mn-pct">${ring(t.pct, 44, 4)}<span>${t.pct}%</span></span>${knob(n)}`;
+                return `<span class="gdot">${ic(n.goal.icon || 'target')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${count(n, 'project')} projects${n.goal.target ? ` · by ${esc(n.goal.target)}` : ''}</div></div><span class="mn-pct">${progressRing(t.pct, 44, 4)}<span>${t.pct}%</span></span>${knob(n)}`;
             }
             case 'inbox':
                 return `<span class="pdot">${ic('inbox')}</span><div class="mn-body"><div class="mn-title">Inbox</div><div class="mn-meta">${n.children.length} tasks not in a project yet</div></div>${knob(n)}`;
@@ -521,6 +523,60 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             .join('');
     }
 
+    /* Dots flowing out from you along every other branch, in its goal's colour.
+       They sit in their own layer so moving them never repaints the nodes. */
+    const FLOW_SPEED = 70; // px per second
+    const FLOW_GAP = 130; // px between dots on one branch
+    const FLOW_R = { 1: 3, 2: 2.6, 3: 2.1 };
+    function curveLength(Pt) {
+        let len = 0;
+        let px = Pt[0];
+        let py = Pt[1];
+        for (let i = 1; i <= 20; i += 1) {
+            const x = bez(Pt[0], Pt[2], Pt[4], Pt[6], i / 20);
+            const y = bez(Pt[1], Pt[3], Pt[5], Pt[7], i / 20);
+            len += Math.hypot(x - px, y - py);
+            px = x;
+            py = y;
+        }
+        return len;
+    }
+    // A fixed offset per branch, so dots on sibling branches don't move in step and a redraw keeps them in place.
+    const phaseOf = (id) => {
+        let h = 0;
+        for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 9973;
+        return h / 9973;
+    };
+    function drawFlows({ fade = 0, delay = 0 } = {}) {
+        if (reduceMotion) return;
+        const onPath = new Set();
+        if (show.path && NEXT) for (let n = NEXT; n; n = n.parent) onPath.add(n.id);
+        let out = '';
+        VIS.forEach((c) => {
+            if (!c.parent || onPath.has(c.id)) return;
+            const Pt = controls(c.parent, c);
+            const s = c.side;
+            // Start and end a little inside the two nodes, so dots slide out from under one and in under the other.
+            const tuck = c.parent.type === 'root' ? 0 : 6;
+            const d = `M${(Pt[0] - s * tuck).toFixed(1)},${Pt[1].toFixed(1)} L${Pt[0].toFixed(1)},${Pt[1].toFixed(1)} C${Pt[2].toFixed(1)},${Pt[3].toFixed(1)} ${Pt[4].toFixed(1)},${Pt[5].toFixed(1)} ${Pt[6].toFixed(1)},${Pt[7].toFixed(1)} L${(Pt[6] + s * 6).toFixed(1)},${Pt[7].toFixed(1)}`;
+            const len = curveLength(Pt) + tuck + 6;
+            const count = Math.max(1, Math.round(len / FLOW_GAP));
+            const dur = len / FLOW_SPEED;
+            const soft = c.type === 'note' || c.type === 'habit';
+            const r = soft ? 1.5 : FLOW_R[c.depth] || 1.7;
+            const phase = phaseOf(c.id);
+            let dots = '';
+            for (let i = 0; i < count; i += 1) {
+                const begin = -((i + phase) / count) * dur;
+                dots += `<circle r="${r}"><animateMotion dur="${dur.toFixed(2)}s" begin="${begin.toFixed(2)}s" repeatCount="indefinite" path="${d}"/></circle>`;
+            }
+            const cls = `gm-flow h${c.hue} d${Math.min(c.depth, 4)}${soft ? ' is-soft' : ''}${c.state === 'done' ? ' is-done' : ''}${lit && lit.has(c.id) ? ' is-lit' : ''}`;
+            out += `<g class="${cls}" data-c="${c.id}">${dots}</g>`;
+        });
+        flowsG.innerHTML = out;
+        if (fade) flowsG.animate([{ opacity: 0 }, { opacity: 1 }], { duration: fade, delay, easing: 'ease', fill: 'backwards' });
+    }
+
     /* --------------------------------------------------------------- minimap */
     function drawMini() {
         const b = bounds(VIS);
@@ -624,9 +680,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             positionNodes();
             drawLinks();
             drawNext();
+            drawFlows();
             drawMini();
             return;
         }
+        flowsG.innerHTML = '';
         after.forEach((v, id) => {
             if (before.has(id)) return;
             let p = nodes.get(id).parent;
@@ -652,6 +710,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             if (t < 1) layoutRaf = requestAnimationFrame(step);
             else {
                 els.forEach((el) => el.classList.remove('is-entering'));
+                drawFlows({ fade: 400 });
                 drawMini();
             }
         };
@@ -674,7 +733,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         lit = set;
         mount.classList.toggle('has-lit', !!set);
         els.forEach((el, id) => el.classList.toggle('is-lit', !!set && set.has(id)));
-        linksG.querySelectorAll('[data-c]').forEach((p) => p.classList.toggle('is-lit', !!set && set.has(p.dataset.c)));
+        [linksG, flowsG].forEach((g) => g.querySelectorAll('[data-c]').forEach((p) => p.classList.toggle('is-lit', !!set && set.has(p.dataset.c))));
     }
     function select(n, { openPanel = true } = {}) {
         selectedId = n ? n.id : null;
@@ -736,7 +795,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             const t = tally(n);
             html = `${phead('<span>Goal</span>')}<div class="panel-body" ${goalStyle(n)}>
                 <div class="gp-head"><span class="gdot gdot-lg">${ic(n.goal.icon || 'target')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${esc(n.goal.why || '')}</p></div></div>
-                <div class="gp-stats"><span class="mn-pct">${ring(t.pct, 64, 6)}<span>${t.pct}%</span></span><div><b>${t.done} of ${t.total} tasks done</b><span>${n.goal.target ? `Target: ${esc(n.goal.target)}` : ''}</span></div></div>
+                <div class="gp-stats"><span class="mn-pct">${progressRing(t.pct, 64, 6)}<span>${t.pct}%</span></span><div><b>${t.done} of ${t.total} tasks done</b><span>${n.goal.target ? `Target: ${esc(n.goal.target)}` : ''}</span></div></div>
                 <h3 class="p-section-title gp-h">Projects</h3>
                 <div class="gp-projects">${n.children
                     .map((p) => {
@@ -774,7 +833,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         } else {
             html = `${phead('<span>You</span>')}<div class="panel-body">
                 <div class="gp-head"><span class="avatar avatar-lg">${esc(initials)}</span><div><h2 class="p-title">${esc(data.userName)}</h2><p class="gp-why">${data.goals.length} goals · ${projectCount} projects · ${totals.total} tasks</p></div></div>
-                <div class="gp-stats"><span class="mn-pct">${ring(totals.pct, 64, 6)}<span>${totals.pct}%</span></span><div><b>${totals.done} of ${totals.total} tasks done</b><span>${NEXT ? `Your next task is #1: ${esc(NEXT.title)}` : ''}</span></div></div>
+                <div class="gp-stats"><span class="mn-pct">${progressRing(totals.pct, 64, 6)}<span>${totals.pct}%</span></span><div><b>${totals.done} of ${totals.total} tasks done</b><span>${NEXT ? `Your next task is #1: ${esc(NEXT.title)}` : ''}</span></div></div>
                 <div class="gp-projects">${data.goals
                     .map((g) => {
                         const gt = tally(nodes.get(`g${g.id}`));
@@ -1083,8 +1142,10 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const key = e.target.dataset.gmShow;
         if (!key) return;
         show[key] = e.target.checked;
-        if (key === 'path') drawNext();
-        else {
+        if (key === 'path') {
+            drawNext();
+            drawFlows();
+        } else {
             relayout(true);
             if (!outline.hidden) renderOutline();
         }
@@ -1133,6 +1194,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     positionNodes();
     drawLinks();
     drawNext();
+    drawFlows({ fade: 700, delay: 700 });
     drawMini();
     if (view.clientWidth < 600) flyTo({ k: 0.66, cx: 0, cy: 0 }, 0);
     else fitAll(0);

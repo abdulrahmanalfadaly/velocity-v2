@@ -701,8 +701,8 @@ kbd {
 :root { --goal-1: #b8336a; --goal-2: #1c9fb0; --goal-3: #6c8a12; --goal-0: #8d8b84; --map-bg: #f1f0eb; --map-dot: rgba(20, 20, 18, 0.085); }
 :root.dark { --goal-1: #b13c6e; --goal-2: #29a3ac; --goal-3: #859e2a; --goal-0: #7f7d76; --map-bg: #0b0b0a; --map-dot: rgba(255, 255, 255, 0.07); }
 
-.ring-track { fill: none; stroke: var(--track); }
-.ring-fill { fill: none; stroke: var(--g, var(--violet)); stroke-linecap: round; }
+.progress-ring-track { fill: none; stroke: var(--track); }
+.progress-ring-fill { fill: none; stroke: var(--g, var(--violet)); stroke-linecap: round; }
 .avatar-sm { width: 32px; height: 32px; font-size: 11px; }
 .avatar-lg { width: 52px; height: 52px; font-size: 16px; }
 .is-parent { display: inline-flex; align-items: center; gap: 4px; }
@@ -898,6 +898,15 @@ kbd {
 .gm-next-glow { fill: none; stroke: var(--violet); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; opacity: 0.22; filter: blur(5px); transition: opacity .25s; }
 .gm-spark { fill: #fff; filter: drop-shadow(0 0 3px var(--violet)) drop-shadow(0 0 7px var(--violet)); }
 :root.dark .gm-spark { fill: #ece8ff; }
+.gm-flows { will-change: transform; }
+.gm-flow { transition: opacity .25s; }
+.gm-flow.h0 { --fc: var(--goal-0); } .gm-flow.h1 { --fc: var(--goal-1); } .gm-flow.h2 { --fc: var(--goal-2); } .gm-flow.h3 { --fc: var(--goal-3); }
+.gm-flow circle { fill: var(--fc); stroke: #fff; stroke-opacity: .85; stroke-width: 3; paint-order: stroke; }
+.gm-flow.is-soft circle { stroke-width: 2; }
+:root.dark .gm-flow circle { fill: color-mix(in srgb, var(--fc) 45%, #fff); stroke: var(--fc); stroke-opacity: .45; }
+.gm-flow.d3 { opacity: .8; } .gm-flow.d4 { opacity: .65; }
+.gm-flow.is-done { opacity: .25; }
+.gm.has-lit .gm-flow:not(.is-lit) { opacity: .08; }
 
 /* Map nodes */
 .mn {
@@ -924,7 +933,7 @@ kbd {
     --g: var(--violet);
 }
 .mn-root:hover { border-color: var(--violet); }
-.mn-root > .ring { position: absolute; left: -10px; top: -10px; pointer-events: none; }
+.mn-root > .progress-ring { position: absolute; left: -10px; top: -10px; pointer-events: none; }
 .mn-root .avatar { width: 54px; height: 54px; font-size: 17px; margin-bottom: 4px; box-shadow: 0 8px 20px color-mix(in srgb, var(--violet) 40%, transparent); }
 .mn-root b { font-size: 16px; font-weight: 750; letter-spacing: -0.01em; }
 .mn-root > span:last-child { font-size: 12px; color: var(--text-3); }
@@ -943,7 +952,7 @@ kbd {
     white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; text-wrap: balance;
 }
 .mn-goal .mn-title { font-size: 16.5px; font-weight: 750; letter-spacing: -0.01em; line-height: 1.2; }
-.mn-goal .ring-fill, .mn-project .ring-fill { stroke: var(--g); }
+.mn-goal .progress-ring-fill, .mn-project .progress-ring-fill { stroke: var(--g); }
 .pdot { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 11px; background: color-mix(in srgb, var(--g) 15%, var(--surface)); color: var(--g); }
 .pdot .ic { width: 18px; height: 18px; }
 .mn-project .mn-title { font-size: 15px; }

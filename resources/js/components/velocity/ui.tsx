@@ -78,10 +78,10 @@ export function Ring({ pct, size = 44, stroke = 5 }: { pct: number; size?: numbe
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
     return (
-        <svg className="ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-            <circle className="ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
+        <svg className="progress-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+            <circle className="progress-ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
             <circle
-                className="ring-fill"
+                className="progress-ring-fill"
                 cx={size / 2}
                 cy={size / 2}
                 r={r}
