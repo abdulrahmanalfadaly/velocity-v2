@@ -743,7 +743,7 @@ select.input { padding-right: 8px; }
 .progress-ring-fill { fill: none; stroke: var(--g, var(--violet)); stroke-linecap: round; }
 .avatar-sm { width: 32px; height: 32px; font-size: 11px; }
 .avatar-lg { width: 52px; height: 52px; font-size: 16px; }
-.is-parent { display: inline-flex; align-items: center; gap: 4px; }
+.is-parent, .is-repeat { display: inline-flex; align-items: center; gap: 4px; }
 
 /* ---------- Project: its own world ---------- */
 

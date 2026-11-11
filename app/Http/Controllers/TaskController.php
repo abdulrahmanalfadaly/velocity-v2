@@ -9,8 +9,10 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\QuickAddParser;
 use App\Services\RankingService;
+use App\Services\Repeat;
 use App\Services\StudyLogger;
 use App\Services\TaskPresenter;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -124,6 +126,8 @@ class TaskController extends Controller
             'due_at' => $parsed['due']?->utc(),
             'est_hours' => $parsed['hours'] ?? 1,
             'project_id' => $data['project_id'] ?? $parsed['projectId'],
+            'repeat_unit' => $parsed['repeat']['unit'] ?? null,
+            'repeat_every' => $parsed['repeat']['every'] ?? 1,
         ]);
         $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
         $rank = $this->ranking->rank($user)->rankOf($task->id);
@@ -163,6 +167,7 @@ class TaskController extends Controller
                 'due' => $parsed['due']?->utc()->toIso8601ZuluString(),
                 'hours' => $parsed['hours'],
                 'project' => $parsed['projectId'] ? $user->projects()->find($parsed['projectId'])?->only('id', 'name') : null,
+                'repeat' => $parsed['repeat'],
                 'picked' => $parsed['picked'],
             ],
             'preview' => $this->place($input, $engine, $user),
@@ -205,6 +210,8 @@ class TaskController extends Controller
                 'status' => ['sometimes', Rule::in([Task::TODO, Task::DOING, Task::WAITING])],
                 'waiting_for' => ['sometimes', 'nullable', 'string', 'max:160'],
                 'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+                'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
+                'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
             ]);
             if (array_key_exists('due_at', $data)) {
                 $data['due_at'] = $this->fromLocal($data['due_at'], $user);
@@ -251,8 +258,49 @@ class TaskController extends Controller
         $score = $this->ranking->rank($user)->scoreOf($task->id);
         $task->update(['status' => Task::DONE, 'completed_at' => $this->ranking->now(), 'score_at_completion' => $score]);
         $task->events()->create(['user_id' => $user->id, 'type' => 'completed', 'snapshot' => ['score' => $score]]);
+        $next = $this->repeatNext($task, $user);
+        $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '');
 
-        return back()->with('toast', "Done: “{$task->title}”")->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+        return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+    }
+
+    /**
+     * A finished repeating task is followed by a fresh copy with the next due date
+     * (its steps start again, undone). The copy is an ordinary task: the formula
+     * ranks it like any other.
+     */
+    private function repeatNext(Task $task, User $user): ?Task
+    {
+        if (! $task->repeat_unit || $task->nextRepeat()->exists()) {
+            return null;
+        }
+        $now = $this->ranking->now();
+        // A task with no due date repeats from the end of today.
+        $base = $task->due_at ? CarbonImmutable::instance($task->due_at) : $now->timezone($user->timezone)->setTime(23, 59);
+        $due = Repeat::next($base, $task->repeat_unit, $task->repeat_every, $user->timezone, $now);
+        $shift = fn ($at) => $at ? CarbonImmutable::instance($at)->addSeconds($due->getTimestamp() - $base->getTimestamp()) : null;
+
+        $next = $user->tasks()->create([
+            'project_id' => $task->project_id,
+            'parent_id' => $task->parent_id,
+            'title' => $task->title,
+            'notes' => $task->notes,
+            'importance' => $task->importance,
+            'urgency' => $task->urgency,
+            'due_at' => $due,
+            'est_hours' => $task->est_hours,
+            'available_from' => $shift($task->available_from),
+            'reminder_at' => $shift($task->reminder_at),
+            'repeat_unit' => $task->repeat_unit,
+            'repeat_every' => $task->repeat_every,
+            'repeated_from_id' => $task->id,
+        ]);
+        foreach ($task->steps as $step) {
+            $next->steps()->create(['title' => $step->title, 'position' => $step->position]);
+        }
+        $next->events()->create(['user_id' => $user->id, 'type' => 'created', 'snapshot' => ['repeatOf' => $task->id]]);
+
+        return $next;
     }
 
     public function reopen(Request $request, Task $task): RedirectResponse
@@ -261,6 +309,12 @@ class TaskController extends Controller
         $this->own($task, $user);
         $task->update(['status' => Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
         $task->events()->create(['user_id' => $user->id, 'type' => 'reopened']);
+        // Undoing "done" on a repeating task takes back the copy it created, if that copy is still open.
+        $next = $task->nextRepeat()->open()->first();
+        if ($next) {
+            $next->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
+            $next->delete();
+        }
 
         return back();
     }

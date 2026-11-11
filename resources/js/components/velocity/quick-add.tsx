@@ -1,5 +1,5 @@
-import { Clock, dueInfo, fmtHours } from '@/lib/velocity';
-import type { CriterionKey, VelocityShared } from '@/types/velocity';
+import { Clock, dueInfo, fmtHours, repeatText } from '@/lib/velocity';
+import type { CriterionKey, RepeatRule, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
@@ -11,6 +11,7 @@ interface Preview {
         due: string | null;
         hours: number | null;
         project: { id: number; name: string } | null;
+        repeat: RepeatRule | null;
         picked: { kind: string; text: string }[];
     };
     preview: { rank: number; total: number; score: number; contrib: Record<CriterionKey, number>; above: string | null } | null;
@@ -99,12 +100,18 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                     aria-label="What do you need to do?"
                 />
             </form>
-            {p && (p.due || p.hours || p.project) ? (
+            {p && (p.due || p.hours || p.project || p.repeat) ? (
                 <div className="qa-chips">
                     {due && (
                         <span className="qa-chip">
                             <Icon name="calendar" />
                             Due {due.long.replace('Today · ', 'today, ').replace('Tomorrow · ', 'tomorrow, ')}
+                        </span>
+                    )}
+                    {p.repeat && (
+                        <span className="qa-chip">
+                            <Icon name="habits" />
+                            {repeatText(p.repeat)}
                         </span>
                     )}
                     {p.hours ? (

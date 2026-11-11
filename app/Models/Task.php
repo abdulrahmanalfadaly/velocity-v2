@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model
@@ -14,16 +15,23 @@ class Task extends Model
     use SoftDeletes;
 
     public const TODO = 'todo';
+
     public const DOING = 'doing';
+
     public const WAITING = 'waiting';
+
     public const DONE = 'done';
+
     public const CANCELLED = 'cancelled';
+
     public const OPEN = [self::TODO, self::DOING, self::WAITING];
+
     public const STATUSES = [self::TODO, self::DOING, self::WAITING, self::DONE, self::CANCELLED];
 
     protected $fillable = [
         'project_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
         'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion', 'reminder_at',
+        'repeat_unit', 'repeat_every', 'repeated_from_id',
     ];
 
     protected function casts(): array
@@ -37,6 +45,7 @@ class Task extends Model
             'available_from' => 'datetime',
             'completed_at' => 'datetime',
             'reminder_at' => 'datetime',
+            'repeat_every' => 'integer',
         ];
     }
 
@@ -74,6 +83,12 @@ class Task extends Model
     public function dependencies(): BelongsToMany
     {
         return $this->belongsToMany(Task::class, 'task_dependencies', 'task_id', 'depends_on_id');
+    }
+
+    /** For a repeating task: the copy that was created when this one was finished. */
+    public function nextRepeat(): HasOne
+    {
+        return $this->hasOne(Task::class, 'repeated_from_id');
     }
 
     public function scopeOpen(Builder $query): Builder

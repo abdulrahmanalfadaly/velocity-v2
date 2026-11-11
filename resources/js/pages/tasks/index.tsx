@@ -2,7 +2,7 @@ import { Icon } from '@/components/velocity/icon';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { adjustWeights, Clock, CRIT, dueInfo, fmt1, fmtHours, rerank, sameWeights } from '@/lib/velocity';
+import { adjustWeights, Clock, CRIT, dueInfo, fmt1, fmtHours, repeatText, rerank, sameWeights } from '@/lib/velocity';
 import type { BaseTask, CriterionKey, NotReadyTask, RankedTask, RankingSettings, TaskDetail, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -257,6 +257,15 @@ export default function TasksIndex() {
                                                 <span>{t.project?.name ?? 'No project'}</span>
                                                 <span className="dotsep" />
                                                 <span>{fmtHours(t.estHours)}</span>
+                                                {t.repeat && (
+                                                    <>
+                                                        <span className="dotsep" />
+                                                        <span className="is-repeat">
+                                                            <Icon name="habits" className="ic-xs" />
+                                                            {repeatText(t.repeat)}
+                                                        </span>
+                                                    </>
+                                                )}
                                                 {t.steps.length > 0 && (
                                                     <>
                                                         <span className="dotsep" />

@@ -1,5 +1,5 @@
-import { Clock, dueInfo, fmt1, fmtHours, LEVEL } from '@/lib/velocity';
-import type { RankedTask, TaskDetail } from '@/types/velocity';
+import { Clock, dueInfo, fmt1, fmtHours, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
+import type { RankedTask, RepeatRule, TaskDetail } from '@/types/velocity';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Icon } from './icon';
@@ -7,6 +7,8 @@ import { Check, Dots } from './ui';
 
 const patch = (id: number, data: Record<string, string | number | boolean | null>) =>
     router.patch(route('tasks.update', id), data, { preserveScroll: true, preserveState: true });
+
+const repeatKey = (r: RepeatRule | null) => (r ? `${r.every}-${r.unit}` : '');
 
 /** One task: its place in the list, details, steps and child tasks. Every change saves on its own. */
 export function TaskPanel({
@@ -173,6 +175,31 @@ export function TaskPanel({
                             {projects.map((p) => (
                                 <option key={p.id} value={p.id}>
                                     {p.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="prop-label">
+                        <Icon name="habits" />
+                        Repeats
+                    </div>
+                    <div className="prop-value">
+                        <select
+                            className="prop-input"
+                            value={repeatKey(task.repeat)}
+                            aria-label="Repeats"
+                            onChange={(e) => {
+                                const [every, unit] = e.target.value.split('-'); // "" = doesn't repeat
+                                patch(task.id, { repeat_unit: unit ?? null, repeat_every: Number(every) || 1 });
+                            }}
+                        >
+                            <option value="">Doesn’t repeat</option>
+                            {[
+                                ...REPEAT_CHOICES,
+                                ...(task.repeat && !REPEAT_CHOICES.some((r) => repeatKey(r) === repeatKey(task.repeat)) ? [task.repeat] : []),
+                            ].map((r) => (
+                                <option key={repeatKey(r)} value={repeatKey(r)}>
+                                    {repeatText(r)}
                                 </option>
                             ))}
                         </select>

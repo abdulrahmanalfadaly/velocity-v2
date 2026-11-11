@@ -1,4 +1,4 @@
-import type { BaseTask, CriterionKey, RankedTask } from '@/types/velocity';
+import type { BaseTask, CriterionKey, RankedTask, RepeatRule } from '@/types/velocity';
 
 export const CRIT: { k: CriterionKey; name: string }[] = [
     { k: 'I', name: 'Importance' },
@@ -19,6 +19,19 @@ export function fmtHours(h: number): string {
     return min ? `${whole} h ${min} min` : `${whole} h`;
 }
 export const fmtDays = (d: number) => (d < 1 ? `${Math.round(d * 24)} h` : `${round1(d)} days`);
+
+/** "Every day", "Every weekday", "Every 2 weeks" … (same wording as App\Services\Repeat::label). */
+export const repeatText = (r: RepeatRule) =>
+    r.unit === 'weekday' ? 'Every weekday' : r.every > 1 ? `Every ${r.every} ${r.unit}s` : `Every ${r.unit}`;
+/** The choices in the task panel; any other rule (from quick add) is shown as an extra choice. */
+export const REPEAT_CHOICES: RepeatRule[] = [
+    { unit: 'day', every: 1 },
+    { unit: 'weekday', every: 1 },
+    { unit: 'week', every: 1 },
+    { unit: 'week', every: 2 },
+    { unit: 'month', every: 1 },
+    { unit: 'year', every: 1 },
+];
 
 /** Dates are shown in the user's own time zone, relative to the server's clock. */
 export class Clock {

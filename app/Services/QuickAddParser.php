@@ -14,11 +14,15 @@ class QuickAddParser
 {
     private const DAYS = ['mon' => 1, 'monday' => 1, 'tue' => 2, 'tues' => 2, 'tuesday' => 2, 'wed' => 3, 'wednesday' => 3,
         'thu' => 4, 'thur' => 4, 'thurs' => 4, 'thursday' => 4, 'fri' => 5, 'friday' => 5, 'sat' => 6, 'saturday' => 6, 'sun' => 7, 'sunday' => 7];
+
     private const MONTHS = ['jan' => 1, 'feb' => 2, 'mar' => 3, 'apr' => 4, 'may' => 5, 'jun' => 6, 'jul' => 7, 'aug' => 8, 'sep' => 9, 'sept' => 9, 'oct' => 10, 'nov' => 11, 'dec' => 12];
+
+    private const UNITS = ['day' => 'day', 'days' => 'day', 'weekday' => 'weekday', 'weekdays' => 'weekday', 'week' => 'week', 'weeks' => 'week',
+        'month' => 'month', 'months' => 'month', 'year' => 'year', 'years' => 'year'];
 
     /**
      * @param  array<int, string>  $projects  id => name
-     * @return array{title: string, due: ?CarbonImmutable, hours: ?float, projectId: ?int, picked: list<array{kind: string, text: string}>}
+     * @return array{title: string, due: ?CarbonImmutable, hours: ?float, projectId: ?int, repeat: ?array{unit: string, every: int}, picked: list<array{kind: string, text: string}>}
      */
     public function parse(string $text, CarbonImmutable $nowLocal, array $projects = []): array
     {
@@ -28,14 +32,35 @@ class QuickAddParser
         $time = null;
         $hours = null;
         $projectId = null;
+        $repeat = null;
+        $repeatDay = null;
         $picked = [];
 
         for ($i = 0; $i < count($words); $i++) {
             $w = $words[$i];
             $lw = mb_strtolower(rtrim($w, ',.'));
             $next = mb_strtolower($words[$i + 1] ?? '');
+            $w1 = rtrim($next, ',.');
+            $w2 = mb_strtolower(rtrim($words[$i + 2] ?? '', ',.'));
 
-            if (preg_match('/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/', $lw, $m)) {
+            // Repeats: only "every …" counts, so a title like "Weekly report" stays as it is.
+            if ($lw === 'every' && $repeat === null && (isset(self::UNITS[$w1]) || isset(self::DAYS[$w1])
+                || (in_array($w1, ['other', '2nd'], true) && isset(self::UNITS[$w2])) || (ctype_digit($w1) && (int) $w1 > 0 && isset(self::UNITS[$w2])))) {
+                if (isset(self::DAYS[$w1])) {
+                    $repeat = ['unit' => 'week', 'every' => 1];
+                    $repeatDay = self::DAYS[$w1];
+                    $picked[] = ['kind' => 'repeat', 'text' => $w.' '.$words[++$i]];
+                } elseif (isset(self::UNITS[$w1])) {
+                    $repeat = ['unit' => self::UNITS[$w1], 'every' => 1];
+                    $picked[] = ['kind' => 'repeat', 'text' => $w.' '.$words[++$i]];
+                } else {
+                    $repeat = ['unit' => self::UNITS[$w2], 'every' => ctype_digit($w1) ? min(99, (int) $w1) : 2];
+                    $picked[] = ['kind' => 'repeat', 'text' => $w.' '.$words[++$i].' '.$words[++$i]];
+                }
+                if ($repeat['unit'] === 'weekday') {
+                    $repeat['every'] = 1;
+                }
+            } elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/', $lw, $m)) {
                 $hours = (float) $m[1];
                 $picked[] = ['kind' => 'hours', 'text' => $w];
             } elseif (preg_match('/^(\d+)\s*(m|min|mins|minutes)$/', $lw, $m)) {
@@ -74,6 +99,7 @@ class QuickAddParser
                     if (str_starts_with($slug, $needle) || $initials === $needle) {
                         $projectId = (int) $id;
                         $picked[] = ['kind' => 'project', 'text' => $w];
+
                         continue 2;
                     }
                 }
@@ -85,13 +111,17 @@ class QuickAddParser
             }
         }
 
+        // "every monday" with no other date: the first one is the coming Monday.
+        if ($repeatDay !== null && $day === null) {
+            $day = $this->nextWeekday($nowLocal, $repeatDay);
+        }
         $due = null;
         if ($day || $time) {
             $day ??= $nowLocal->startOfDay();
             $due = $day->setTimeFromTimeString($time ?? '23:59');
         }
 
-        return ['title' => trim(implode(' ', $keep)), 'due' => $due, 'hours' => $hours, 'projectId' => $projectId, 'picked' => $picked];
+        return ['title' => trim(implode(' ', $keep)), 'due' => $due, 'hours' => $hours, 'projectId' => $projectId, 'repeat' => $repeat, 'picked' => $picked];
     }
 
     private function month(string $word): ?int

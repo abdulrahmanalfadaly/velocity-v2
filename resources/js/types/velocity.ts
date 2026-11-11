@@ -15,6 +15,12 @@ export interface Step {
 }
 
 /** Any task, ranked or not. Dates are UTC ISO strings. */
+export type RepeatUnit = 'day' | 'weekday' | 'week' | 'month' | 'year';
+export interface RepeatRule {
+    unit: RepeatUnit;
+    every: number;
+}
+
 export interface BaseTask {
     id: number;
     title: string;
@@ -28,6 +34,7 @@ export interface BaseTask {
     availableFrom: string | null;
     completedAt: string | null;
     scoreAtCompletion: number | null;
+    repeat: RepeatRule | null;
     project: ProjectRef | null;
     parent: { id: number; title: string } | null;
     steps: Step[];

@@ -64,7 +64,7 @@ organised (to be given later – ask before Phase 2 is finished).
 |---|---|---|
 | 0 | Project setup, design system, app shell, demo data | in progress |
 | 1 | The report's core: tasks, inbox, areas, projects, goals, statuses; waiting/blocked tasks leave the ranking; formula, explanations, weights, history; Study mode | in progress |
-| 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | – |
+| 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | in progress |
 | 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | – |
 | 4 | Notes (editor, links to tasks, journal, files, canvas last) | – |
 | 5 | Habits (schedules, check-ins, streaks, routines) | – |
@@ -112,6 +112,23 @@ organised (to be given later – ask before Phase 2 is finished).
       (`MapGoal`, `MapTask` …) and every kind of map node have their own types
 - [x] GitHub checks (linter + tests) pass; `config/inertia.php` points at the
       lowercase `resources/js/pages` folder, which Linux needs
+
+## Phase 2 checklist
+
+- [x] Repeating tasks: every day / weekday / week / 2 weeks / month / year (or
+      "every 3 days" from quick add). Finishing one creates the next copy with
+      the next due date (past dates skipped, steps start again undone), so each
+      finished copy stays in History; the copy is ranked by the formula like
+      any task. Undo takes the copy back. Set in the task panel ("Repeats") or
+      by typing "every monday", "every 2 weeks" … in quick add (only "every …"
+      counts, so "Weekly report" stays a title). `App\Services\Repeat`
+- [ ] Templates
+- [ ] Bulk actions
+- [ ] Board / timeline views
+- [ ] Reminders
+- [ ] Files on tasks
+- [ ] Delete with undo everywhere
+- [ ] Ask the user for their side-menu changes before Phase 2 is finished
 
 ## Run it
 
