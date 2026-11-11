@@ -108,7 +108,10 @@ organised (to be given later – ask before Phase 2 is finished).
       settings, log in, sign up and password screens restyled in the Velocity
       design ("Keep me logged in" now actually works)
 - [ ] Browser checks at phone and tablet sizes for the real pages
-- [ ] Tech debt: the Goals map engine is a `@ts-nocheck` port – add types
+- [x] Goals map engine fully typed (no more `@ts-nocheck`): the server data
+      (`MapGoal`, `MapTask` …) and every kind of map node have their own types
+- [x] GitHub checks (linter + tests) pass; `config/inertia.php` points at the
+      lowercase `resources/js/pages` folder, which Linux needs
 
 ## Run it
 

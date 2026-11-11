@@ -1,6 +1,5 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- untyped until the backlog item in PLAN.md is done
-// @ts-nocheck – a direct port of the approved mockup engine (design/mockups/assets/goalsmap.js).
-// It drives the DOM imperatively for smooth pan, zoom and layout animation. Typing it fully is on the backlog in PLAN.md.
+// A port of the approved mockup engine (design/mockups/assets/goalsmap.js). It drives the DOM
+// imperatively for smooth pan, zoom and layout animation, outside React.
 /*
  * The Goals map: every goal, project, task and step as one living mind map,
  * growing out from you in the centre to both sides. Branch colour = the goal.
@@ -8,8 +7,108 @@
  * glowing violet path runs from you to the task you should do next.
  */
 import { Clock, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
+import type { BaseTask, HabitToday, NotReadyTask, RankedTask } from '@/types/velocity';
 
-const P = {
+/* ---------------------------------------------------- data from the server */
+export type MapRankedTask = RankedTask & { kind: 'ranked' };
+export type MapDoneTask = BaseTask & { kind: 'done'; why: string };
+export type MapTask = MapRankedTask | NotReadyTask | MapDoneTask;
+export interface MapNote {
+    id: number;
+    title: string;
+    updatedAt: string | null;
+}
+export interface MapProject {
+    id: number;
+    name: string;
+    done: number;
+    total: number;
+    tasks: MapTask[];
+    notes: MapNote[];
+    habits: HabitToday[];
+}
+export interface MapGoal {
+    id: number;
+    title: string;
+    why: string | null;
+    target: string | null;
+    color: number;
+    icon: string | null;
+    projects: MapProject[];
+}
+
+/* ------------------------------------------------------ nodes on the map */
+type TaskState = 'waiting' | 'blocked' | 'later' | 'done' | 'doing' | 'overdue' | 'open';
+interface NodeBase {
+    id: string;
+    title: string;
+    w: number;
+    h: number;
+    children: MapNode[];
+    open: boolean;
+    x: number;
+    cy: number;
+    hue: number; // goal colour slot, 0 = none
+    // Set by link() and layout():
+    parent: MapNode | null;
+    depth: number;
+    kids: MapNode[];
+    H: number;
+    side: number;
+    vis: boolean;
+    state?: TaskState;
+}
+interface RootNode extends NodeBase {
+    type: 'root';
+}
+interface InboxNode extends NodeBase {
+    type: 'inbox';
+}
+interface GoalNode extends NodeBase {
+    type: 'goal';
+    goal: MapGoal;
+}
+interface ProjectNode extends NodeBase {
+    type: 'project';
+    pid: number;
+    stats: { done: number; total: number };
+}
+interface TaskNode extends NodeBase {
+    type: 'task';
+    task: MapTask;
+    state: TaskState;
+    rank: number | null;
+}
+type RankedNode = TaskNode & { task: MapRankedTask; rank: number };
+interface StepNode extends NodeBase {
+    type: 'step';
+    stepId: number;
+    done: boolean;
+}
+interface NoteNode extends NodeBase {
+    type: 'note';
+    pid: number;
+    when: string | null;
+}
+interface HabitNode extends NodeBase {
+    type: 'habit';
+    pid: number;
+    streak: number;
+    today: boolean;
+}
+type MapNode = RootNode | InboxNode | GoalNode | ProjectNode | TaskNode | StepNode | NoteNode | HabitNode;
+type NodeType = MapNode['type'];
+type NodeOf<K extends NodeType> = Extract<MapNode, { type: K }>;
+type Auto = 'type' | 'w' | 'h' | 'children' | 'open' | 'x' | 'cy' | 'hue' | 'parent' | 'depth' | 'kids' | 'H' | 'side' | 'vis';
+type NodeProps<K extends NodeType> = Omit<NodeOf<K>, Auto> & Partial<Pick<NodeBase, 'open' | 'hue'>>;
+interface Frame {
+    k: number;
+    cx: number;
+    cy: number;
+}
+const isRanked = (n: MapNode): n is RankedNode => n.type === 'task' && n.task.kind === 'ranked';
+
+const P: Record<string, string> = {
     tasks: '<rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
     notes: '<path d="M14 3H7a2.5 2.5 0 0 0-2.5 2.5v13A2.5 2.5 0 0 0 7 21h10a2.5 2.5 0 0 0 2.5-2.5V8.5z"/><path d="M14 3v5.5h5.5M8.5 13h7M8.5 16.5h5"/>',
     habits: '<path d="m17 2.5 3.5 3.5L17 9.5"/><path d="M3.5 11.5V10A4 4 0 0 1 7.5 6h13"/><path d="m7 21.5-3.5-3.5L7 14.5"/><path d="M20.5 12.5V14a4 4 0 0 1-4 4h-13"/>',
@@ -40,21 +139,22 @@ const P = {
     branch: '<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="12" r="2.2"/><path d="M6 8.2v7.6M8 6.8c5 .4 7.5 1.8 8.3 3.6M8 17.2c5-.4 7.5-1.8 8.3-3.6"/>',
     arrowUpRight: '<path d="M7 17 17 7M8.5 7H17v8.5"/>',
 };
-const ic = (name, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.info}</svg>`;
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const progressRing = (pct, size = 44, stroke = 5) => {
+const ic = (name: string, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.info}</svg>`;
+const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
+const progressRing = (pct: number, size = 44, stroke = 5) => {
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
     return `<svg class="progress-ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="progress-ring-track" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}"/><circle class="progress-ring-fill" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke-width="${stroke}" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - pct / 100)).toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
 };
-const KIND_ICON = { waiting: 'hourglass', blocked: 'lock', later: 'calendar', done: 'check' };
-const KIND_LABEL = { waiting: 'Waiting', blocked: 'Blocked', later: 'Not yet', done: 'Done' };
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const KIND_ICON: Record<string, string> = { waiting: 'hourglass', blocked: 'lock', later: 'calendar', done: 'check' };
+const KIND_LABEL: Record<string, string> = { waiting: 'Waiting', blocked: 'Blocked', later: 'Not yet', done: 'Done' };
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
+/** What GoalController sends. */
 export interface MapData {
-    // Shaped by GoalController; the engine reads them without type checks.
-    goals: unknown[];
-    inbox: unknown[];
+    goals: MapGoal[];
+    inbox: MapTask[];
     nextId: number | null;
     totalRanked: number;
     focus: string | null;
@@ -69,15 +169,20 @@ export interface MapContext {
 
 export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext): () => void {
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const cleanups = [];
-    const on = (el, ev, fn, opts) => {
-        el.addEventListener(ev, fn, opts);
-        cleanups.push(() => el.removeEventListener(ev, fn, opts));
+    const cleanups: (() => void)[] = [];
+    const on = <K extends keyof HTMLElementEventMap>(
+        el: HTMLElement | Document,
+        ev: K,
+        fn: (e: HTMLElementEventMap[K]) => void,
+        opts?: AddEventListenerOptions,
+    ) => {
+        el.addEventListener(ev, fn as EventListener, opts);
+        cleanups.push(() => el.removeEventListener(ev, fn as EventListener, opts));
     };
     const clock = ctx.clock;
 
     /* ------------------------------------------------------------ the tree */
-    const SIZE = {
+    const SIZE: Record<NodeType, [number, number]> = {
         root: [176, 176],
         goal: [292, 84],
         inbox: [240, 60],
@@ -88,27 +193,43 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         habit: [218, 36],
     };
     const COLS = [0, 156, 524, 860, 1244, 1580];
-    const GAP = { goal: 64, inbox: 64, project: 24, task: 12, step: 6, note: 8, habit: 8 };
-    const WIDTH = { 1: [26, 9], 2: [9, 4.4], 3: [4.2, 2.4], 4: [2.4, 1.4], 5: [1.8, 1.2] };
-    const nodes = new Map();
-    let NEXT = null;
-    const make = (type, props, children = []) => {
-        const n = { type, w: SIZE[type][0], h: SIZE[type][1], children, open: true, x: 0, cy: 0, hue: 0, ...props };
+    const GAP: Record<string, number> = { goal: 64, inbox: 64, project: 24, task: 12, step: 6, note: 8, habit: 8 };
+    const WIDTH: Record<number, [number, number]> = { 1: [26, 9], 2: [9, 4.4], 3: [4.2, 2.4], 4: [2.4, 1.4], 5: [1.8, 1.2] };
+    const nodes = new Map<string, MapNode>();
+    let NEXT = null as TaskNode | null; // `as` keeps TypeScript from assuming it stays null
+    const make = <K extends NodeType>(type: K, props: NodeProps<K>, children: MapNode[] = []): NodeOf<K> => {
+        const n = {
+            type,
+            w: SIZE[type][0],
+            h: SIZE[type][1],
+            children,
+            open: true,
+            x: 0,
+            cy: 0,
+            hue: 0,
+            parent: null,
+            depth: 0,
+            kids: [],
+            H: 0,
+            side: 0,
+            vis: false,
+            ...props,
+        } as unknown as NodeOf<K>;
         nodes.set(n.id, n);
         return n;
     };
-    const stateOf = (t) =>
-        t.kind && t.kind !== 'ranked' ? t.kind : t.status === 'doing' ? 'doing' : t.days != null && t.days <= 0 ? 'overdue' : 'open';
-    const orderOf = (t) => (t.kind === 'ranked' ? t.rank : t.kind === 'done' ? 10000 + t.id : 5000 + t.id);
-    function taskNodes(tasks, hue) {
-        const byParent = new Map();
+    const stateOf = (t: MapTask): TaskState =>
+        t.kind !== 'ranked' ? t.kind : t.status === 'doing' ? 'doing' : t.days != null && t.days <= 0 ? 'overdue' : 'open';
+    const orderOf = (t: MapTask) => (t.kind === 'ranked' ? t.rank : t.kind === 'done' ? 10000 + t.id : 5000 + t.id);
+    function taskNodes(tasks: MapTask[], hue: number): TaskNode[] {
+        const byParent = new Map<number, MapTask[]>();
         const ids = new Set(tasks.map((t) => t.id));
         tasks.forEach((t) => {
             const key = t.parent && ids.has(t.parent.id) ? t.parent.id : 0;
             if (!byParent.has(key)) byParent.set(key, []);
-            byParent.get(key).push(t);
+            byParent.get(key)!.push(t);
         });
-        const build = (t) => {
+        const build = (t: MapTask): TaskNode => {
             const steps = (t.steps || []).map((s) => make('step', { id: `s${s.id}`, stepId: s.id, title: s.title, done: s.done, hue }));
             const kids = (byParent.get(t.id) || []).sort((a, b) => orderOf(a) - orderOf(b)).map(build);
             const n = make(
@@ -132,7 +253,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     const root = make('root', { id: 'root', title: 'You' });
     data.goals.forEach((g) => {
         const projects = g.projects.map((p) => {
-            const kids = taskNodes(p.tasks, g.color);
+            const kids: MapNode[] = taskNodes(p.tasks, g.color);
             p.notes.forEach((nt) => kids.push(make('note', { id: `n${nt.id}`, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id })));
             p.habits.forEach((h) =>
                 kids.push(make('habit', { id: `h${h.id}`, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: p.id })),
@@ -142,16 +263,16 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         root.children.push(make('goal', { id: `g${g.id}`, title: g.title, goal: g, hue: g.color }, projects));
     });
     if (data.inbox.length) root.children.push(make('inbox', { id: 'inbox', title: 'Inbox', hue: 0 }, taskNodes(data.inbox, 0)));
-    (function link(n, parent, depth) {
+    (function link(n: MapNode, parent: MapNode | null, depth: number) {
         n.parent = parent;
         n.depth = depth;
         n.children.forEach((c) => link(c, n, depth + 1));
     })(root, null, 0);
 
-    function tally(n) {
+    function tally(n: MapNode) {
         let done = 0;
         let total = 0;
-        (function walk(m) {
+        (function walk(m: MapNode) {
             if (m.type === 'task') {
                 total += 1;
                 if (m.state === 'done') done += 1;
@@ -164,13 +285,13 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         }
         return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
     }
-    const count = (n, type) => n.children.filter((c) => c.type === type).length;
+    const count = (n: MapNode, type: NodeType) => n.children.filter((c) => c.type === type).length;
 
     /* ---------------------------------------------------------------- layout */
     const show = { path: true, extras: true, done: true };
-    const kidsOf = (n) =>
+    const kidsOf = (n: MapNode) =>
         n.open ? n.children.filter((c) => (show.extras || (c.type !== 'note' && c.type !== 'habit')) && (show.done || c.state !== 'done')) : [];
-    function measure(n) {
+    function measure(n: MapNode): number {
         n.kids = kidsOf(n);
         if (!n.kids.length) return (n.H = n.h);
         let sum = 0;
@@ -179,7 +300,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         });
         return (n.H = Math.max(n.h, sum));
     }
-    function place(n, top) {
+    function place(n: MapNode, top: number) {
         if (!n.kids.length) {
             n.cy = top + n.H / 2;
             return;
@@ -193,17 +314,17 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         });
         n.cy = (n.kids[0].cy + n.kids[n.kids.length - 1].cy) / 2;
     }
-    function setX(n, side) {
+    function setX(n: MapNode, side: number) {
         n.side = side;
         const inner = COLS[Math.min(n.depth, COLS.length - 1)] + Math.max(0, n.depth - (COLS.length - 1)) * 330;
         n.x = side > 0 ? inner : -inner - n.w;
         n.kids.forEach((k) => setX(k, side));
     }
-    let VIS = [];
+    let VIS: MapNode[] = [];
     function layout() {
         root.kids = kidsOf(root);
         root.kids.forEach(measure);
-        const side = { L: [], R: [] };
+        const side: Record<'L' | 'R', MapNode[]> = { L: [], R: [] };
         const used = { L: 0, R: 0 };
         root.kids
             .slice()
@@ -213,7 +334,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 side[s].push(g);
                 used[s] += g.H + GAP.goal;
             });
-        ['L', 'R'].forEach((s) => {
+        (['L', 'R'] as const).forEach((s) => {
             const arr = side[s].sort((a, b) => root.kids.indexOf(a) - root.kids.indexOf(b));
             const total = arr.reduce((t, g, i) => t + g.H + (i ? GAP[g.type] : 0), 0);
             let y = -total / 2;
@@ -231,13 +352,13 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             n.vis = false;
         });
         VIS = [];
-        (function mark(n) {
+        (function mark(n: MapNode) {
             n.vis = true;
             VIS.push(n);
             (n.kids || []).forEach(mark);
         })(root);
     }
-    function bounds(arr) {
+    function bounds(arr: MapNode[]) {
         let x0 = Infinity,
             y0 = Infinity,
             x1 = -Infinity,
@@ -250,9 +371,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         });
         return { x0, y0, x1, y1 };
     }
-    const subtree = (n) => {
-        const out = [];
-        (function walk(m) {
+    const subtree = (n: MapNode) => {
+        const out: MapNode[] = [];
+        (function walk(m: MapNode) {
             if (m.vis) {
                 out.push(m);
                 m.kids.forEach(walk);
@@ -262,6 +383,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     };
 
     /* ------------------------------------------------------------------- DOM */
+    const goalNode = (g: MapGoal) => nodes.get(`g${g.id}`)!;
     const totals = tally(root);
     const projectCount = data.goals.reduce((s, g) => s + g.projects.length, 0);
     const initials = data.userName
@@ -274,7 +396,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         <div class="gm-bar">
             <button class="icon-btn gm-menu" data-gm-side title="Show the Tasks menu" aria-label="Show the Tasks menu">${ic('menu')}</button>
             <div class="gm-title"><h1>Goals map</h1><span>${data.goals.length} goals · ${projectCount} projects · ${totals.total} tasks · ${totals.pct}% done</span></div>
-            <div class="gm-goals" role="group" aria-label="Jump to a goal">${data.goals.map((g) => `<button class="gm-goal" data-gm-goal="g${g.id}" aria-pressed="false" style="--g:var(--goal-${g.color})"><span class="gdot">${ic(g.icon || 'target')}</span><span class="gm-goal-name">${esc(g.title)}</span><b>${tally(nodes.get(`g${g.id}`)).pct}%</b></button>`).join('')}</div>
+            <div class="gm-goals" role="group" aria-label="Jump to a goal">${data.goals.map((g) => `<button class="gm-goal" data-gm-goal="g${g.id}" aria-pressed="false" style="--g:var(--goal-${g.color})"><span class="gdot">${ic(g.icon || 'target')}</span><span class="gm-goal-name">${esc(g.title)}</span><b>${tally(goalNode(g)).pct}%</b></button>`).join('')}</div>
             <div class="gm-tools">
                 <label class="gm-search">${ic('search', 'ic-sm')}<input data-gm-search placeholder="Find in the map" aria-label="Find in the map" autocomplete="off"><small data-gm-count></small></label>
                 <div class="pop-wrap">
@@ -316,28 +438,31 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         </div>
         <div class="gm-outline" hidden></div>`;
 
-    const $ = (s) => mount.querySelector(s);
+    // Every element looked up here is in the markup just written above.
+    const $ = <T extends Element = HTMLElement>(s: string) => mount.querySelector<T>(s)!;
     const view = $('.gm-view');
     const world = $('.gm-world');
-    const linksG = $('[data-links]');
-    const nextPath = $('#gm-next-path');
-    const nextGlow = $('[data-next-glow]');
-    const sparksG = $('[data-sparks]');
-    const flowsG = $('[data-flows]');
+    const linksG = $<SVGGElement>('[data-links]');
+    const nextPath = $<SVGPathElement>('#gm-next-path');
+    const nextGlow = $<SVGPathElement>('[data-next-glow]');
+    const sparksG = $<SVGGElement>('[data-sparks]');
+    const flowsG = $<SVGGElement>('[data-flows]');
     const nodesEl = $('.gm-nodes');
-    const miniSvg = $('[data-mini]');
-    const miniNodes = $('[data-mini-nodes]');
-    const miniVp = $('[data-mini-vp]');
+    const miniSvg = $<SVGSVGElement>('[data-mini]');
+    const miniNodes = $<SVGGElement>('[data-mini-nodes]');
+    const miniVp = $<SVGRectElement>('[data-mini-vp]');
     const panel = $('.gm-panel');
     const outline = $('.gm-outline');
-    const kOut = $('[data-gm-k]');
-    const searchInput = $('[data-gm-search]');
+    const kOut = $<HTMLOutputElement>('[data-gm-k]');
+    const searchInput = $<HTMLInputElement>('[data-gm-search]');
     const searchCount = $('[data-gm-count]');
-    const els = new Map();
-    let selectedId = null;
-    let lit = null;
+    const showBox = (key: keyof typeof show) => $<HTMLInputElement>(`[data-gm-show="${key}"]`);
+    const els = new Map<string, HTMLDivElement>();
+    const nodeOf = (id: string | undefined) => (id ? nodes.get(id) : undefined);
+    let selectedId = null as string | null;
+    let lit = null as Set<string> | null;
 
-    function label(n) {
+    function label(n: MapNode) {
         switch (n.type) {
             case 'root':
                 return `You: ${data.goals.length} goals, ${totals.pct}% of tasks done`;
@@ -348,7 +473,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             case 'inbox':
                 return `Inbox: ${n.children.length} tasks not in a project`;
             case 'task':
-                return n.rank ? `Task #${n.rank}: ${n.title}, priority ${fmt1(n.task.score)}` : `Task: ${n.title}, ${KIND_LABEL[n.state] ?? ''}`;
+                return isRanked(n) ? `Task #${n.rank}: ${n.title}, priority ${fmt1(n.task.score)}` : `Task: ${n.title}, ${KIND_LABEL[n.state] ?? ''}`;
             case 'step':
                 return `Step: ${n.title}${n.done ? ', done' : ''}`;
             case 'note':
@@ -357,7 +482,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 return `Habit: ${n.title}, ${n.streak}-day streak`;
         }
     }
-    function classOf(n) {
+    function classOf(n: MapNode) {
         const c = ['mn', `mn-${n.type}`, `h${n.hue}`];
         if (n.type === 'task') c.push(`is-${n.state}`);
         if (n === NEXT) c.push('is-next');
@@ -366,11 +491,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         if (lit && lit.has(n.id)) c.push('is-lit');
         return c.join(' ');
     }
-    function knob(n) {
+    function knob(n: MapNode) {
         if (n.type === 'root' || !n.children.length) return '';
         return `<button class="mn-knob ${n.side > 0 ? 'r' : 'l'}${n.open ? '' : ' is-closed'}" data-knob="${n.id}" aria-expanded="${n.open}" aria-label="${n.open ? 'Fold' : 'Unfold'} ${esc(n.title)}" title="${n.open ? 'Fold' : `Show ${n.children.length} inside`}">${n.open ? ic('minus', 'ic-xs') : `+${n.children.length}`}</button>`;
     }
-    function inner(n) {
+    function inner(n: MapNode) {
         switch (n.type) {
             case 'root':
                 return `<span class="mn-orbit"></span>${progressRing(totals.pct, 196, 5)}<span class="avatar">${esc(initials)}</span><b>${esc(data.userName.split(' ')[0])}</b><span>${data.goals.length} goals · ${totals.pct}% done</span>`;
@@ -388,7 +513,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             }
             case 'task': {
                 const t = n.task;
-                if (n.rank) {
+                if (t.kind === 'ranked') {
                     const due = dueInfo(t, clock);
                     const steps = t.steps || [];
                     const meta = [`<span${due.late ? ' class="is-late"' : ''}>${due.text}</span>`, fmtHours(t.estHours)];
@@ -420,8 +545,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 el = document.createElement('div');
                 el.dataset.id = n.id;
                 el.setAttribute('role', 'button');
-                el.style.setProperty('--d', n.depth);
-                el.style.setProperty('--i', i % 24);
+                el.style.setProperty('--d', String(n.depth));
+                el.style.setProperty('--i', String(i % 24));
                 nodesEl.appendChild(el);
                 els.set(n.id, el);
             }
@@ -431,28 +556,30 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             el.style.width = `${n.w}px`;
             el.style.height = `${n.h}px`;
         });
-        nodesEl.appendChild(els.get('root'));
+        nodesEl.appendChild(els.get('root')!);
     }
     function positionNodes() {
         VIS.forEach((n) => {
-            const el = els.get(n.id);
+            const el = els.get(n.id)!;
             el.style.left = `${n.x.toFixed(1)}px`;
             el.style.top = `${(n.cy - n.h / 2).toFixed(1)}px`;
         });
     }
 
     /* -------------------------------------------------------------- branches */
-    const bez = (a, b, c, d, t) => {
+    // A branch is one cubic Bézier: [x0, y0, cx1, cy1, cx2, cy2, x1, y1].
+    type Curve = [number, number, number, number, number, number, number, number];
+    const bez = (a: number, b: number, c: number, d: number, t: number) => {
         const u = 1 - t;
         return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
     };
-    const dbez = (a, b, c, d, t) => {
+    const dbez = (a: number, b: number, c: number, d: number, t: number) => {
         const u = 1 - t;
         return 3 * u * u * (b - a) + 6 * u * t * (c - b) + 3 * t * t * (d - c);
     };
-    function ribbon(Pt, w0, w1) {
-        const L = [];
-        const R = [];
+    function ribbon(Pt: Curve, w0: number, w1: number) {
+        const L: string[] = [];
+        const R: string[] = [];
         for (let i = 0; i <= 30; i += 1) {
             const t = i / 30;
             const x = bez(Pt[0], Pt[2], Pt[4], Pt[6], t);
@@ -468,7 +595,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         }
         return `M${L.join('L')}L${R.reverse().join('L')}Z`;
     }
-    function controls(p, c) {
+    function controls(p: MapNode, c: MapNode): Curve {
         const s = c.side;
         const x1 = s > 0 ? c.x : c.x + c.w;
         const y1 = c.cy;
@@ -478,7 +605,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const k = Math.abs(x1 - x0) * 0.56;
         return [x0, y0, x0 + s * k, y0, x1 - s * k, y1, x1, y1];
     }
-    const curve = (Pt) =>
+    const curve = (Pt: Curve) =>
         `M${Pt[0].toFixed(1)},${Pt[1].toFixed(1)} C${Pt[2].toFixed(1)},${Pt[3].toFixed(1)} ${Pt[4].toFixed(1)},${Pt[5].toFixed(1)} ${Pt[6].toFixed(1)},${Pt[7].toFixed(1)}`;
     function drawLinks() {
         let out = '';
@@ -496,8 +623,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     }
     function drawNext() {
         if (!NEXT) return;
-        let chain = [];
-        for (let n = NEXT; n; n = n.parent) chain.unshift(n);
+        let chain: MapNode[] = [];
+        for (let n: MapNode | null = NEXT; n; n = n.parent) chain.unshift(n);
         chain = chain.filter((n) => n.vis);
         if (!show.path || chain.length < 2) {
             nextPath.setAttribute('d', '');
@@ -529,8 +656,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
        They sit in their own layer so moving them never repaints the nodes. */
     const FLOW_SPEED = 70; // px per second
     const FLOW_GAP = 130; // px between dots on one branch
-    const FLOW_R = { 1: 3, 2: 2.6, 3: 2.1 };
-    function curveLength(Pt) {
+    const FLOW_R: Record<number, number> = { 1: 3, 2: 2.6, 3: 2.1 };
+    function curveLength(Pt: Curve) {
         let len = 0;
         let px = Pt[0];
         let py = Pt[1];
@@ -544,15 +671,15 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         return len;
     }
     // A fixed offset per branch, so dots on sibling branches don't move in step and a redraw keeps them in place.
-    const phaseOf = (id) => {
+    const phaseOf = (id: string) => {
         let h = 0;
         for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 9973;
         return h / 9973;
     };
-    function drawFlows({ fade = 0, delay = 0 } = {}) {
+    function drawFlows({ fade = 0, delay = 0 }: { fade?: number; delay?: number } = {}) {
         if (reduceMotion) return;
-        const onPath = new Set();
-        if (show.path && NEXT) for (let n = NEXT; n; n = n.parent) onPath.add(n.id);
+        const onPath = new Set<string>();
+        if (show.path && NEXT) for (let n: MapNode | null = NEXT; n; n = n.parent) onPath.add(n.id);
         let out = '';
         VIS.forEach((c) => {
             if (!c.parent || onPath.has(c.id)) return;
@@ -624,18 +751,18 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         if (pr.width >= vr.width * 0.9) return { w: vw, h: Math.max(160, pr.top - vr.top) };
         return { w: Math.max(260, pr.left - vr.left), h: vh };
     }
-    function frameFor(arr, pad = 56, maxK = 1.15) {
+    function frameFor(arr: MapNode[], pad = 56, maxK = 1.15): Frame {
         const b = bounds(arr);
         const a = visibleArea();
         const k = clamp(Math.min((a.w - pad * 2) / (b.x1 - b.x0), (a.h - pad * 2) / (b.y1 - b.y0)), K_MIN, maxK);
         return { k, cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2 };
     }
     let flyRaf = 0;
-    function flyTo(target, ms = 650) {
+    function flyTo(target: Frame, ms = 650) {
         cancelAnimationFrame(flyRaf);
         const a = visibleArea();
         const from = { k: cam.k, cx: (a.w / 2 - cam.x) / cam.k, cy: (a.h / 2 - cam.y) / cam.k };
-        const set = (k, cx, cy) => {
+        const set = (k: number, cx: number, cy: number) => {
             cam.k = k;
             cam.x = a.w / 2 - cx * k;
             cam.y = a.h / 2 - cy * k;
@@ -646,7 +773,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             return;
         }
         const t0 = performance.now();
-        const step = (now) => {
+        const step = (now: number) => {
             const t = Math.min(1, (now - t0) / ms);
             const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
             set(
@@ -658,7 +785,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         };
         flyRaf = requestAnimationFrame(step);
     }
-    function zoomAt(px, py, factor) {
+    function zoomAt(px: number, py: number, factor: number) {
         cancelAnimationFrame(flyRaf);
         const k = clamp(cam.k * factor, K_MIN, K_MAX);
         const wx = (px - cam.x) / cam.k;
@@ -668,8 +795,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         cam.y = py - wy * k;
         applyCam();
     }
-    const fitAll = (ms) => flyTo(frameFor(VIS, 48, 1), ms);
-    const focusOn = (n, ms) => flyTo(frameFor(subtree(n), 80, n.type === 'task' || n.type === 'step' ? 1.25 : 1.1), ms);
+    const fitAll = (ms?: number) => flyTo(frameFor(VIS, 48, 1), ms);
+    const focusOn = (n: MapNode, ms?: number) => flyTo(frameFor(subtree(n), 80, n.type === 'task' || n.type === 'step' ? 1.25 : 1.1), ms);
 
     /* --------------------------------------------- relayout with animation */
     let layoutRaf = 0;
@@ -689,20 +816,20 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         flowsG.innerHTML = '';
         after.forEach((v, id) => {
             if (before.has(id)) return;
-            let p = nodes.get(id).parent;
+            let p = nodes.get(id)!.parent;
             while (p && !before.has(p.id)) p = p.parent;
-            const from = p ? before.get(p.id) : v;
+            const from = p ? before.get(p.id)! : v;
             before.set(id, { x: from.x, cy: from.cy });
-            els.get(id).classList.add('is-entering');
+            els.get(id)!.classList.add('is-entering');
         });
         cancelAnimationFrame(layoutRaf);
         const t0 = performance.now();
-        const step = (now) => {
+        const step = (now: number) => {
             const t = Math.min(1, (now - t0) / 420);
             const e = 1 - (1 - t) ** 3;
             after.forEach((v, id) => {
-                const a = before.get(id);
-                const n = nodes.get(id);
+                const a = before.get(id)!;
+                const n = nodes.get(id)!;
                 n.x = a.x + (v.x - a.x) * e;
                 n.cy = a.cy + (v.cy - a.cy) * e;
             });
@@ -720,10 +847,10 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     }
 
     /* --------------------------------------------------- focus and selection */
-    function family(n) {
+    function family(n: MapNode) {
         const s = new Set([n.id]);
         for (let p = n.parent; p; p = p.parent) s.add(p.id);
-        (function down(m) {
+        (function down(m: MapNode) {
             (m.kids || []).forEach((c) => {
                 s.add(c.id);
                 down(c);
@@ -731,24 +858,28 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         })(n);
         return s;
     }
-    function setLit(set) {
+    function setLit(set: Set<string> | null) {
         lit = set;
         mount.classList.toggle('has-lit', !!set);
         els.forEach((el, id) => el.classList.toggle('is-lit', !!set && set.has(id)));
-        [linksG, flowsG].forEach((g) => g.querySelectorAll('[data-c]').forEach((p) => p.classList.toggle('is-lit', !!set && set.has(p.dataset.c))));
+        [linksG, flowsG].forEach((g) =>
+            g.querySelectorAll<SVGElement>('[data-c]').forEach((p) => p.classList.toggle('is-lit', !!set && set.has(p.dataset.c ?? ''))),
+        );
     }
-    function select(n, { openPanel = true } = {}) {
+    function select(n: MapNode | null | undefined, { openPanel = true } = {}) {
         selectedId = n ? n.id : null;
         els.forEach((el, id) => el.classList.toggle('is-selected', id === selectedId));
         setLit(n && n.type !== 'root' ? family(n) : null);
-        mount.querySelectorAll('[data-gm-goal]').forEach((b) => b.setAttribute('aria-pressed', String(!!n && b.dataset.gmGoal === n.id)));
+        mount
+            .querySelectorAll<HTMLElement>('[data-gm-goal]')
+            .forEach((b) => b.setAttribute('aria-pressed', String(!!n && b.dataset.gmGoal === n.id)));
         if (!n) {
             panel.hidden = true;
             return;
         }
         if (openPanel) showPanel(n);
     }
-    function reveal(n) {
+    function reveal(n: MapNode) {
         let changed = false;
         for (let p = n.parent; p; p = p.parent)
             if (!p.open) {
@@ -757,42 +888,42 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             }
         if (n.state === 'done' && !show.done) {
             show.done = true;
-            $('[data-gm-show="done"]').checked = true;
+            showBox('done').checked = true;
             changed = true;
         }
         if ((n.type === 'note' || n.type === 'habit') && !show.extras) {
             show.extras = true;
-            $('[data-gm-show="extras"]').checked = true;
+            showBox('extras').checked = true;
             changed = true;
         }
         if (changed) relayout(false);
     }
-    function toggle(n) {
+    function toggle(n: MapNode) {
         n.open = !n.open;
         if (!n.open && selectedId && family(n).has(selectedId) && selectedId !== n.id) select(n, { openPanel: !panel.hidden });
         relayout(true);
-        if (lit) setLit(selectedId ? family(nodes.get(selectedId)) : null);
+        if (lit) setLit(selectedId ? family(nodes.get(selectedId)!) : null);
     }
 
     /* ----------------------------------------------------------------- panel */
-    const pfoot = (inside) => `<div class="panel-foot">${inside}</div>`;
-    const phead = (crumbs) =>
+    const pfoot = (inside: string) => `<div class="panel-foot">${inside}</div>`;
+    const phead = (crumbs: string) =>
         `<div class="panel-head"><div class="crumbs">${crumbs}</div><div class="panel-tools"><button class="icon-btn" data-gm-close aria-label="Close">${ic('x')}</button></div></div>`;
-    const crumbsOf = (n) => {
-        const parts = [];
+    const crumbsOf = (n: MapNode) => {
+        const parts: string[] = [];
         for (let p = n.parent; p && p.type !== 'root'; p = p.parent) parts.unshift(esc(p.title));
         return parts.length ? parts.map((s) => `<span>${s}</span>`).join(ic('chevR')) : '<span>Goals map</span>';
     };
-    const goalStyle = (n) => (n.hue ? `style="--g:var(--goal-${n.hue})"` : '');
-    function rankedPanel(n) {
+    const goalStyle = (n: MapNode) => (n.hue ? `style="--g:var(--goal-${n.hue})"` : '');
+    function rankedPanel(n: RankedNode) {
         const t = n.task;
         return `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
             <div class="gp-head"><span class="rank-badge" style="width:40px;height:40px;font-size:15px;border-radius:12px">${t.rank}</span><div><h2 class="p-title">${esc(t.title)}</h2><p class="gp-why">#${t.rank} of ${data.totalRanked} · ${fmt1(t.score)} · ${esc(dueInfo(t, clock).text)} · ${fmtHours(t.estHours)}</p></div></div>
         </div>${pfoot(`<a class="btn btn-primary btn-lg" href="/tasks?task=${t.id}">${ic('arrowUpRight')}Open in Tasks</a><button class="btn btn-secondary btn-lg" data-gm-done="${t.id}">${ic('check')}Done</button>`)}`;
     }
-    function showPanel(n) {
+    function showPanel(n: MapNode) {
         let html = '';
-        if (n.type === 'task' && n.rank) html = rankedPanel(n);
+        if (isRanked(n)) html = rankedPanel(n);
         else if (n.type === 'goal') {
             const t = tally(n);
             html = `${phead('<span>Goal</span>')}<div class="panel-body" ${goalStyle(n)}>
@@ -800,16 +931,17 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 <div class="gp-stats"><span class="mn-pct">${progressRing(t.pct, 64, 6)}<span>${t.pct}%</span></span><div><b>${t.done} of ${t.total} tasks done</b><span>${n.goal.target ? `Target: ${esc(n.goal.target)}` : ''}</span></div></div>
                 <h3 class="p-section-title gp-h">Projects</h3>
                 <div class="gp-projects">${n.children
+                    .filter((p): p is ProjectNode => p.type === 'project')
                     .map((p) => {
                         const pt = tally(p);
-                        const next = p.children.find((c) => c.type === 'task' && c.rank);
+                        const next = p.children.find(isRanked);
                         return `<a class="gp-project" href="/projects/${p.pid}"><span class="pdot">${ic('folder')}</span><div><b>${esc(p.title)}</b><span class="gp-bar"><i style="--p:${pt.pct}%"></i></span><small>${pt.done}/${pt.total} done${next ? ` · next: #${next.rank} ${esc(next.title)}` : ''}</small></div></a>`;
                     })
                     .join('')}</div>
             </div>${pfoot(`<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom to this goal</button>`)}`;
         } else if (n.type === 'project' || n.type === 'inbox') {
             const t = tally(n);
-            const open = n.children.filter((c) => c.type === 'task' && c.rank).sort((a, b) => a.rank - b.rank);
+            const open = n.children.filter(isRanked).sort((a, b) => a.rank - b.rank);
             const next = open[0];
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
                 <div class="gp-head"><span class="pdot pdot-lg">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${n.type === 'inbox' ? 'No project' : `${t.done} of ${t.total} tasks done · ${count(n, 'note')} notes · ${count(n, 'habit')} habits`}</p></div></div>
@@ -820,12 +952,13 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         } else if (n.type === 'task') {
             const t = n.task;
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
-                <div class="gp-head"><span class="kind kind-lg">${ic(KIND_ICON[n.state] || 'info')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${KIND_LABEL[n.state] ?? ''}${t.why && n.state !== 'done' ? ` · ${esc(t.why)}` : ''}</p></div></div>
+                <div class="gp-head"><span class="kind kind-lg">${ic(KIND_ICON[n.state] || 'info')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${KIND_LABEL[n.state] ?? ''}${t.kind !== 'ranked' && t.why && n.state !== 'done' ? ` · ${esc(t.why)}` : ''}</p></div></div>
             </div>${pfoot(`<a class="btn btn-secondary btn-lg" href="/tasks?task=${t.id}">${ic('arrowUpRight')}Open in Tasks</a>`)}`;
         } else if (n.type === 'step') {
             const parent = n.parent;
+            const parentRank = parent && isRanked(parent) ? parent.rank : null;
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
-                <div class="gp-head"><span class="sdot sdot-lg${n.done ? ' is-done' : ''}">${ic('check')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">Step of “${esc(parent.title)}”${parent.rank ? ` (#${parent.rank})` : ''}</p></div></div>
+                <div class="gp-head"><span class="sdot sdot-lg${n.done ? ' is-done' : ''}">${ic('check')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">Step of “${esc(parent?.title)}”${parentRank ? ` (#${parentRank})` : ''}</p></div></div>
             </div>${pfoot(`<button class="btn btn-primary btn-lg" data-gm-promote="${n.stepId}">${ic('rank')}Make it a task</button>`)}`;
         } else if (n.type === 'note' || n.type === 'habit') {
             const isNote = n.type === 'note';
@@ -838,7 +971,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 <div class="gp-stats"><span class="mn-pct">${progressRing(totals.pct, 64, 6)}<span>${totals.pct}%</span></span><div><b>${totals.done} of ${totals.total} tasks done</b><span>${NEXT ? `Your next task is #1: ${esc(NEXT.title)}` : ''}</span></div></div>
                 <div class="gp-projects">${data.goals
                     .map((g) => {
-                        const gt = tally(nodes.get(`g${g.id}`));
+                        const gt = tally(goalNode(g));
                         return `<button class="gp-project" data-gm-goto="g${g.id}" style="--g:var(--goal-${g.color})"><span class="gdot">${ic(g.icon || 'target')}</span><div><b>${esc(g.title)}</b><span class="gp-bar"><i style="--p:${gt.pct}%"></i></span><small>${gt.done}/${gt.total} done${g.target ? ` · by ${esc(g.target)}` : ''}</small></div></button>`;
                     })
                     .join('')}</div>
@@ -850,8 +983,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
 
     /* --------------------------------------------------------------- outline */
     function renderOutline() {
-        const rows = [];
-        (function walk(n, lv) {
+        const rows: string[] = [];
+        (function walk(n: MapNode, lv: number) {
             if (n.type !== 'root') {
                 if ((n.type === 'note' || n.type === 'habit') && !show.extras) return;
                 if (n.state === 'done' && !show.done) return;
@@ -864,7 +997,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                     const t = tally(n);
                     lead = `<span class="pdot">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span>`;
                     meta = `${t.done}/${t.total} tasks done`;
-                } else if (n.type === 'task' && n.rank) {
+                } else if (isRanked(n)) {
                     lead = `<span class="rank-badge">${n.rank}</span>`;
                     meta = `${dueInfo(n.task, clock).text} · priority ${fmt1(n.task.score)}`;
                 } else if (n.type === 'task') {
@@ -885,8 +1018,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         })(root, 0);
         outline.innerHTML = `<div class="go-wrap"><p class="go-intro">The same map as a list, in the same order. Click any line to find it on the map.</p><div class="go-list" role="tree" aria-label="Goals, projects, tasks and steps">${rows.join('')}</div></div>`;
     }
-    function setMode(mode) {
-        mount.querySelectorAll('[data-gm-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.gmMode === mode)));
+    function setMode(mode: string | undefined) {
+        mount.querySelectorAll<HTMLElement>('[data-gm-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.gmMode === mode)));
         const isMap = mode === 'map';
         $('.gm-stage').hidden = !isMap;
         outline.hidden = isMap;
@@ -898,11 +1031,13 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     }
 
     /* ---------------------------------------------------------------- events */
-    const pointers = new Map();
-    let pan = null;
-    let pinch = null;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pan = null as { x: number; y: number; cx: number; cy: number } | null;
+    let pinch = null as { d: number; k: number; mx: number; my: number; x: number; y: number } | null;
     let dragged = false;
-    const hideHint = () => $('[data-gm-hint]')?.classList.add('is-gone');
+    // The element an event happened on (events here always come from elements).
+    const at = (e: Event) => e.target as Element;
+    const hideHint = () => mount.querySelector('[data-gm-hint]')?.classList.add('is-gone');
     on(view, 'pointerdown', (e) => {
         if (e.button !== 0 && e.pointerType === 'mouse') return;
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -948,7 +1083,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             applyCam();
         }
     });
-    const endPointer = (e) => {
+    const endPointer = (e: PointerEvent) => {
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinch = null;
         if (!pointers.size) {
@@ -982,35 +1117,37 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             dragged = false;
             return;
         }
-        const k = e.target.closest('[data-knob]');
+        const k = at(e).closest<HTMLElement>('[data-knob]');
         if (k) {
             e.stopPropagation();
-            toggle(nodes.get(k.dataset.knob));
+            const n = nodeOf(k.dataset.knob);
+            if (n) toggle(n);
             return;
         }
-        const el = e.target.closest('.mn');
-        if (el) select(nodes.get(el.dataset.id));
+        const el = at(e).closest<HTMLElement>('.mn');
+        if (el) select(nodeOf(el.dataset.id));
     });
     on(nodesEl, 'dblclick', (e) => {
-        const el = e.target.closest('.mn');
-        if (el && !e.target.closest('[data-knob]')) focusOn(nodes.get(el.dataset.id));
+        const n = nodeOf(at(e).closest<HTMLElement>('.mn')?.dataset.id);
+        if (n && !at(e).closest('[data-knob]')) focusOn(n);
     });
     on(view, 'click', (e) => {
         if (dragged) {
             dragged = false;
             return;
         }
-        if (!e.target.closest('.mn')) select(null);
+        if (!at(e).closest('.mn')) select(null);
     });
     on(nodesEl, 'pointerover', (e) => {
         if (pan && dragged) return;
-        const el = e.target.closest('.mn');
-        if (el && el.dataset.id !== 'root') setLit(family(nodes.get(el.dataset.id)));
+        const id = at(e).closest<HTMLElement>('.mn')?.dataset.id;
+        const n = id !== 'root' ? nodeOf(id) : undefined;
+        if (n) setLit(family(n));
     });
     on(nodesEl, 'pointerout', (e) => {
-        const to = e.relatedTarget?.closest ? e.relatedTarget.closest('.mn') : null;
+        const to = e.relatedTarget instanceof Element ? e.relatedTarget.closest('.mn') : null;
         if (to) return;
-        setLit(selectedId && selectedId !== 'root' ? family(nodes.get(selectedId)) : null);
+        setLit(selectedId && selectedId !== 'root' ? family(nodes.get(selectedId)!) : null);
     });
     function goNext() {
         if (!NEXT) return;
@@ -1018,7 +1155,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         select(NEXT);
         focusOn(NEXT);
     }
-    function goTo(id) {
+    function goTo(id: string) {
         const n = nodes.get(id);
         if (!n) return;
         if ($('.gm-stage').hidden) setMode('map');
@@ -1034,7 +1171,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     }
     on(view, 'keydown', (e) => {
         const c = { x: view.clientWidth / 2, y: view.clientHeight / 2 };
-        const keys = {
+        const keys: Record<string, () => void> = {
             '+': () => zoomAt(c.x, c.y, 1.25),
             '=': () => zoomAt(c.x, c.y, 1.25),
             '-': () => zoomAt(c.x, c.y, 0.8),
@@ -1067,11 +1204,13 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     });
     const mini = $('.gm-mini');
     let miniDrag = false;
-    const miniMove = (e) => {
+    const miniMove = (e: PointerEvent) => {
+        const ctm = miniSvg.getScreenCTM();
+        if (!ctm) return;
         const pt = miniSvg.createSVGPoint();
         pt.x = e.clientX;
         pt.y = e.clientY;
-        const w = pt.matrixTransform(miniSvg.getScreenCTM().inverse());
+        const w = pt.matrixTransform(ctm.inverse());
         cancelAnimationFrame(flyRaf);
         cam.x = view.clientWidth / 2 - w.x * cam.k;
         cam.y = view.clientHeight / 2 - w.y * cam.k;
@@ -1090,8 +1229,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         miniDrag = false;
     });
     on(mount, 'click', (e) => {
-        const t = e.target;
-        const z = t.closest('[data-gm-zoom]');
+        const t = at(e);
+        const z = t.closest<HTMLElement>('[data-gm-zoom]');
         if (z) return zoomAt(view.clientWidth / 2, view.clientHeight / 2, z.dataset.gmZoom === 'in' ? 1.25 : 0.8);
         if (t.closest('[data-gm-fit]')) {
             select(null);
@@ -1100,22 +1239,29 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         if (t.closest('[data-gm-gonext]')) return goNext();
         if (t.closest('[data-gm-close]')) return select(null);
         if (t.closest('[data-gm-side]')) return ctx.onToggleMenu();
-        const goal = t.closest('[data-gm-goal]');
+        const goal = t.closest<HTMLElement>('[data-gm-goal]');
         if (goal) {
-            const n = nodes.get(goal.dataset.gmGoal);
-            reveal(n);
-            select(n);
-            return focusOn(n);
+            const n = nodeOf(goal.dataset.gmGoal);
+            if (n) {
+                reveal(n);
+                select(n);
+                focusOn(n);
+            }
+            return;
         }
-        const focus = t.closest('[data-gm-focus]');
-        if (focus) return focusOn(nodes.get(focus.dataset.gmFocus));
-        const go = t.closest('[data-gm-goto], [data-go]');
-        if (go) return goTo(go.dataset.gmGoto || go.dataset.go);
-        const done = t.closest('[data-gm-done]');
+        const focus = t.closest<HTMLElement>('[data-gm-focus]');
+        if (focus) {
+            const n = nodeOf(focus.dataset.gmFocus);
+            if (n) focusOn(n);
+            return;
+        }
+        const go = t.closest<HTMLElement>('[data-gm-goto], [data-go]');
+        if (go) return goTo(go.dataset.gmGoto || go.dataset.go || '');
+        const done = t.closest<HTMLElement>('[data-gm-done]');
         if (done) return ctx.onDone(Number(done.dataset.gmDone));
-        const promote = t.closest('[data-gm-promote]');
+        const promote = t.closest<HTMLElement>('[data-gm-promote]');
         if (promote) return ctx.onPromote(Number(promote.dataset.gmPromote));
-        const mode = t.closest('[data-gm-mode]');
+        const mode = t.closest<HTMLElement>('[data-gm-mode]');
         if (mode) return setMode(mode.dataset.gmMode);
         const layers = t.closest('[data-gm-layers]');
         if (layers) {
@@ -1141,9 +1287,10 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         }
     });
     on(mount, 'change', (e) => {
-        const key = e.target.dataset.gmShow;
+        const box = e.target as HTMLInputElement;
+        const key = box.dataset.gmShow as keyof typeof show | undefined;
         if (!key) return;
-        show[key] = e.target.checked;
+        show[key] = box.checked;
         if (key === 'path') {
             drawNext();
             drawFlows();
@@ -1154,12 +1301,12 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     });
     on(document, 'click', (e) => {
         const pop = $('#gm-layers');
-        if (pop && !pop.hidden && !e.target.closest('.pop-wrap')) {
+        if (pop && !pop.hidden && !at(e).closest('.pop-wrap')) {
             pop.hidden = true;
             $('[data-gm-layers]').setAttribute('aria-expanded', 'false');
         }
     });
-    let matches = [];
+    let matches: MapNode[] = [];
     let matchAt = -1;
     on(searchInput, 'input', () => {
         const q = searchInput.value.trim().toLowerCase();
@@ -1181,7 +1328,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         }
     });
     on(document, 'keydown', (e) => {
-        if (e.key === '/' && !e.target.closest('input, textarea, select, [contenteditable="true"]')) {
+        if (e.key === '/' && !at(e).closest('input, textarea, select, [contenteditable="true"]')) {
             e.preventDefault();
             searchInput.focus();
         }
@@ -1205,8 +1352,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         const t = setTimeout(() => mount.classList.remove('is-intro'), 1800);
         cleanups.push(() => clearTimeout(t));
     }
-    if (data.focus && nodes.has(data.focus)) {
-        const t = setTimeout(() => goTo(data.focus), reduceMotion ? 0 : 900);
+    const focusId = data.focus;
+    if (focusId && nodes.has(focusId)) {
+        const t = setTimeout(() => goTo(focusId), reduceMotion ? 0 : 900);
         cleanups.push(() => clearTimeout(t));
     }
 
