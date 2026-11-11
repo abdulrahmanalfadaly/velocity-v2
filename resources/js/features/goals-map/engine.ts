@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- untyped until the backlog item in PLAN.md is done
 // @ts-nocheck – a direct port of the approved mockup engine (design/mockups/assets/goalsmap.js).
 // It drives the DOM imperatively for smooth pan, zoom and layout animation. Typing it fully is on the backlog in PLAN.md.
 /*
@@ -51,8 +52,9 @@ const KIND_LABEL = { waiting: 'Waiting', blocked: 'Blocked', later: 'Not yet', d
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export interface MapData {
-    goals: any[];
-    inbox: any[];
+    // Shaped by GoalController; the engine reads them without type checks.
+    goals: unknown[];
+    inbox: unknown[];
     nextId: number | null;
     totalRanked: number;
     focus: string | null;

@@ -39,6 +39,8 @@ Route::middleware(['auth'])->group(function () {
     // Personal Velocity only.
     Route::middleware('personal')->group(function () {
         Route::get('home', HomeController::class)->name('home');
+        Route::get('tasks/inbox', [TaskController::class, 'inbox'])->name('tasks.inbox');
+        Route::get('tasks/waiting', [TaskController::class, 'waiting'])->name('tasks.waiting');
 
         Route::post('tasks/{task}/steps', [TaskStepController::class, 'store'])->name('steps.store');
         Route::patch('steps/{step}', [TaskStepController::class, 'update'])->name('steps.update');

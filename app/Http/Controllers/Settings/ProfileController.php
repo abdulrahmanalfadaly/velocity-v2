@@ -18,9 +18,15 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $now = new \DateTimeImmutable;
+
         return Inertia::render('settings/profile', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => $request->session()->get('status'),
+            // Every time zone with its current offset from UTC, in seconds.
+            'timezones' => collect(\DateTimeZone::listIdentifiers())
+                ->map(fn (string $id) => [$id, (new \DateTimeZone($id))->getOffset($now)])
+                ->values(),
         ]);
     }
 

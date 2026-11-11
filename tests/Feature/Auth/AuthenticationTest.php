@@ -30,6 +30,17 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('home', absolute: false));
     }
 
+    public function test_keep_me_logged_in_sets_the_remember_cookie()
+    {
+        $user = User::factory()->create();
+
+        $response = $this->post('/login', ['email' => $user->email, 'password' => 'password', 'remember' => true]);
+
+        $this->assertAuthenticated();
+        $this->assertNotNull($user->fresh()->remember_token);
+        $this->assertTrue(collect($response->headers->getCookies())->contains(fn ($c) => str_starts_with($c->getName(), 'remember_web_')));
+    }
+
     public function test_users_can_not_authenticate_with_invalid_password()
     {
         $user = User::factory()->create();

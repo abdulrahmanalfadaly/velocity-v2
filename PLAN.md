@@ -101,8 +101,12 @@ organised (to be given later – ask before Phase 2 is finished).
 - [x] 95 tests passing (engine, ranking, both modes, every page and action,
       Table 3.4 reproduced through the whole app, ownership)
 - [ ] Export of the study log itself (CSV) for the Spearman analysis
-- [ ] Inbox and "not ready" as their own filtered views in the side menu
-- [ ] Settings: time zone picker; restyle the remaining starter screens
+- [x] Inbox and "not ready" as their own views in the Tasks side menu
+      (`/tasks/inbox` keeps each task's rank number; `/tasks/waiting` groups
+      waiting / after another task / starts later, with "Ready now")
+- [x] Settings: time zone picker (new accounts start in the device's zone);
+      settings, log in, sign up and password screens restyled in the Velocity
+      design ("Keep me logged in" now actually works)
 - [ ] Browser checks at phone and tablet sizes for the real pages
 - [ ] Tech debt: the Goals map engine is a `@ts-nocheck` port – add types
 

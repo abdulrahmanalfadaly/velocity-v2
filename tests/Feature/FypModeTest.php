@@ -50,7 +50,7 @@ class FypModeTest extends TestCase
         $this->actingAs($this->fyp());
         $project = Project::where('user_id', $this->user->id)->first();
 
-        foreach (['/home', '/goals', "/projects/{$project->id}"] as $url) {
+        foreach (['/home', '/goals', '/tasks/inbox', '/tasks/waiting', "/projects/{$project->id}"] as $url) {
             $this->get($url)->assertRedirect('/tasks');
         }
         $this->getJson('/search?q=chap')->assertNotFound();

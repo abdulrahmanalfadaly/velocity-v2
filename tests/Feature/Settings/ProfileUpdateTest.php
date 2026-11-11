@@ -21,6 +21,24 @@ class ProfileUpdateTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_time_zone_can_be_changed()
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/settings/profile')
+            ->assertInertia(fn ($p) => $p->where('timezones', fn ($zones) => collect($zones)->contains(fn ($z) => $z[0] === 'Asia/Kuala_Lumpur' && $z[1] === 8 * 3600)));
+
+        $this->actingAs($user)
+            ->patch('/settings/profile', ['name' => $user->name, 'email' => $user->email, 'timezone' => 'Europe/London'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('Europe/London', $user->refresh()->timezone);
+
+        $this->actingAs($user)
+            ->patch('/settings/profile', ['name' => $user->name, 'email' => $user->email, 'timezone' => 'Mars/Olympus_Mons'])
+            ->assertSessionHasErrors('timezone');
+        $this->assertSame('Europe/London', $user->refresh()->timezone);
+    }
+
     public function test_profile_information_can_be_updated()
     {
         $user = User::factory()->create();

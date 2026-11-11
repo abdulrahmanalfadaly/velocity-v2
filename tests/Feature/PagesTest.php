@@ -46,6 +46,24 @@ class PagesTest extends TestCase
         $this->getJson('/search?q=chap')->assertOk()->assertJsonPath('groups.0.label', 'Tasks');
     }
 
+    public function test_inbox_and_not_ready_have_their_own_pages(): void
+    {
+        $this->actingAs($this->user);
+
+        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->where('view', 'upnext')->where('nav.counts.inbox', 2)->where('nav.counts.waiting', 3));
+        $this->get('/tasks/inbox')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->where('view', 'inbox')
+            ->has('tasks', 14)
+            ->where('tasks', fn ($tasks) => collect($tasks)->whereNull('project')->pluck('rank')->all() === [12, 14]));
+        $this->get('/tasks/waiting')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->where('view', 'waiting')
+            ->has('notReady', 3)
+            ->where('notReady', fn ($rows) => collect($rows)->pluck('kind')->sort()->values()->all() === ['blocked', 'later', 'waiting']));
+
+        // "Ready now" puts a waiting task back into the ranking.
+        $waiting = Task::where('title', 'Revise Chapter 3 after feedback')->first();
+        $this->patch("/tasks/{$waiting->id}", ['status' => Task::TODO])->assertRedirect();
+        $this->get('/tasks/waiting')->assertInertia(fn (Assert $p) => $p->has('notReady', 2)->where('nav.counts.upNext', 15));
+    }
+
     public function test_the_task_panel_explains_the_top_task(): void
     {
         $task = Task::where('title', 'Write Chapter 4 – Implementation')->first();

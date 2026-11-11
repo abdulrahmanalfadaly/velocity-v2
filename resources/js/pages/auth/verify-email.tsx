@@ -1,41 +1,35 @@
-// Components
-import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle } from 'lucide-react';
-import { FormEventHandler } from 'react';
-
-import TextLink from '@/components/text-link';
-import { Button } from '@/components/ui/button';
 import AuthLayout from '@/layouts/auth-layout';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { type FormEventHandler } from 'react';
 
 export default function VerifyEmail({ status }: { status?: string }) {
     const { post, processing } = useForm({});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-
         post(route('verification.send'));
     };
 
     return (
-        <AuthLayout title="Verify email" description="Please verify your email address by clicking on the link we just emailed to you.">
-            <Head title="Email verification" />
-
+        <AuthLayout title="Check your email" description="Open the link we just emailed you to verify your address.">
+            <Head title="Verify email" />
             {status === 'verification-link-sent' && (
-                <div className="mb-4 text-center text-sm font-medium text-green-600">
-                    A new verification link has been sent to the email address you provided during registration.
-                </div>
+                <p className="auth-status" role="status">
+                    A new link is on its way.
+                </p>
             )}
 
-            <form onSubmit={submit} className="space-y-6 text-center">
-                <Button disabled={processing} variant="secondary">
-                    {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                    Resend verification email
-                </Button>
-
-                <TextLink href={route('logout')} method="post" className="mx-auto block text-sm">
-                    Log out
-                </TextLink>
+            <form className="auth-form" onSubmit={submit}>
+                <button type="submit" className="btn btn-secondary btn-lg auth-submit" disabled={processing}>
+                    Send the link again
+                </button>
             </form>
+
+            <p className="auth-foot">
+                <Link href={route('logout')} method="post" as="button" className="link">
+                    Log out
+                </Link>
+            </p>
         </AuthLayout>
     );
 }

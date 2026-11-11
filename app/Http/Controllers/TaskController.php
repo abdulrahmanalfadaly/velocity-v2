@@ -20,28 +20,48 @@ use Inertia\Response;
 
 class TaskController extends Controller
 {
-    public function __construct(private readonly RankingService $ranking)
-    {
-    }
+    public function __construct(private readonly RankingService $ranking) {}
 
     /** Every task you can work on, in priority order. */
     public function index(Request $request, StudyLogger $log): Response
     {
         $user = $request->user();
-        $list = $this->ranking->rank($user);
-        $log->ranking($user, $list, 'tasks');
-        $now = $this->ranking->now()->timezone($user->timezone);
-
-        if ($user->fyp_mode) {
-            return Inertia::render('fyp/tasks', [
-                'tasks' => $list->toArray(),
-                'settings' => $list->settings(),
-                'completed' => $user->tasks()->where('status', Task::DONE)->latest('completed_at')->limit(8)->get()->map(fn ($t) => TaskPresenter::base($t)),
-                'selected' => fn () => $this->detail($request),
-            ]);
+        if (! $user->fyp_mode) {
+            return $this->personalList($request, 'upnext');
         }
 
+        $list = $this->ranking->rank($user);
+        $log->ranking($user, $list, 'tasks');
+
+        return Inertia::render('fyp/tasks', [
+            'tasks' => $list->toArray(),
+            'settings' => $list->settings(),
+            'completed' => $user->tasks()->where('status', Task::DONE)->latest('completed_at')->limit(8)->get()->map(fn ($t) => TaskPresenter::base($t)),
+            'selected' => fn () => $this->detail($request),
+        ]);
+    }
+
+    /** Ranked tasks that are not in a project yet (they keep their place in the ranking). */
+    public function inbox(Request $request): Response
+    {
+        return $this->personalList($request, 'inbox');
+    }
+
+    /** Open tasks that can't start yet: waiting on someone, after another task, or starting later. */
+    public function waiting(Request $request): Response
+    {
+        return $this->personalList($request, 'waiting');
+    }
+
+    /** The personal Tasks page; $view picks Up next, Inbox or Not ready yet. */
+    private function personalList(Request $request, string $view): Response
+    {
+        $user = $request->user();
+        $list = $this->ranking->rank($user);
+        $now = $this->ranking->now()->timezone($user->timezone);
+
         return Inertia::render('tasks/index', [
+            'view' => $view,
             'tasks' => $list->toArray(),
             'settings' => $list->settings(),
             'notReady' => $this->ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->values(),

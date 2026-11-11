@@ -1,29 +1,40 @@
+import { Icon } from '@/components/velocity/icon';
+import { type Appearance as Theme, useAppearance } from '@/hooks/use-appearance';
+import AppLayout from '@/layouts/app-layout';
+import SettingsLayout, { SettingsCard } from '@/layouts/settings/layout';
 import { Head } from '@inertiajs/react';
 
-import AppearanceTabs from '@/components/appearance-tabs';
-import HeadingSmall from '@/components/heading-small';
-import { type BreadcrumbItem } from '@/types';
-
-import AppLayout from '@/layouts/app-layout';
-import SettingsLayout from '@/layouts/settings/layout';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Appearance settings',
-        href: '/settings/appearance',
-    },
+const THEMES: { value: Theme; icon: string; label: string }[] = [
+    { value: 'light', icon: 'sun', label: 'Light' },
+    { value: 'dark', icon: 'moon', label: 'Dark' },
+    { value: 'system', icon: 'monitor', label: 'Same as this device' },
 ];
 
 export default function Appearance() {
-    return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Appearance settings" />
+    const { appearance, updateAppearance } = useAppearance();
 
+    return (
+        <AppLayout breadcrumbs={[{ title: 'Appearance', href: '/settings/appearance' }]}>
+            <Head title="Appearance" />
             <SettingsLayout>
-                <div className="space-y-6">
-                    <HeadingSmall title="Appearance settings" description="Update your account's appearance settings" />
-                    <AppearanceTabs />
-                </div>
+                <SettingsCard title="Theme">
+                    <div className="settings-form">
+                        <div className="seg settings-seg" role="radiogroup" aria-label="Theme">
+                            {THEMES.map((t) => (
+                                <button
+                                    key={t.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={appearance === t.value}
+                                    onClick={() => updateAppearance(t.value)}
+                                >
+                                    <Icon name={t.icon} />
+                                    {t.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </SettingsCard>
             </SettingsLayout>
         </AppLayout>
     );

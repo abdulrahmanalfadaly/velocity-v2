@@ -545,6 +545,44 @@ kbd {
 .section-fold[open] summary .ic.chev { transform: rotate(90deg); }
 .section-fold summary .hint { font-weight: 500; color: var(--text-3); font-size: 12.5px; }
 .fold-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 18px; border-top: 1px solid var(--line); }
+.fold-row.is-link { cursor: pointer; }
+.fold-row.is-link:hover { background: var(--surface-2); }
+.fold-row.is-link.is-selected { background: var(--selected); }
+.fold-row.is-link:last-child { border-radius: 0 0 var(--r-lg) var(--r-lg); }
+.list-empty { padding: 16px 18px; color: var(--text-3); }
+
+/* Settings */
+.filter[aria-current="page"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.settings-tabs { margin: -6px 0 18px; }
+.settings-body { display: grid; gap: 16px; max-width: 620px; }
+.settings-form { display: grid; gap: 16px; padding: 6px 18px 18px; }
+.settings-form > .field { max-width: 440px; }
+.settings-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.settings-saved { font-size: 13px; font-weight: 600; color: var(--text-3); }
+.settings-note { font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+.settings-device-tz { justify-self: start; font-size: 13px; }
+.settings-seg { margin: 0; flex-wrap: wrap; }
+.settings-seg button { display: inline-flex; align-items: center; gap: 6px; }
+.settings-seg .ic { width: 15px; height: 15px; }
+select.input { padding-right: 8px; }
+.field-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.field-label label { font-size: 13px; font-weight: 650; }
+
+/* Log in, sign up and password screens */
+.auth { min-height: 100svh; display: grid; place-items: center; padding: 32px 16px; background: var(--bg); color: var(--text); }
+.auth-box { width: 100%; max-width: 400px; display: grid; gap: 20px; }
+.auth-brand { justify-self: center; font-size: 18px; }
+.auth-brand .brand-mark { width: 30px; height: 30px; }
+.auth-card { padding: 26px 24px 22px; }
+.auth-title { font-family: var(--font-display); font-size: 22px; line-height: 1.25; font-weight: 700; letter-spacing: -0.02em; }
+.auth-sub { margin-top: 6px; font-size: 14px; color: var(--text-2); line-height: 1.5; }
+.auth-form { display: grid; gap: 16px; margin-top: 20px; }
+.auth-aside { font-size: 12.5px; }
+.auth-check { display: inline-flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 550; color: var(--text-2); cursor: pointer; justify-self: start; }
+.auth-check input { width: 16px; height: 16px; accent-color: var(--violet); }
+.auth-submit { width: 100%; margin-top: 4px; }
+.auth-foot { margin-top: 18px; text-align: center; font-size: 13.5px; color: var(--text-2); }
+.auth-status { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--violet-soft); color: var(--violet-ink); font-size: 13.5px; font-weight: 600; }
 
 /* Weights popover */
 .pop-wrap { position: relative; }

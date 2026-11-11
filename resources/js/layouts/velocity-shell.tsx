@@ -257,8 +257,9 @@ function TasksMenu({ active }: { active?: string }) {
                 <span className="side-title">Tasks</span>
             </div>
             <nav className="nav" aria-label="Tasks">
+                {item('inbox', 'inbox', 'Inbox', '/tasks/inbox', nav.counts.inbox)}
                 {item('upnext', 'rank', 'Up next', '/tasks', nav.counts.upNext)}
-                {item('waiting', 'hourglass', 'Not ready yet', '/tasks#not-ready', nav.counts.waiting)}
+                {item('waiting', 'hourglass', 'Not ready yet', '/tasks/waiting', nav.counts.waiting)}
                 <div className="nav-label">Projects</div>
                 {nav.areas.map((a) => (
                     <div key={a.id}>
