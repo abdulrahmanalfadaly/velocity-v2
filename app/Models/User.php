@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -10,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /** @var list<string> */
@@ -36,9 +38,9 @@ class User extends Authenticatable
     }
 
     /** A brand-new account uses Velocity's default zone until the user picks one. */
-    protected function timezone(): \Illuminate\Database\Eloquent\Casts\Attribute
+    protected function timezone(): Attribute
     {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::get(fn (?string $value) => $value ?: config('velocity.timezone'));
+        return Attribute::get(fn (?string $value) => $value ?: config('velocity.timezone'));
     }
 
     public function areas(): HasMany
@@ -79,8 +81,13 @@ class User extends Authenticatable
     /** The user's weights, created with the report's AHP defaults the first time. */
     public function weights(): WeightProfile
     {
-        return $this->weightProfile ??= $this->weightProfile()->create([
-            'importance' => 0.42, 'urgency' => 0.23, 'deadline' => 0.23, 'pressure' => 0.12, 'horizon_days' => 7, 'hours_per_day' => 4,
-        ]);
+        if (! $this->weightProfile) {
+            // setRelation, not an attribute: a later save() of the user must not try to store it as a column.
+            $this->setRelation('weightProfile', $this->weightProfile()->create([
+                'importance' => 0.42, 'urgency' => 0.23, 'deadline' => 0.23, 'pressure' => 0.12, 'horizon_days' => 7, 'hours_per_day' => 4,
+            ]));
+        }
+
+        return $this->weightProfile;
     }
 }

@@ -54,7 +54,7 @@ export default function History() {
                             On time
                         </span>
                         <span>
-                            <i className="sw" style={{ background: 'var(--critical)' }} />
+                            <i className="sw" style={{ background: 'var(--text-3)' }} />
                             Late
                         </span>
                         <span>
@@ -87,7 +87,7 @@ export default function History() {
                                         {w.onTime > 0 && (
                                             <i style={{ flex: w.onTime, background: 'var(--violet)', borderRadius: '0 0 0 0', minHeight: 2 }} />
                                         )}
-                                        {late > 0 && <i style={{ flex: late, background: 'var(--critical)', minHeight: 2 }} />}
+                                        {late > 0 && <i style={{ flex: late, background: 'var(--text-3)', minHeight: 2 }} />}
                                         {none > 0 && <i style={{ flex: none, background: 'var(--track)', minHeight: 2 }} />}
                                         {w.done === 0 && <i className="is-zero" style={{ flex: 1 }} />}
                                     </span>
@@ -111,10 +111,11 @@ export default function History() {
                         </h2>
                     </div>
                     <div style={{ paddingBottom: 8 }}>
+                        {props.recent.length === 0 && <p className="card-empty">Nothing done yet.</p>}
                         {props.recent.map((r) => (
                             <div className="att" key={r.id}>
-                                <span className={`att-ic${r.onTime === false ? ' is-critical' : ''}`}>
-                                    <Icon name={r.onTime === false ? 'alert' : 'check'} />
+                                <span className="att-ic">
+                                    <Icon name={r.onTime === false ? 'clock' : 'check'} />
                                 </span>
                                 <div>
                                     <div className="att-title">{r.title}</div>

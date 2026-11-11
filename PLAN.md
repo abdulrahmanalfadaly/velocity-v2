@@ -122,6 +122,21 @@ organised (to be given later – ask before Phase 2 is finished).
       any task. Undo takes the copy back. Set in the task panel ("Repeats") or
       by typing "every monday", "every 2 weeks" … in quick add (only "every …"
       counts, so "Weekly report" stays a title). `App\Services\Repeat`
+- [x] Deep test (12 Nov): every page and action tried in the browser, two code
+      reviews, a brand-new account. Added what was missing: New project ("+" in
+      the Tasks menu, a new area on the way), edit / archive / restore projects,
+      projects without an area in the menu, milestones you can add, tick and
+      remove, New goal / Edit goal / archive on the Goals map (projects without a
+      goal get an "Other projects" branch), an Archive page (deleted tasks,
+      archived projects and goals, with Restore), habit check-ins on Home and
+      project pages, and in the task panel: notes, waiting for, can start,
+      starts after (no loops), goal, removing steps; the panel also opens on
+      project pages. Fixed: done twice wiped the score, undo of done always gave
+      "To do", project days left off by one, monthly repeats drifting, quick add
+      reading "2 decks" as 2 Dec (and 0h, 31/2, past times, title-less lines),
+      archived items in search and Home, filters resetting after ticking a task,
+      double Enter adding twice, Escape not closing the panel, the Goals map on
+      phones having no Tasks menu, red used for late finishes in History
 - [ ] Templates
 - [ ] Bulk actions
 - [ ] Board / timeline views

@@ -1,11 +1,12 @@
-import { Clock, dueInfo, fmt1, fmtHours, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
+import { Clock, dueInfo, fmt1, fmtHours, goalVar, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
 import type { RankedTask, RepeatRule, TaskDetail } from '@/types/velocity';
-import { router } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { Link, router } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 import { Check, Dots } from './ui';
 
-const patch = (id: number, data: Record<string, string | number | boolean | null>) =>
+type Value = string | number | boolean | null | number[];
+const patch = (id: number, data: Record<string, Value>) =>
     router.patch(route('tasks.update', id), data, { preserveScroll: true, preserveState: true });
 
 const repeatKey = (r: RepeatRule | null) => (r ? `${r.every}-${r.unit}` : '');
@@ -24,10 +25,36 @@ export function TaskPanel({
 }) {
     const [title, setTitle] = useState(task.title);
     const [newStep, setNewStep] = useState('');
+    const [busy, setBusy] = useState(false);
+    const titleRef = useRef<HTMLTextAreaElement>(null);
     useEffect(() => setTitle(task.title), [task.id, task.title]);
+    // The title box grows with the text, so long titles are never cut off.
+    useEffect(() => {
+        const el = titleRef.current;
+        if (el) {
+            el.style.height = 'auto';
+            el.style.height = `${el.scrollHeight}px`;
+        }
+    }, [title]);
     const ranked = task.rank != null ? (task as RankedTask) : null;
     const due = dueInfo(task, clock);
     const done = task.status === 'done';
+    // A task in an archived project still shows that project in the list.
+    const projectChoices = task.project && !projects.some((p) => p.id === task.project!.id) ? [...projects, task.project] : projects;
+    const waitsFor = task.dependsOn.map((d) => d.id);
+    const toggleDone = () => {
+        if (busy) return; // a second click while the first is saving would undo it
+        setBusy(true);
+        router.post(
+            route(done ? 'tasks.reopen' : 'tasks.complete', task.id),
+            {},
+            { preserveScroll: true, preserveState: true, onFinish: () => setBusy(false) },
+        );
+    };
+    const saveTitle = () => {
+        if (!title.trim()) setTitle(task.title);
+        else if (title !== task.title) patch(task.id, { title: title.trim() });
+    };
 
     return (
         <>
@@ -57,20 +84,24 @@ export function TaskPanel({
             </div>
             <div className="panel-body">
                 <div className="p-title-row">
-                    <Check
-                        done={done}
-                        size="check-lg"
-                        label={done ? 'Mark not done' : 'Mark done'}
-                        onClick={() => router.post(route(done ? 'tasks.reopen' : 'tasks.complete', task.id), {}, { preserveScroll: true })}
-                    />
-                    <input
-                        className="p-title"
+                    <Check done={done} size="check-lg" label={done ? 'Mark not done' : 'Mark done'} onClick={toggleDone} />
+                    <textarea
+                        ref={titleRef}
+                        className="p-title p-title-edit"
+                        rows={1}
                         value={title}
                         aria-label="Task title"
-                        onChange={(e) => setTitle(e.target.value)}
-                        onBlur={() => title.trim() && title !== task.title && patch(task.id, { title })}
-                        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                        style={{ width: '100%', border: 0, background: 'transparent', padding: 0 }}
+                        maxLength={255}
+                        onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
+                        onBlur={saveTitle}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                (e.target as HTMLTextAreaElement).blur();
+                            } else if (e.key === 'Escape') {
+                                setTitle(task.title);
+                            }
+                        }}
                     />
                 </div>
                 {!done && (
@@ -100,14 +131,37 @@ export function TaskPanel({
                         'Done'
                     ) : task.status === 'waiting' ? (
                         `Waiting${task.waitingFor ? ` for ${task.waitingFor}` : ''}`
-                    ) : task.dependsOn.length ? (
-                        `After “${task.dependsOn[0].title}”`
+                    ) : task.dependsOn.some((d) => d.status !== 'done') ? (
+                        `After “${task.dependsOn.find((d) => d.status !== 'done')!.title}”`
                     ) : task.availableFrom ? (
                         `From ${clock.date(task.availableFrom, { weekday: 'short', day: 'numeric', month: 'short' })}`
                     ) : null}
                 </p>
 
                 <div className="props">
+                    {task.status === 'waiting' && (
+                        <>
+                            <div className="prop-label">
+                                <Icon name="hourglass" />
+                                Waiting for
+                            </div>
+                            <div className="prop-value">
+                                <input
+                                    className="prop-input"
+                                    aria-label="Waiting for"
+                                    placeholder="Who or what?"
+                                    maxLength={160}
+                                    defaultValue={task.waitingFor ?? ''}
+                                    key={`${task.id}-w-${task.waitingFor}`}
+                                    onBlur={(e) =>
+                                        e.target.value.trim() !== (task.waitingFor ?? '') &&
+                                        patch(task.id, { waiting_for: e.target.value.trim() || null })
+                                    }
+                                    onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                                />
+                            </div>
+                        </>
+                    )}
                     <div className="prop-label">
                         <Icon name="flag" />
                         Importance
@@ -146,15 +200,17 @@ export function TaskPanel({
                         <input
                             type="number"
                             min={0.25}
+                            max={500}
                             step={0.25}
                             aria-label="Estimated hours"
                             defaultValue={task.estHours}
                             key={`${task.id}-h-${task.estHours}`}
-                            onBlur={(e) =>
-                                Number(e.target.value) > 0 &&
-                                Number(e.target.value) !== task.estHours &&
-                                patch(task.id, { est_hours: Number(e.target.value) })
-                            }
+                            onBlur={(e) => {
+                                const h = Number(e.target.value);
+                                if (!(h > 0 && h <= 500))
+                                    e.target.value = String(task.estHours); // not a usable number: put the old one back
+                                else if (h !== task.estHours) patch(task.id, { est_hours: h });
+                            }}
                             className="prop-input"
                             style={{ width: 80 }}
                         />
@@ -172,12 +228,26 @@ export function TaskPanel({
                             onChange={(e) => patch(task.id, { project_id: e.target.value ? Number(e.target.value) : null })}
                         >
                             <option value="">Inbox (no project)</option>
-                            {projects.map((p) => (
+                            {projectChoices.map((p) => (
                                 <option key={p.id} value={p.id}>
                                     {p.name}
                                 </option>
                             ))}
                         </select>
+                    </div>
+                    <div className="prop-label">
+                        <Icon name="target" />
+                        Goal
+                    </div>
+                    <div className="prop-value">
+                        {task.goal ? (
+                            <Link className="p-goal" href={`/goals?focus=g${task.goal.id}`} style={{ ['--g' as string]: goalVar(task.goal.color) }}>
+                                <i />
+                                {task.goal.title}
+                            </Link>
+                        ) : (
+                            <span className="muted">{task.project ? 'The project has no goal' : 'None'}</span>
+                        )}
                     </div>
                     <div className="prop-label">
                         <Icon name="habits" />
@@ -204,7 +274,72 @@ export function TaskPanel({
                             ))}
                         </select>
                     </div>
+                    <div className="prop-label">
+                        <Icon name="calendar" />
+                        Can start
+                    </div>
+                    <div className="prop-value">
+                        <input
+                            type="datetime-local"
+                            aria-label="Can start"
+                            defaultValue={clock.localInput(task.availableFrom)}
+                            key={`${task.id}-a-${task.availableFrom}`}
+                            onBlur={(e) =>
+                                e.target.value !== clock.localInput(task.availableFrom) && patch(task.id, { available_from: e.target.value || null })
+                            }
+                            className="prop-input"
+                        />
+                    </div>
+                    <div className="prop-label">
+                        <Icon name="lock" />
+                        Starts after
+                    </div>
+                    <div className="prop-value p-after">
+                        {task.dependsOn.map((d) => (
+                            <span key={d.id} className={`p-after-chip${d.status === 'done' ? ' is-done' : ''}`}>
+                                {d.title}
+                                <button
+                                    type="button"
+                                    aria-label={`Remove “${d.title}”`}
+                                    onClick={() => patch(task.id, { depends_on: waitsFor.filter((x) => x !== d.id) })}
+                                >
+                                    <Icon name="x" className="ic-xs" />
+                                </button>
+                            </span>
+                        ))}
+                        <select
+                            className="prop-input"
+                            value=""
+                            aria-label="Add a task it starts after"
+                            onChange={(e) => e.target.value && patch(task.id, { depends_on: [...waitsFor, Number(e.target.value)] })}
+                        >
+                            <option value="">{task.dependsOn.length ? 'Add another…' : 'Nothing – pick a task…'}</option>
+                            {task.candidates
+                                .filter((c) => !waitsFor.includes(c.id))
+                                .map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.title}
+                                    </option>
+                                ))}
+                        </select>
+                    </div>
                 </div>
+
+                <section className="p-section">
+                    <div className="p-section-head">
+                        <h3 className="p-section-title">Notes</h3>
+                    </div>
+                    <textarea
+                        className="p-notes"
+                        aria-label="Notes"
+                        placeholder="Add notes…"
+                        defaultValue={task.notes ?? ''}
+                        key={`${task.id}-n-${task.notes}`}
+                        maxLength={20000}
+                        rows={3}
+                        onBlur={(e) => e.target.value !== (task.notes ?? '') && patch(task.id, { notes: e.target.value || null })}
+                    />
+                </section>
 
                 <section className="p-section">
                     <div className="p-section-head">
@@ -225,7 +360,9 @@ export function TaskPanel({
                                         router.patch(route('steps.update', s.id), { done: !s.done }, { preserveScroll: true, preserveState: true })
                                     }
                                 />
-                                <span className="pt-step-title">{s.title}</span>
+                                <span className="pt-step-title" title={s.title}>
+                                    {s.title}
+                                </span>
                                 <button
                                     className="pt-promote"
                                     onClick={() => router.post(route('steps.promote', s.id), {}, { preserveScroll: true, preserveState: true })}
@@ -233,14 +370,22 @@ export function TaskPanel({
                                     <Icon name="rank" className="ic-xs" />
                                     Make it a task
                                 </button>
+                                <button
+                                    className="icon-btn pt-remove"
+                                    aria-label={`Remove step “${s.title}”`}
+                                    title="Remove step"
+                                    onClick={() => router.delete(route('steps.destroy', s.id), { preserveScroll: true, preserveState: true })}
+                                >
+                                    <Icon name="x" className="ic-sm" />
+                                </button>
                             </li>
                         ))}
                         {task.children.map((c) => (
                             <li key={`c${c.id}`} className="pt-step pt-subtask" style={{ minHeight: 34 }}>
                                 <span className="rank-badge">{c.rank ?? '–'}</span>
-                                <a className="pt-step-title" href={`/tasks?task=${c.id}`}>
+                                <Link className="pt-step-title" href={`?task=${c.id}`} preserveScroll title={c.title}>
                                     {c.title}
-                                </a>
+                                </Link>
                             </li>
                         ))}
                     </ul>
@@ -249,10 +394,12 @@ export function TaskPanel({
                         onSubmit={(e) => {
                             e.preventDefault();
                             if (!newStep.trim()) return;
+                            const text = newStep;
+                            setNewStep(''); // cleared first, so a fast second Enter can't add it twice
                             router.post(
                                 route('steps.store', task.id),
-                                { title: newStep },
-                                { preserveScroll: true, preserveState: true, onSuccess: () => setNewStep('') },
+                                { title: text },
+                                { preserveScroll: true, preserveState: true, onError: () => setNewStep(text) },
                             );
                         }}
                     >
@@ -262,16 +409,14 @@ export function TaskPanel({
                             onChange={(e) => setNewStep(e.target.value)}
                             placeholder="Add a step"
                             aria-label="Add a step"
+                            maxLength={255}
                             style={{ flex: 1, border: 0, background: 'transparent', outline: 0 }}
                         />
                     </form>
                 </section>
             </div>
             <div className="panel-foot">
-                <button
-                    className="btn btn-primary btn-lg"
-                    onClick={() => router.post(route(done ? 'tasks.reopen' : 'tasks.complete', task.id), {}, { preserveScroll: true })}
-                >
+                <button className="btn btn-primary btn-lg" onClick={toggleDone} disabled={busy}>
                     <Icon name="check" />
                     {done ? 'Not done' : 'Mark done'}
                 </button>

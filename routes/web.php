@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Controllers\ArchiveController;
 use App\Http\Controllers\FypController;
 use App\Http\Controllers\GoalController;
+use App\Http\Controllers\HabitController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\MilestoneController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TaskController;
@@ -47,8 +50,24 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('steps/{step}', [TaskStepController::class, 'destroy'])->name('steps.destroy');
         Route::post('steps/{step}/promote', [TaskStepController::class, 'promote'])->name('steps.promote');
 
+        Route::get('tasks/archive', ArchiveController::class)->name('tasks.archive');
+
+        Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+        Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        Route::post('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
+        Route::post('projects/{project}/unarchive', [ProjectController::class, 'unarchive'])->name('projects.unarchive');
+        Route::post('projects/{project}/milestones', [MilestoneController::class, 'store'])->name('milestones.store');
+        Route::patch('milestones/{milestone}', [MilestoneController::class, 'update'])->name('milestones.update');
+        Route::delete('milestones/{milestone}', [MilestoneController::class, 'destroy'])->name('milestones.destroy');
+
         Route::get('goals', [GoalController::class, 'index'])->name('goals.index');
+        Route::post('goals', [GoalController::class, 'store'])->name('goals.store');
+        Route::patch('goals/{goal}', [GoalController::class, 'update'])->name('goals.update');
+        Route::post('goals/{goal}/archive', [GoalController::class, 'archive'])->name('goals.archive');
+        Route::post('goals/{goal}/unarchive', [GoalController::class, 'unarchive'])->name('goals.unarchive');
+
+        Route::post('habits/{habit}/check', [HabitController::class, 'check'])->name('habits.check');
         Route::get('search', SearchController::class)->name('search');
     });
 });

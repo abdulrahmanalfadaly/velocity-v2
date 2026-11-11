@@ -1,5 +1,6 @@
 import { CRIT, fmt1, signed } from '@/lib/velocity';
-import type { CriterionKey } from '@/types/velocity';
+import type { CriterionKey, HabitToday } from '@/types/velocity';
+import { router } from '@inertiajs/react';
 import { Icon } from './icon';
 
 /** The score as a bar: its length is the priority out of 100, each colour one part of the formula. */
@@ -125,5 +126,25 @@ export function Legend({ contrib }: { contrib: Record<CriterionKey, number> }) {
                 </span>
             ))}
         </div>
+    );
+}
+
+/** Tap to check in a habit: once-a-day habits tick on and off; counted ones (8 glasses) go up by one, then back to 0. */
+export function HabitButton({ habit }: { habit: HabitToday }) {
+    const partial = habit.target > 1 && !habit.doneToday;
+    const label =
+        habit.target > 1 ? `${habit.name}: ${habit.today} of ${habit.target} today` : `${habit.name}${habit.doneToday ? ', done today' : ''}`;
+    return (
+        <button
+            type="button"
+            className={`habit-btn${habit.doneToday ? ' is-done' : ''}${partial ? ' is-partial' : ''}`}
+            style={partial ? { ['--p' as string]: (habit.today / habit.target) * 100 } : undefined}
+            aria-label={label}
+            aria-pressed={habit.doneToday}
+            title={habit.target > 1 ? 'Add one' : habit.doneToday ? 'Mark not done' : 'Mark done today'}
+            onClick={() => router.post(route('habits.check', habit.id), {}, { preserveScroll: true, preserveState: true })}
+        >
+            {partial ? <span>{habit.today}</span> : <Icon name="check" />}
+        </button>
     );
 }

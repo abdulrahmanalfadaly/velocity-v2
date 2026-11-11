@@ -16,7 +16,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -74,7 +76,12 @@ class TaskController extends Controller
         ]);
     }
 
-    /** Full details for the task panel (?task=id), including its place in the ranking. */
+    /** Full details for the task panel (?task=id), including its place in the ranking. Also used by project pages. */
+    public function detailFor(Request $request): ?array
+    {
+        return $this->detail($request);
+    }
+
     private function detail(Request $request): ?array
     {
         $id = (int) $request->query('task');
@@ -95,6 +102,9 @@ class TaskController extends Controller
             'total' => count($list),
             'children' => $task->children->map(fn ($c) => ['id' => $c->id, 'title' => $c->title, 'rank' => $list->rankOf($c->id), 'score' => $list->scoreOf($c->id)])->values(),
             'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
+            // Open tasks this one could be set to start after.
+            'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
+            'goal' => $task->project?->goal ? ['id' => $task->project->goal->id, 'title' => $task->project->goal->title, 'color' => $task->project->goal->color] : null,
             'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString()])->values(),
         ];
     }
@@ -111,13 +121,15 @@ class TaskController extends Controller
         }
 
         $data = $request->validate([
-            'text' => ['required', 'string', 'max:300'],
+            'text' => ['required', 'string', 'max:255'],
             'importance' => ['nullable', 'integer', 'between:1,5'],
             'urgency' => ['nullable', 'integer', 'between:1,5'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
         ]);
         $parsed = $parser->parse($data['text'], $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all());
-        abort_if($parsed['title'] === '', 422, 'A task needs a title.');
+        if ($parsed['title'] === '') {
+            throw ValidationException::withMessages(['text' => 'A task needs a title, not only a date or hours.']);
+        }
 
         $task = $user->tasks()->create([
             'title' => $parsed['title'],
@@ -154,7 +166,7 @@ class TaskController extends Controller
             return response()->json(['preview' => $this->place($input, $engine, $user, $data['except'] ?? null)]);
         }
 
-        $data = $request->validate(['text' => ['required', 'string', 'max:300'], 'importance' => ['integer', 'between:1,5'], 'urgency' => ['integer', 'between:1,5']]);
+        $data = $request->validate(['text' => ['required', 'string', 'max:255'], 'importance' => ['integer', 'between:1,5'], 'urgency' => ['integer', 'between:1,5']]);
         $parsed = $parser->parse($data['text'], $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all());
         if ($parsed['title'] === '') {
             return response()->json(['parsed' => $parsed, 'preview' => null]);
@@ -212,16 +224,64 @@ class TaskController extends Controller
                 'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
                 'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
                 'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
-            ]);
-            if (array_key_exists('due_at', $data)) {
-                $data['due_at'] = $this->fromLocal($data['due_at'], $user);
+                'available_from' => ['sometimes', 'nullable', 'date'],
+                'depends_on' => ['sometimes', 'array', 'max:20'],
+                'depends_on.*' => ['integer', 'distinct', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
+            ], [], ['depends_on.*' => 'task', 'available_from' => 'start date']);
+            foreach (['due_at', 'available_from'] as $key) {
+                if (array_key_exists($key, $data)) {
+                    $data[$key] = $this->fromLocal($data[$key], $user);
+                }
             }
+        }
+        if (array_key_exists('depends_on', $data)) {
+            $this->setDependencies($task, $data['depends_on']);
+            unset($data['depends_on']);
+        }
+        // A new due date or repeat rule sets a new day of the month to keep to.
+        if (array_key_exists('due_at', $data) || array_key_exists('repeat_unit', $data)) {
+            $data['repeat_day'] = null;
+        }
+        // A done task is opened again only through "Not done" (reopen), which also handles its repeat copy.
+        if ($task->status === Task::DONE) {
+            unset($data['status']);
+        }
+        if (! $data) {
+            return back();
         }
         $before = $task->only(array_keys($data));
         $task->update($data);
         $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => ['before' => $before, 'after' => $task->only(array_keys($data))]]);
 
         return $request->boolean('form') ? back()->with('toast', $this->placed($task, 'Saved')) : back();
+    }
+
+    /**
+     * "Starts after …": the task can't start until these are done. A task can't
+     * wait for itself, or for a task that (through others) waits for it.
+     *
+     * @param  list<int>  $ids
+     */
+    private function setDependencies(Task $task, array $ids): void
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $loops = in_array($task->id, $ids, true);
+        $seen = [];
+        $stack = $ids;
+        while (! $loops && $stack) {
+            $id = array_pop($stack);
+            if (isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $next = DB::table('task_dependencies')->where('task_id', $id)->pluck('depends_on_id')->all();
+            $loops = in_array($task->id, $next, true);
+            array_push($stack, ...$next);
+        }
+        if ($loops) {
+            throw ValidationException::withMessages(['depends_on' => 'That would make these tasks wait for each other.']);
+        }
+        $task->dependencies()->sync($ids);
     }
 
     /** The FYP task form: title, notes, importance, urgency, optional due date, estimated hours (FR2). */
@@ -255,9 +315,14 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
+        // Already done (a double click, an old tab): change nothing, so its score at completion is kept.
+        if ($task->status === Task::DONE) {
+            return back();
+        }
         $score = $this->ranking->rank($user)->scoreOf($task->id);
+        $was = $task->status;
         $task->update(['status' => Task::DONE, 'completed_at' => $this->ranking->now(), 'score_at_completion' => $score]);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'completed', 'snapshot' => ['score' => $score]]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'completed', 'snapshot' => ['score' => $score, 'was' => $was]]);
         $next = $this->repeatNext($task, $user);
         $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '');
 
@@ -277,7 +342,8 @@ class TaskController extends Controller
         $now = $this->ranking->now();
         // A task with no due date repeats from the end of today.
         $base = $task->due_at ? CarbonImmutable::instance($task->due_at) : $now->timezone($user->timezone)->setTime(23, 59);
-        $due = Repeat::next($base, $task->repeat_unit, $task->repeat_every, $user->timezone, $now);
+        $day = $task->repeat_day ?? Repeat::anchorDay($base, $task->repeat_unit, $user->timezone);
+        $due = Repeat::next($base, $task->repeat_unit, $task->repeat_every, $user->timezone, $now, $day);
         $shift = fn ($at) => $at ? CarbonImmutable::instance($at)->addSeconds($due->getTimestamp() - $base->getTimestamp()) : null;
 
         $next = $user->tasks()->create([
@@ -293,6 +359,7 @@ class TaskController extends Controller
             'reminder_at' => $shift($task->reminder_at),
             'repeat_unit' => $task->repeat_unit,
             'repeat_every' => $task->repeat_every,
+            'repeat_day' => $day,
             'repeated_from_id' => $task->id,
         ]);
         foreach ($task->steps as $step) {
@@ -307,7 +374,12 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
-        $task->update(['status' => Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
+        if ($task->status !== Task::DONE) {
+            return back();
+        }
+        // Back to what it was before it was ticked off (Doing, Waiting …), or To do.
+        $was = $task->events()->where('type', 'completed')->first()?->snapshot['was'] ?? Task::TODO;
+        $task->update(['status' => in_array($was, Task::OPEN, true) ? $was : Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
         $task->events()->create(['user_id' => $user->id, 'type' => 'reopened']);
         // Undoing "done" on a repeating task takes back the copy it created, if that copy is still open.
         $next = $task->nextRepeat()->open()->first();

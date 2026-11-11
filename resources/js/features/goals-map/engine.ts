@@ -165,6 +165,8 @@ export interface MapContext {
     onDone: (taskId: number) => void;
     onPromote: (stepId: number) => void;
     onToggleMenu: () => void;
+    onNewGoal: () => void;
+    onEditGoal: (goalId: number) => void;
 }
 
 export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext): () => void {
@@ -384,6 +386,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
 
     /* ------------------------------------------------------------------- DOM */
     const goalNode = (g: MapGoal) => nodes.get(`g${g.id}`)!;
+    // "Other projects" (id 0) holds projects with no goal; it is not counted as a goal.
+    const goalCount = data.goals.filter((g) => g.id > 0).length;
     const totals = tally(root);
     const projectCount = data.goals.reduce((s, g) => s + g.projects.length, 0);
     const initials = data.userName
@@ -395,11 +399,12 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     mount.innerHTML = `
         <div class="gm-bar">
             <button class="icon-btn gm-menu" data-gm-side title="Show the Tasks menu" aria-label="Show the Tasks menu">${ic('menu')}</button>
-            <div class="gm-title"><h1>Goals map</h1><span>${data.goals.length} goals · ${projectCount} projects · ${totals.total} tasks · ${totals.pct}% done</span></div>
+            <div class="gm-title"><h1>Goals map</h1><span>${goalCount} goals · ${projectCount} projects · ${totals.total} tasks · ${totals.pct}% done</span></div>
             <div class="gm-goals" role="group" aria-label="Jump to a goal">${data.goals.map((g) => `<button class="gm-goal" data-gm-goal="g${g.id}" aria-pressed="false" style="--g:var(--goal-${g.color})"><span class="gdot">${ic(g.icon || 'target')}</span><span class="gm-goal-name">${esc(g.title)}</span><b>${tally(goalNode(g)).pct}%</b></button>`).join('')}</div>
             <div class="gm-tools">
                 <label class="gm-search">${ic('search', 'ic-sm')}<input data-gm-search placeholder="Find in the map" aria-label="Find in the map" autocomplete="off"><small data-gm-count></small></label>
                 <div class="pop-wrap">
+                    <button class="btn btn-secondary btn-sm" data-gm-newgoal>${ic('plus', 'ic-sm')}<span class="btn-label">New goal</span></button>
                     <button class="btn btn-secondary btn-sm" data-gm-layers aria-expanded="false" aria-controls="gm-layers">${ic('sliders', 'ic-sm')}<span class="btn-label">Show</span></button>
                     <div class="popover gm-layers" id="gm-layers" role="dialog" aria-label="What to show" hidden>
                         <p class="pop-title">Show on the map</p>
@@ -465,7 +470,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     function label(n: MapNode) {
         switch (n.type) {
             case 'root':
-                return `You: ${data.goals.length} goals, ${totals.pct}% of tasks done`;
+                return `You: ${goalCount} goals, ${totals.pct}% of tasks done`;
             case 'goal':
                 return `Goal: ${n.title}, ${tally(n).pct}% done`;
             case 'project':
@@ -498,7 +503,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     function inner(n: MapNode) {
         switch (n.type) {
             case 'root':
-                return `<span class="mn-orbit"></span>${progressRing(totals.pct, 196, 5)}<span class="avatar">${esc(initials)}</span><b>${esc(data.userName.split(' ')[0])}</b><span>${data.goals.length} goals · ${totals.pct}% done</span>`;
+                return `<span class="mn-orbit"></span>${progressRing(totals.pct, 196, 5)}<span class="avatar">${esc(initials)}</span><b>${esc(data.userName.split(' ')[0])}</b><span>${goalCount} goals · ${totals.pct}% done</span>`;
             case 'goal': {
                 const t = tally(n);
                 return `<span class="gdot">${ic(n.goal.icon || 'target')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${count(n, 'project')} projects${n.goal.target ? ` · by ${esc(n.goal.target)}` : ''}</div></div><span class="mn-pct">${progressRing(t.pct, 44, 4)}<span>${t.pct}%</span></span>${knob(n)}`;
@@ -938,7 +943,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                         return `<a class="gp-project" href="/projects/${p.pid}"><span class="pdot">${ic('folder')}</span><div><b>${esc(p.title)}</b><span class="gp-bar"><i style="--p:${pt.pct}%"></i></span><small>${pt.done}/${pt.total} done${next ? ` · next: #${next.rank} ${esc(next.title)}` : ''}</small></div></a>`;
                     })
                     .join('')}</div>
-            </div>${pfoot(`<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom to this goal</button>`)}`;
+            </div>${pfoot(`<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom to this goal</button>${n.goal.id > 0 ? `<button class="btn btn-secondary btn-lg" data-gm-editgoal="${n.goal.id}">${ic('settings')}Edit goal</button>` : ''}`)}`;
         } else if (n.type === 'project' || n.type === 'inbox') {
             const t = tally(n);
             const open = n.children.filter(isRanked).sort((a, b) => a.rank - b.rank);
@@ -967,7 +972,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             </div>${pfoot(`<a class="btn btn-secondary btn-lg" href="/projects/${n.pid}">${ic('folder')}Open project</a>`)}`;
         } else {
             html = `${phead('<span>You</span>')}<div class="panel-body">
-                <div class="gp-head"><span class="avatar avatar-lg">${esc(initials)}</span><div><h2 class="p-title">${esc(data.userName)}</h2><p class="gp-why">${data.goals.length} goals · ${projectCount} projects · ${totals.total} tasks</p></div></div>
+                <div class="gp-head"><span class="avatar avatar-lg">${esc(initials)}</span><div><h2 class="p-title">${esc(data.userName)}</h2><p class="gp-why">${goalCount} goals · ${projectCount} projects · ${totals.total} tasks</p></div></div>
                 <div class="gp-stats"><span class="mn-pct">${progressRing(totals.pct, 64, 6)}<span>${totals.pct}%</span></span><div><b>${totals.done} of ${totals.total} tasks done</b><span>${NEXT ? `Your next task is #1: ${esc(NEXT.title)}` : ''}</span></div></div>
                 <div class="gp-projects">${data.goals
                     .map((g) => {
@@ -1239,6 +1244,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         if (t.closest('[data-gm-gonext]')) return goNext();
         if (t.closest('[data-gm-close]')) return select(null);
         if (t.closest('[data-gm-side]')) return ctx.onToggleMenu();
+        if (t.closest('[data-gm-newgoal]')) return ctx.onNewGoal();
+        const editGoal = t.closest<HTMLElement>('[data-gm-editgoal]');
+        if (editGoal) return ctx.onEditGoal(Number(editGoal.dataset.gmEditgoal));
         const goal = t.closest<HTMLElement>('[data-gm-goal]');
         if (goal) {
             const n = nodeOf(goal.dataset.gmGoal);

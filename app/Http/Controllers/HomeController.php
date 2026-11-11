@@ -42,7 +42,7 @@ class HomeController extends Controller
             'attention' => [
                 'overdue' => collect($all)->filter(fn ($t) => $t['days'] !== null && $t['days'] <= 0)->values(),
                 'notReady' => $ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->values(),
-                'milestones' => $user->projects()->with(['milestones' => fn ($q) => $q->whereNull('done_at')->whereBetween('due_date', [$today->toDateString(), $today->addDays(3)->toDateString()])])->get()
+                'milestones' => $user->projects()->whereNull('archived_at')->with(['milestones' => fn ($q) => $q->whereNull('done_at')->whereBetween('due_date', [$today->toDateString(), $today->addDays(3)->toDateString()])])->get()
                     ->flatMap(fn ($p) => $p->milestones->map(fn ($m) => ['title' => $m->title, 'project' => $p->name, 'projectId' => $p->id, 'dueDate' => $m->due_date->toDateString()]))->values(),
             ],
             'week' => [

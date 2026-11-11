@@ -1340,3 +1340,68 @@ select.prop-input { padding-right: 6px; }
 .p-title:focus { box-shadow: 0 0 0 3px var(--violet-soft); }
 a.tl-block { display: block; }
 a.tl-block:hover { border-color: var(--line-strong); }
+
+/* Long titles wrap instead of spilling out of their box. */
+.hero-title, .tl-title, .att-title, .world-title, .pnext-title, .row-title, .p-title { overflow-wrap: anywhere; }
+
+/* Forms in dialogs: new / edit project and goal. */
+.vform-dialog { width: min(560px, 100%); }
+.vform-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 4px; }
+.vform-head h2 { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.vform { display: grid; gap: 14px; padding: 10px 18px 18px; max-height: calc(100svh - 22vh); overflow-y: auto; }
+.vform-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.vform-text { height: auto; min-height: 64px; padding-top: 8px; padding-bottom: 8px; resize: vertical; line-height: 1.45; }
+.vform-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 6px; }
+.vform-foot-right { display: flex; gap: 8px; }
+.vform-swatches, .vform-icons { display: flex; gap: 8px; min-height: 38px; align-items: center; }
+.vform-swatches button { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); background: var(--g); box-shadow: 0 0 0 1px var(--line); }
+.vform-swatches button[aria-checked="true"] { box-shadow: 0 0 0 2px var(--violet); }
+.vform-icons button { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); }
+.vform-icons button[aria-checked="true"] { border-color: var(--violet); color: var(--violet-ink); background: var(--violet-soft); }
+@media (max-width: 560px) { .vform-row { grid-template-columns: 1fr; } }
+
+/* Goals map with nothing on it yet. */
+.app.is-canvas .main { position: relative; }
+.gm-empty { position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); z-index: 5; display: grid; justify-items: center; gap: 12px; padding: 18px 22px; text-align: center; font-weight: 600; }
+
+/* Task panel additions: growing title, notes, "starts after", goal, removing steps. */
+.p-title-edit { width: 100%; border: 0; background: transparent; padding: 0; resize: none; overflow: hidden; color: inherit; display: block; }
+.p-notes { width: 100%; min-height: 72px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 13.5px; line-height: 1.5; resize: vertical; }
+.p-notes:focus { outline: none; border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
+.p-after { flex-wrap: wrap; gap: 6px; padding-top: 4px; padding-bottom: 4px; }
+.p-after .prop-input { max-width: 100%; }
+.p-after-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--surface-3); font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.p-after-chip.is-done { color: var(--text-3); text-decoration: line-through; }
+.p-after-chip button { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: var(--text-3); }
+.p-after-chip button:hover { background: var(--hover); color: var(--text); }
+.p-goal { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; color: var(--text); }
+.p-goal i { width: 9px; height: 9px; border-radius: 50%; background: var(--g); }
+.p-goal:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pt-remove { width: 26px; height: 26px; margin-left: auto; opacity: 0; flex: none; }
+.pt-promote + .pt-remove { margin-left: 0; }
+.pt-step:hover .pt-remove, .pt-remove:focus-visible { opacity: 1; }
+@media (hover: none) { .pt-remove, .pt-promote { opacity: 1; } }
+
+/* Project page: edit button, archived bar, milestones you can tick, add and remove. */
+.world-gap { flex: 1; }
+.world-top .btn { position: relative; z-index: 1; }
+.archived-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; background: var(--surface-3); font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.archived-bar .btn { margin-left: auto; }
+button.ms-dot { padding: 0; cursor: pointer; }
+button.ms-dot:hover { border-color: var(--violet); }
+.ms-item { padding-top: 0; }
+.ms-remove { position: absolute; top: -6px; right: 6px; display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--surface); color: var(--text-3); opacity: 0; }
+.ms-item:hover .ms-remove, .ms-remove:focus-visible { opacity: 1; }
+.ms-remove:hover { color: var(--text); background: var(--hover); }
+@media (hover: none) { .ms-remove { opacity: 1; } }
+.ms-add { padding: 4px 16px 12px; border-top: 1px solid var(--line); }
+.ms + .ms-add { border-top: 0; }
+.ms-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 8px; }
+.ms-form .input { width: auto; flex: 1 1 180px; height: 34px; }
+.ms-form .input[type="date"] { flex: 0 1 160px; }
+.wstat b.is-late { color: var(--critical-ink); }
+
+/* Archive. */
+.archive-card { margin-bottom: 16px; padding-bottom: 6px; }
+.archive-card .row-title { color: var(--text); }
+a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }

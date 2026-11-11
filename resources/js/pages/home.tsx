@@ -1,4 +1,5 @@
 import { Icon } from '@/components/velocity/icon';
+import { HabitButton } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
 import type { HabitToday, NotReadyTask, RankedTask, VelocityShared } from '@/types/velocity';
@@ -91,13 +92,24 @@ function DoNext({ task, next, total, clock }: { task: RankedTask; next: RankedTa
                     {task.status === 'doing' && <span className="chip is-doing">Doing</span>}
                 </div>
                 <div className="hero-actions">
-                    <Link href={`/tasks?task=${task.id}`} className="btn btn-primary btn-lg">
+                    <button
+                        className="btn btn-primary btn-lg"
+                        onClick={() =>
+                            task.status === 'doing'
+                                ? router.visit(`/tasks?task=${task.id}`)
+                                : router.patch(
+                                      route('tasks.update', task.id),
+                                      { status: 'doing' },
+                                      { preserveScroll: true, onSuccess: () => router.visit(`/tasks?task=${task.id}`) },
+                                  )
+                        }
+                    >
                         <Icon name="play" />
-                        Open and start
-                    </Link>
+                        {task.status === 'doing' ? 'Open' : 'Open and start'}
+                    </button>
                     <button
                         className="btn btn-secondary btn-lg"
-                        onClick={() => router.post(route('tasks.complete', task.id), {}, { preserveScroll: true })}
+                        onClick={() => router.post(route('tasks.complete', task.id), {}, { preserveScroll: true, preserveState: true })}
                     >
                         <Icon name="check" />
                         Done
@@ -217,19 +229,7 @@ function Habits({ habits }: { habits: HabitToday[] }) {
             <div style={{ paddingBottom: 8 }}>
                 {habits.map((h) => (
                     <div className="habit" key={h.id}>
-                        {h.target > 1 && !h.doneToday ? (
-                            <span
-                                className="habit-btn is-partial"
-                                style={{ ['--p' as string]: (h.today / h.target) * 100 }}
-                                aria-label={`${h.name}: ${h.today} of ${h.target}`}
-                            >
-                                <span>{h.today}</span>
-                            </span>
-                        ) : (
-                            <span className={`habit-btn${h.doneToday ? ' is-done' : ''}`} aria-label={h.name}>
-                                <Icon name="check" />
-                            </span>
-                        )}
+                        <HabitButton habit={h} />
                         <div>
                             <div className={`habit-name${h.doneToday ? ' is-done' : ''}`}>{h.name}</div>
                             <div className="habit-detail">
@@ -269,11 +269,11 @@ function Attention({ attention, clock }: { attention: Props['attention']; clock:
             action: t.kind === 'waiting' ? 'Follow up' : '',
         })),
         ...attention.milestones.map((m) => ({
-            key: `m${m.title}`,
+            key: `m${m.projectId}-${m.title}`,
             icon: 'flag',
             critical: false,
             title: `${m.title} · ${m.project}`,
-            detail: `Milestone due ${clock.date(m.dueDate)}`,
+            detail: `Milestone due ${clock.date(m.dueDate + 'T12:00:00Z')}`,
             href: `/projects/${m.projectId}`,
             action: 'Open',
         })),
@@ -331,7 +331,7 @@ function Week({ week, clock }: { week: Props['week']; clock: Clock }) {
             <div className="stats">
                 <div className="stat">
                     <b>{week.done}</b>
-                    <span>tasks done</span>
+                    <span>{week.done === 1 ? 'task done' : 'tasks done'}</span>
                 </div>
                 <div className="stat">
                     <b>{week.onTime == null ? '–' : `${week.onTime}%`}</b>

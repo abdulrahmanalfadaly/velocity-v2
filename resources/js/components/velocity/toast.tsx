@@ -4,6 +4,14 @@ import { useEffect, useState } from 'react';
 
 export type ToastState = { text: string; undo: VelocityShared['flash']['undo'] } | null;
 
+/** Which route each kind of Undo calls. */
+const UNDO_ROUTE: Record<NonNullable<VelocityShared['flash']['undo']>['action'], string> = {
+    reopen: 'tasks.reopen',
+    restore: 'tasks.restore',
+    'unarchive-project': 'projects.unarchive',
+    'unarchive-goal': 'goals.unarchive',
+};
+
 /** One-shot messages from the server ("Done: …", with Undo), plus any the screen raises itself. */
 export function useToast() {
     const { props } = usePage<VelocityShared>();
@@ -30,7 +38,7 @@ export function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void
                     onClick={() => {
                         const u = toast.undo!;
                         onDone();
-                        router.post(route(u.action === 'reopen' ? 'tasks.reopen' : 'tasks.restore', u.id), {}, { preserveScroll: true });
+                        router.post(route(UNDO_ROUTE[u.action], u.id), {}, { preserveScroll: true });
                     }}
                 >
                     Undo

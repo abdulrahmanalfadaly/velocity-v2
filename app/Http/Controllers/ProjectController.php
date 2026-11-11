@@ -7,13 +7,71 @@ use App\Models\Task;
 use App\Services\HabitStats;
 use App\Services\RankingService;
 use App\Services\TaskPresenter;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /** A project is its own little world: tasks and steps, habits, notes and milestones. */
 class ProjectController extends Controller
 {
+    /** New project (from the "+" in the Tasks menu). An area can be made on the way. */
+    public function store(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $project = $user->projects()->create($this->fields($request) + ['position' => (int) $user->projects()->max('position') + 1]);
+
+        return to_route('projects.show', $project)->with('toast', "Created “{$project->name}”");
+    }
+
+    public function update(Request $request, Project $project): RedirectResponse
+    {
+        $this->own($project, $request->user());
+        $project->update($this->fields($request, partial: true));
+
+        return back()->with('toast', 'Saved');
+    }
+
+    /** Archiving hides a project from the menus and the Goals map; its open tasks stay in your list. */
+    public function archive(Request $request, Project $project): RedirectResponse
+    {
+        $this->own($project, $request->user());
+        $project->update(['archived_at' => now()]);
+
+        return back()->with('toast', "Archived “{$project->name}”")->with('undo', ['action' => 'unarchive-project', 'id' => $project->id]);
+    }
+
+    public function unarchive(Request $request, Project $project): RedirectResponse
+    {
+        $this->own($project, $request->user());
+        $project->update(['archived_at' => null]);
+
+        return back()->with('toast', "Restored “{$project->name}”");
+    }
+
+    private function fields(Request $request, bool $partial = false): array
+    {
+        $user = $request->user();
+        $sometimes = $partial ? ['sometimes'] : [];
+        $data = $request->validate([
+            'name' => [...$sometimes, 'required', 'string', 'max:120'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'due_date' => ['sometimes', 'nullable', 'date'],
+            'goal_id' => ['sometimes', 'nullable', 'integer', Rule::exists('goals', 'id')->where('user_id', $user->id)],
+            'area_id' => ['sometimes', 'nullable', 'integer', Rule::exists('areas', 'id')->where('user_id', $user->id)],
+            'new_area' => ['sometimes', 'nullable', 'string', 'max:80'],
+        ], [], ['new_area' => 'area name', 'goal_id' => 'goal', 'area_id' => 'area']);
+        // "New area…" in the form: make it and put the project in it.
+        if (filled($data['new_area'] ?? null)) {
+            $data['area_id'] = $user->areas()->firstOrCreate(['name' => trim($data['new_area'])], ['position' => (int) $user->areas()->max('position') + 1])->id;
+        }
+        unset($data['new_area']);
+
+        return $data;
+    }
+
     public function show(Request $request, Project $project, RankingService $ranking): Response
     {
         $user = $request->user();
@@ -34,9 +92,14 @@ class ProjectController extends Controller
                 'name' => $project->name,
                 'description' => $project->description,
                 'dueDate' => $project->due_date?->toDateString(),
-                'daysLeft' => $project->due_date ? (int) $todayLocal->diffInDays($project->due_date->copy()->startOfDay(), false) : null,
+                // Whole days between today and the due date, both as dates in the user's own time zone.
+                'daysLeft' => $project->due_date
+                    ? (int) round($todayLocal->diffInDays(CarbonImmutable::parse($project->due_date->toDateString(), $user->timezone), false))
+                    : null,
                 'area' => $project->area?->name,
+                'areaId' => $project->area_id,
                 'goal' => $project->goal ? ['id' => $project->goal->id, 'title' => $project->goal->title, 'color' => $project->goal->color] : null,
+                'archived' => $project->archived_at !== null,
             ],
             'stats' => ['done' => $doneCount, 'total' => $total, 'pct' => $total ? (int) round($doneCount / $total * 100) : 0, 'bestRank' => $open[0]['rank'] ?? null],
             'milestones' => $project->milestones->map(fn ($m) => [
@@ -48,6 +111,9 @@ class ProjectController extends Controller
             'done' => $done->map(fn ($t) => TaskPresenter::base($t))->values(),
             'habits' => $project->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
             'notes' => $project->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->title, 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+            // The task panel opens right here (?task=id), as on the Tasks pages.
+            'selected' => fn () => app(TaskController::class)->detailFor($request),
+            'projects' => $user->projects()->whereNull('archived_at')->get(['id', 'name']),
         ]);
     }
 }

@@ -2,17 +2,68 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Goal;
 use App\Models\Task;
 use App\Services\HabitStats;
 use App\Services\RankingService;
 use App\Services\TaskPresenter;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /** The Goals map: everything you are working towards, as one tree. */
 class GoalController extends Controller
 {
+    public const ICONS = ['target', 'cap', 'briefcase', 'heart', 'flame', 'zap'];
+
+    public function store(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $goal = $user->goals()->create($this->fields($request) + ['position' => (int) $user->goals()->max('position') + 1]);
+
+        return back()->with('toast', "Created goal “{$goal->title}”");
+    }
+
+    public function update(Request $request, Goal $goal): RedirectResponse
+    {
+        $this->own($goal, $request->user());
+        $goal->update($this->fields($request, partial: true));
+
+        return back()->with('toast', 'Saved');
+    }
+
+    /** Archiving hides a goal from the map; its projects stay, just without a goal colour. */
+    public function archive(Request $request, Goal $goal): RedirectResponse
+    {
+        $this->own($goal, $request->user());
+        $goal->update(['archived_at' => now()]);
+
+        return back()->with('toast', "Archived goal “{$goal->title}”")->with('undo', ['action' => 'unarchive-goal', 'id' => $goal->id]);
+    }
+
+    public function unarchive(Request $request, Goal $goal): RedirectResponse
+    {
+        $this->own($goal, $request->user());
+        $goal->update(['archived_at' => null]);
+
+        return back()->with('toast', "Restored goal “{$goal->title}”");
+    }
+
+    private function fields(Request $request, bool $partial = false): array
+    {
+        $sometimes = $partial ? ['sometimes'] : [];
+
+        return $request->validate([
+            'title' => [...$sometimes, 'required', 'string', 'max:160'],
+            'why' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'target' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'color' => [...$sometimes, 'required', 'integer', 'between:1,3'],
+            'icon' => ['sometimes', 'nullable', Rule::in(self::ICONS)],
+        ], [], ['color' => 'colour']);
+    }
+
     public function index(Request $request, RankingService $ranking): Response
     {
         $user = $request->user();
@@ -53,12 +104,24 @@ class GoalController extends Controller
             ];
         };
 
+        // Projects with no goal (or whose goal is archived) get their own branch, so none of their tasks go missing.
+        $other = $user->projects()->whereNull('archived_at')
+            ->where(fn ($q) => $q->whereNull('goal_id')->orWhereHas('goal', fn ($g) => $g->whereNotNull('archived_at')))
+            ->with(['notes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')])->get();
+        $branches = $goals->map(fn ($g) => [
+            'id' => $g->id, 'title' => $g->title, 'why' => $g->why, 'target' => $g->target, 'color' => $g->color, 'icon' => $g->icon,
+            'projects' => $g->projects->map($projectNode)->values(),
+        ])->values();
+        if ($other->isNotEmpty()) {
+            $branches->push(['id' => 0, 'title' => 'Other projects', 'why' => null, 'target' => null, 'color' => 0, 'icon' => 'folder', 'projects' => $other->map($projectNode)->values()]);
+        }
+
         return Inertia::render('goals/index', [
-            'goals' => $goals->map(fn ($g) => [
-                'id' => $g->id, 'title' => $g->title, 'why' => $g->why, 'target' => $g->target, 'color' => $g->color, 'icon' => $g->icon,
-                'projects' => $g->projects->map($projectNode)->values(),
-            ])->values(),
-            'inbox' => $user->tasks()->whereNull('project_id')->whereIn('status', Task::OPEN)->with('steps')->get()->map($taskNode)->values(),
+            'goals' => $branches,
+            // Open tasks with no project, or in an archived project.
+            'inbox' => $user->tasks()->whereIn('status', Task::OPEN)
+                ->where(fn ($q) => $q->whereNull('project_id')->orWhereHas('project', fn ($p) => $p->whereNotNull('archived_at')))
+                ->with('steps')->get()->map($taskNode)->values(),
             'nextId' => $list->scored[0]->task->id ?? null,
             'totalRanked' => count($list),
             'focus' => $request->query('focus'),

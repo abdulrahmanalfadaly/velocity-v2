@@ -15,7 +15,7 @@ class QuickAddParser
     private const DAYS = ['mon' => 1, 'monday' => 1, 'tue' => 2, 'tues' => 2, 'tuesday' => 2, 'wed' => 3, 'wednesday' => 3,
         'thu' => 4, 'thur' => 4, 'thurs' => 4, 'thursday' => 4, 'fri' => 5, 'friday' => 5, 'sat' => 6, 'saturday' => 6, 'sun' => 7, 'sunday' => 7];
 
-    private const MONTHS = ['jan' => 1, 'feb' => 2, 'mar' => 3, 'apr' => 4, 'may' => 5, 'jun' => 6, 'jul' => 7, 'aug' => 8, 'sep' => 9, 'sept' => 9, 'oct' => 10, 'nov' => 11, 'dec' => 12];
+    private const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
     private const UNITS = ['day' => 'day', 'days' => 'day', 'weekday' => 'weekday', 'weekdays' => 'weekday', 'week' => 'week', 'weeks' => 'week',
         'month' => 'month', 'months' => 'month', 'year' => 'year', 'years' => 'year'];
@@ -60,10 +60,10 @@ class QuickAddParser
                 if ($repeat['unit'] === 'weekday') {
                     $repeat['every'] = 1;
                 }
-            } elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/', $lw, $m)) {
+            } elseif (preg_match('/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/', $lw, $m) && (float) $m[1] >= 0.05 && (float) $m[1] <= 500) {
                 $hours = (float) $m[1];
                 $picked[] = ['kind' => 'hours', 'text' => $w];
-            } elseif (preg_match('/^(\d+)\s*(m|min|mins|minutes)$/', $lw, $m)) {
+            } elseif (preg_match('/^(\d+)\s*(m|min|mins|minutes)$/', $lw, $m) && (int) $m[1] >= 3 && (int) $m[1] <= 30000) {
                 $hours = round(((int) $m[1]) / 60, 2);
                 $picked[] = ['kind' => 'hours', 'text' => $w];
             } elseif (in_array($lw, ['today', 'tonight'], true)) {
@@ -78,18 +78,14 @@ class QuickAddParser
             } elseif (isset(self::DAYS[$lw])) {
                 $day = $this->nextWeekday($nowLocal, self::DAYS[$lw]);
                 $picked[] = ['kind' => 'due', 'text' => $w];
-            } elseif (preg_match('/^(\d{1,2})$/', $lw, $m) && $this->month($next) !== null) {
-                $day = $this->dateInYear($nowLocal, (int) $m[1], $this->month($next));
+            } elseif (preg_match('/^(\d{1,2})$/', $lw, $m) && ($month = $this->month($next)) !== null && $this->realDate((int) $m[1], $month)) {
+                $day = $this->dateInYear($nowLocal, (int) $m[1], $month);
                 $picked[] = ['kind' => 'due', 'text' => $w.' '.$words[++$i]];
-            } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $lw, $m)) {
+            } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $lw, $m) && $this->realDate((int) $m[1], (int) $m[2])) {
                 $day = $this->dateInYear($nowLocal, (int) $m[1], (int) $m[2]);
                 $picked[] = ['kind' => 'due', 'text' => $w];
-            } elseif (preg_match('/^(?:at)?(\d{1,2})(?::(\d{2}))?(am|pm)$/', $lw, $m) || preg_match('/^(\d{1,2}):(\d{2})$/', $lw, $m)) {
-                $h = (int) $m[1] % 12 + (($m[3] ?? '') === 'pm' ? 12 : 0);
-                if (! isset($m[3])) {
-                    $h = (int) $m[1];
-                }
-                $time = sprintf('%02d:%02d', $h, (int) ($m[2] ?? 0));
+            } elseif ($this->clockTime($lw) !== null) {
+                $time = $this->clockTime($lw);
                 $picked[] = ['kind' => 'time', 'text' => $w];
             } elseif (str_starts_with($lw, '#') && mb_strlen($lw) > 1) {
                 $needle = mb_substr($lw, 1);
@@ -117,18 +113,57 @@ class QuickAddParser
         }
         $due = null;
         if ($day || $time) {
-            $day ??= $nowLocal->startOfDay();
-            $due = $day->setTimeFromTimeString($time ?? '23:59');
+            $due = ($day ?? $nowLocal->startOfDay())->setTimeFromTimeString($time ?? '23:59');
+            // Only a time ("call mum 9am") that has already passed today means tomorrow.
+            if ($day === null && $due->lessThanOrEqualTo($nowLocal)) {
+                $due = $due->addDay();
+            }
         }
 
         return ['title' => trim(implode(' ', $keep)), 'due' => $due, 'hours' => $hours, 'projectId' => $projectId, 'repeat' => $repeat, 'picked' => $picked];
     }
 
+    /** A month name or the start of one ("dec", "decem", "december"), not just any word that starts like one ("decks"). */
     private function month(string $word): ?int
     {
         $word = rtrim($word, ',.');
+        if (strlen($word) < 3) {
+            return null;
+        }
+        foreach (self::MONTH_NAMES as $i => $name) {
+            if (str_starts_with($name, $word)) {
+                return $i + 1;
+            }
+        }
 
-        return self::MONTHS[substr($word, 0, 4)] ?? (strlen($word) >= 3 ? (self::MONTHS[substr($word, 0, 3)] ?? null) : null);
+        return null;
+    }
+
+    private function realDate(int $day, int $month): bool
+    {
+        return checkdate($month, $day, 2028); // a leap year, so 29 Feb is allowed
+    }
+
+    /** "9am", "at3pm", "9:30pm", "14:00" → "HH:MM"; anything that isn't a real time → null. */
+    private function clockTime(string $word): ?string
+    {
+        if (preg_match('/^(?:at)?(\d{1,2})(?::(\d{2}))?(am|pm)$/', $word, $m)) {
+            $h = (int) $m[1];
+            if ($h < 1 || $h > 12) {
+                return null;
+            }
+            $h = $h % 12 + ($m[3] === 'pm' ? 12 : 0);
+        } elseif (preg_match('/^(\d{1,2}):(\d{2})$/', $word, $m)) {
+            $h = (int) $m[1];
+            if ($h > 23) {
+                return null;
+            }
+        } else {
+            return null;
+        }
+        $min = (int) ($m[2] ?? 0);
+
+        return $min < 60 ? sprintf('%02d:%02d', $h, $min) : null;
     }
 
     private function nextWeekday(CarbonImmutable $now, int $iso): CarbonImmutable

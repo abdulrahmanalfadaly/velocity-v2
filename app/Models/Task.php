@@ -31,7 +31,7 @@ class Task extends Model
     protected $fillable = [
         'project_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
         'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion', 'reminder_at',
-        'repeat_unit', 'repeat_every', 'repeated_from_id',
+        'repeat_unit', 'repeat_every', 'repeat_day', 'repeated_from_id',
     ];
 
     protected function casts(): array
@@ -46,6 +46,7 @@ class Task extends Model
             'completed_at' => 'datetime',
             'reminder_at' => 'datetime',
             'repeat_every' => 'integer',
+            'repeat_day' => 'integer',
         ];
     }
 

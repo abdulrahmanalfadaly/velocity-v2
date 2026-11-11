@@ -66,6 +66,8 @@ export type TaskDetail = BaseTask &
         children: { id: number; title: string; rank: number | null; score: number | null }[];
         dependsOn: { id: number; title: string; status: Status }[];
         events: { type: string; at: string | null }[];
+        candidates: { id: number; title: string }[];
+        goal: { id: number; title: string; color: number } | null;
     };
 
 export interface RankingSettings {
@@ -87,15 +89,25 @@ export interface HabitToday {
     project: { id: number; name: string } | null;
 }
 
+export interface NavProject {
+    id: number;
+    name: string;
+    goalColor: number | null;
+    open: number;
+}
+
 export interface NavData {
     counts: { upNext: number; inbox: number; waiting: number; goals: number };
-    areas: { id: number; name: string; icon: string | null; projects: { id: number; name: string; goalColor: number | null; open: number }[] }[];
+    areas: { id: number; name: string; icon: string | null; projects: NavProject[] }[];
+    /** Projects that are not in any area. */
+    loose: NavProject[];
+    goals: { id: number; title: string; color: number }[];
 }
 
 export interface VelocityShared {
     auth: { user: { id: number; name: string; email: string; timezone: string; fypMode: boolean } | null };
     clock: { now: string; tz: string; frozen?: boolean };
     nav: NavData | null;
-    flash: { toast: string | null; undo: { action: 'reopen' | 'restore'; id: number } | null };
+    flash: { toast: string | null; undo: { action: 'reopen' | 'restore' | 'unarchive-project' | 'unarchive-goal'; id: number } | null };
     [key: string]: unknown;
 }

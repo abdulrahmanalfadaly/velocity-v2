@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskStep;
+use App\Support\Clock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -21,10 +22,10 @@ class TaskStepController extends Controller
 
     public function update(Request $request, TaskStep $step): RedirectResponse
     {
-        $this->own($step->task, $request->user());
+        $this->taskOf($step, $request);
         $data = $request->validate(['title' => ['sometimes', 'required', 'string', 'max:255'], 'done' => ['sometimes', 'boolean']]);
         if (array_key_exists('done', $data)) {
-            $data['done_at'] = $data['done'] ? now() : null;
+            $data['done_at'] = $data['done'] ? app(Clock::class)->now() : null;
             unset($data['done']);
         }
         $step->update($data);
@@ -34,17 +35,25 @@ class TaskStepController extends Controller
 
     public function destroy(Request $request, TaskStep $step): RedirectResponse
     {
-        $this->own($step->task, $request->user());
+        $this->taskOf($step, $request);
         $step->delete();
 
         return back();
+    }
+
+    /** The step's task, if it is yours (a step of a deleted task is not found). */
+    private function taskOf(TaskStep $step, Request $request): Task
+    {
+        abort_unless($step->task, 404);
+
+        return $this->own($step->task, $request->user());
     }
 
     /** Turn a step into its own task: same project and due date, its own score and rank. */
     public function promote(Request $request, TaskStep $step): RedirectResponse
     {
         $user = $request->user();
-        $parent = $this->own($step->task, $user);
+        $parent = $this->taskOf($step, $request);
         $task = $user->tasks()->create([
             'title' => $step->title,
             'parent_id' => $parent->id,
@@ -57,6 +66,6 @@ class TaskStepController extends Controller
         $task->events()->create(['user_id' => $user->id, 'type' => 'promoted', 'snapshot' => ['from_step' => $step->id, 'parent' => $parent->id]]);
         $step->delete();
 
-        return back()->with('toast', "“{$task->title}” is now its own task. Set its due date and importance to rank it exactly.");
+        return back()->with('toast', "“{$task->title}” is now its own task");
     }
 }

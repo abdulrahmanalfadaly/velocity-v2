@@ -2,7 +2,7 @@ import { Icon } from '@/components/velocity/icon';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { adjustWeights, Clock, CRIT, dueInfo, fmt1, fmtHours, repeatText, rerank, sameWeights } from '@/lib/velocity';
+import { adjustWeights, Clock, CRIT, DEFAULT_WEIGHTS, dueInfo, fmt1, fmtHours, repeatText, rerank, sameWeights } from '@/lib/velocity';
 import type { BaseTask, CriterionKey, NotReadyTask, RankedTask, RankingSettings, TaskDetail, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -89,8 +89,11 @@ export default function TasksIndex() {
             section="tasks"
             active={view}
             panel={
-                props.selected ? <TaskPanel task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} /> : undefined
+                props.selected ? (
+                    <TaskPanel key={props.selected.id} task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} />
+                ) : undefined
             }
+            onEscape={() => (popOpen ? setPopOpen(false) : props.selected ? open(null) : undefined)}
         >
             <div className="main-inner">
                 <header className="page-head">
@@ -138,7 +141,13 @@ export default function TasksIndex() {
                                             <span />
                                             <button
                                                 className="link"
-                                                onClick={() => router.delete(route('weights.reset'), { preserveScroll: true, preserveState: true })}
+                                                onClick={() =>
+                                                    router.put(
+                                                        route('weights.update'),
+                                                        { weights: DEFAULT_WEIGHTS },
+                                                        { preserveScroll: true, preserveState: true, only: ['tasks', 'settings', 'selected', 'nav'] },
+                                                    )
+                                                }
                                             >
                                                 Reset
                                             </button>
@@ -190,7 +199,11 @@ export default function TasksIndex() {
                                                         className="btn btn-secondary btn-sm"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            router.patch(route('tasks.update', w.id), { status: 'todo' }, { preserveScroll: true });
+                                                            router.patch(
+                                                                route('tasks.update', w.id),
+                                                                { status: 'todo' },
+                                                                { preserveScroll: true, preserveState: true },
+                                                            );
                                                         }}
                                                     >
                                                         Ready now
@@ -212,8 +225,14 @@ export default function TasksIndex() {
                                 className="add-row"
                                 onSubmit={(e) => {
                                     e.preventDefault();
-                                    if (text.trim())
-                                        router.post(route('tasks.store'), { text }, { preserveScroll: true, onSuccess: () => setText('') });
+                                    // Clear the box first, so a fast second Enter can't add the task twice.
+                                    if (!text.trim()) return;
+                                    setText('');
+                                    router.post(
+                                        route('tasks.store'),
+                                        { text },
+                                        { preserveScroll: true, preserveState: true, onError: () => setText(text) },
+                                    );
                                 }}
                             >
                                 <Icon name="plus" />
@@ -248,7 +267,9 @@ export default function TasksIndex() {
                                         <Check
                                             done={false}
                                             label={`Mark “${t.title}” done`}
-                                            onClick={() => router.post(route('tasks.complete', t.id), {}, { preserveScroll: true })}
+                                            onClick={() =>
+                                                router.post(route('tasks.complete', t.id), {}, { preserveScroll: true, preserveState: true })
+                                            }
                                         />
                                         <span className="rank">{t.rank}</span>
                                         <div>
@@ -304,7 +325,15 @@ export default function TasksIndex() {
                                     Not ready yet <span className="hint">· {notReady.length}</span>
                                 </summary>
                                 {notReady.map((w) => (
-                                    <div className="fold-row is-link" key={w.id} onClick={() => open(w.id)}>
+                                    <div
+                                        className={`fold-row is-link${props.selected?.id === w.id ? ' is-selected' : ''}`}
+                                        key={w.id}
+                                        tabIndex={0}
+                                        onClick={() => open(props.selected?.id === w.id ? null : w.id)}
+                                        onKeyDown={(e) =>
+                                            (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open(w.id))
+                                        }
+                                    >
                                         <span className="att-ic">
                                             <Icon name={w.kind === 'waiting' ? 'hourglass' : w.kind === 'blocked' ? 'lock' : 'calendar'} />
                                         </span>
@@ -332,7 +361,9 @@ export default function TasksIndex() {
                                         <Check
                                             done
                                             label={`Mark “${d.title}” not done`}
-                                            onClick={() => router.post(route('tasks.reopen', d.id), {}, { preserveScroll: true })}
+                                            onClick={() =>
+                                                router.post(route('tasks.reopen', d.id), {}, { preserveScroll: true, preserveState: true })
+                                            }
                                         />
                                         <div>
                                             <div className="row-title" style={{ color: 'var(--text-3)' }}>

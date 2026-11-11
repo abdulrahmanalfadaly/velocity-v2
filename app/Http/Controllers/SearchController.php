@@ -27,9 +27,9 @@ class SearchController extends Controller
                 'sub' => collect([$list->rankOf($t->id) ? '#'.$list->rankOf($t->id) : ucfirst($t->status), $t->project?->name])->filter()->join(' · '),
                 'url' => route('tasks.index', ['task' => $t->id]),
             ]);
-        $projects = $user->projects()->where('name', 'like', $like)->limit(4)->get()
+        $projects = $user->projects()->whereNull('archived_at')->where('name', 'like', $like)->limit(4)->get()
             ->map(fn ($p) => ['kind' => 'project', 'id' => $p->id, 'title' => $p->name, 'sub' => 'Project', 'url' => route('projects.show', $p)]);
-        $goals = $user->goals()->where('title', 'like', $like)->limit(3)->get()
+        $goals = $user->goals()->whereNull('archived_at')->where('title', 'like', $like)->limit(3)->get()
             ->map(fn ($g) => ['kind' => 'goal', 'id' => $g->id, 'title' => $g->title, 'sub' => 'Goal', 'url' => route('goals.index', ['focus' => 'g'.$g->id])]);
         $notes = $user->notes()->where('title', 'like', $like)->with('project')->latest('updated_at')->limit(4)->get()
             ->map(fn ($n) => ['kind' => 'note', 'id' => $n->id, 'title' => $n->title, 'sub' => $n->project?->name ?? 'Note', 'url' => $n->project ? route('projects.show', $n->project) : route('home')]);

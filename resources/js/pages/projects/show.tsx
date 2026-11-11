@@ -1,10 +1,21 @@
+import { ProjectDialog } from '@/components/velocity/forms';
 import { Icon } from '@/components/velocity/icon';
-import { Check, Ring } from '@/components/velocity/ui';
+import { TaskPanel } from '@/components/velocity/task-panel';
+import { Check, HabitButton, Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmt1, fmtHours, goalVar } from '@/lib/velocity';
 import type { BaseTask, HabitToday, NotReadyTask, RankedTask, TaskDetail, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { type KeyboardEvent, useMemo, useState } from 'react';
+
+const keep = { preserveScroll: true, preserveState: true };
+/** Enter or Space on a focused row opens it, like a click. */
+const onEnter = (fn: () => void) => (e: KeyboardEvent) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+        e.preventDefault();
+        fn();
+    }
+};
 
 interface Props extends VelocityShared {
     project: {
@@ -14,7 +25,9 @@ interface Props extends VelocityShared {
         dueDate: string | null;
         daysLeft: number | null;
         area: string | null;
+        areaId: number | null;
         goal: { id: number; title: string; color: number } | null;
+        archived: boolean;
     };
     stats: { done: number; total: number; pct: number; bestRank: number | null };
     milestones: { id: number; title: string; dueDate: string | null; done: boolean }[];
@@ -24,7 +37,8 @@ interface Props extends VelocityShared {
     done: BaseTask[];
     habits: HabitToday[];
     notes: { id: number; title: string; updatedAt: string | null }[];
-    selected?: TaskDetail | null;
+    selected: TaskDetail | null;
+    projects: { id: number; name: string }[];
 }
 
 type View = 'overview' | 'tasks' | 'notes' | 'habits';
@@ -73,6 +87,11 @@ export default function ProjectShow() {
     const [view, setView] = useState<View>('overview');
     const [open, setOpen] = useState<Record<number, boolean>>({ [props.tasks[0]?.id ?? 0]: true });
     const [text, setText] = useState('');
+    const [editing, setEditing] = useState(false);
+    const [milestone, setMilestone] = useState<{ title: string; due: string } | null>(null);
+    const select = (id: number | null) =>
+        router.get(`/projects/${project.id}`, id ? { task: id } : {}, { preserveState: true, preserveScroll: true, only: ['selected'] });
+    const days = project.daysLeft;
     const topLevel = props.tasks.filter((t) => !t.parent || !props.tasks.some((p) => p.id === t.parent!.id));
     const childrenOf = (id: number) => props.tasks.filter((t) => t.parent?.id === id);
     const next = props.tasks[0];
@@ -85,8 +104,27 @@ export default function ProjectShow() {
     ];
 
     return (
-        <VelocityShell title={project.name} section="tasks" active={`project:${project.id}`}>
+        <VelocityShell
+            title={project.name}
+            section="tasks"
+            active={`project:${project.id}`}
+            panel={
+                props.selected ? (
+                    <TaskPanel key={props.selected.id} task={props.selected} clock={clock} projects={props.projects} onClose={() => select(null)} />
+                ) : undefined
+            }
+            onEscape={props.selected ? () => select(null) : undefined}
+        >
             <div className="main-inner project" data-view={view} style={{ ['--g' as string]: goalVar(project.goal?.color) }}>
+                {project.archived && (
+                    <div className="archived-bar" role="status">
+                        <Icon name="archive" />
+                        <span>This project is archived.</span>
+                        <button className="btn btn-secondary btn-sm" onClick={() => router.post(route('projects.unarchive', project.id), {}, keep)}>
+                            Restore
+                        </button>
+                    </div>
+                )}
                 <section className="world" aria-labelledby="world-title">
                     <WorldArt seed={`${project.id}${project.name}`} />
                     <div className="world-inner">
@@ -98,6 +136,11 @@ export default function ProjectShow() {
                                 </Link>
                             )}
                             {project.area && <span className="world-area">{project.area}</span>}
+                            <span className="world-gap" />
+                            <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
+                                <Icon name="settings" className="ic-sm" />
+                                Edit project
+                            </button>
                         </div>
                         <h1 className="world-title" id="world-title">
                             {project.name}
@@ -113,12 +156,18 @@ export default function ProjectShow() {
                                     </span>
                                 </div>
                             </div>
-                            {project.daysLeft != null && (
+                            {days != null && (
                                 <div className="wstat">
                                     <div>
-                                        <b>{project.daysLeft} days</b>
+                                        <b className={days < 0 ? 'is-late' : ''}>
+                                            {days > 0 ? `${days} ${days === 1 ? 'day' : 'days'}` : days === 0 ? 'Today' : 'Overdue'}
+                                        </b>
                                         <span>
-                                            left · due{' '}
+                                            {days > 0
+                                                ? 'left · due '
+                                                : days === 0
+                                                  ? 'due '
+                                                  : `by ${-days} ${days === -1 ? 'day' : 'days'} · was due `}
                                             {clock.date(project.dueDate + 'T12:00:00Z', { weekday: 'short', day: 'numeric', month: 'short' })}
                                         </span>
                                     </div>
@@ -140,17 +189,76 @@ export default function ProjectShow() {
                                 const isNext = !m.done && props.milestones.find((x) => !x.done)?.id === m.id;
                                 return (
                                     <li key={m.id} className={`ms-item is-${m.done ? 'done' : isNext ? 'next' : 'todo'}`}>
-                                        <span className="ms-dot">{m.done && <Icon name="check" />}</span>
+                                        <button
+                                            type="button"
+                                            className="ms-dot"
+                                            aria-pressed={m.done}
+                                            aria-label={m.done ? `Mark “${m.title}” not reached` : `Mark “${m.title}” reached`}
+                                            onClick={() => router.patch(route('milestones.update', m.id), { done: !m.done }, keep)}
+                                        >
+                                            {m.done && <Icon name="check" />}
+                                        </button>
                                         <b>{m.title}</b>
                                         <span>
                                             {isNext ? 'Next · ' : ''}
                                             {m.dueDate ? clock.date(m.dueDate + 'T12:00:00Z') : ''}
                                         </span>
+                                        <button
+                                            type="button"
+                                            className="ms-remove"
+                                            aria-label={`Remove milestone “${m.title}”`}
+                                            title="Remove"
+                                            onClick={() => router.delete(route('milestones.destroy', m.id), keep)}
+                                        >
+                                            <Icon name="x" className="ic-xs" />
+                                        </button>
                                     </li>
                                 );
                             })}
                         </ol>
                     )}
+                    <div className="ms-add">
+                        {milestone ? (
+                            <form
+                                className="ms-form"
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (!milestone.title.trim()) return;
+                                    const data = { title: milestone.title, due_date: milestone.due || null };
+                                    setMilestone(null);
+                                    router.post(route('milestones.store', project.id), data, keep);
+                                }}
+                            >
+                                <input
+                                    className="input"
+                                    autoFocus
+                                    placeholder="Milestone"
+                                    aria-label="Milestone"
+                                    maxLength={120}
+                                    value={milestone.title}
+                                    onChange={(e) => setMilestone({ ...milestone, title: e.target.value })}
+                                />
+                                <input
+                                    className="input"
+                                    type="date"
+                                    aria-label="Milestone date"
+                                    value={milestone.due}
+                                    onChange={(e) => setMilestone({ ...milestone, due: e.target.value })}
+                                />
+                                <button className="btn btn-primary btn-sm" type="submit">
+                                    Add
+                                </button>
+                                <button className="btn btn-ghost btn-sm" type="button" onClick={() => setMilestone(null)}>
+                                    Cancel
+                                </button>
+                            </form>
+                        ) : (
+                            <button className="btn btn-ghost btn-sm" onClick={() => setMilestone({ title: '', due: '' })}>
+                                <Icon name="flag" className="ic-sm" />
+                                Add a milestone
+                            </button>
+                        )}
+                    </div>
                 </section>
 
                 <div className="ptabs" role="tablist" aria-label="Inside this project">
@@ -190,10 +298,21 @@ export default function ProjectShow() {
                                     <span>{fmtHours(next.estHours)} of work</span>
                                 </div>
                                 <div className="hero-actions">
-                                    <Link className="btn btn-primary" href={`/tasks?task=${next.id}`}>
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() =>
+                                            next.status === 'doing'
+                                                ? select(next.id)
+                                                : router.patch(
+                                                      route('tasks.update', next.id),
+                                                      { status: 'doing' },
+                                                      { ...keep, onSuccess: () => select(next.id) },
+                                                  )
+                                        }
+                                    >
                                         <Icon name="play" />
-                                        Open and start
-                                    </Link>
+                                        {next.status === 'doing' ? 'Open' : 'Open and start'}
+                                    </button>
                                 </div>
                             </section>
                         )}
@@ -210,12 +329,13 @@ export default function ProjectShow() {
                                     className="ptasks-add"
                                     onSubmit={(e) => {
                                         e.preventDefault();
-                                        if (text.trim())
-                                            router.post(
-                                                route('tasks.store'),
-                                                { text, project_id: project.id },
-                                                { preserveScroll: true, onSuccess: () => setText('') },
-                                            );
+                                        if (!text.trim()) return;
+                                        setText(''); // cleared first, so a fast second Enter can't add it twice
+                                        router.post(
+                                            route('tasks.store'),
+                                            { text, project_id: project.id },
+                                            { ...keep, onError: () => setText(text) },
+                                        );
                                     }}
                                 >
                                     <label className="add-row">
@@ -237,7 +357,12 @@ export default function ProjectShow() {
                                         const isOpen = !!open[t.id];
                                         return (
                                             <li key={t.id} className={`pt${isOpen ? ' is-open' : ''}`}>
-                                                <div className="pt-row" onClick={() => router.visit(`/tasks?task=${t.id}`)}>
+                                                <div
+                                                    className={`pt-row${props.selected?.id === t.id ? ' is-selected' : ''}`}
+                                                    tabIndex={0}
+                                                    onClick={() => select(props.selected?.id === t.id ? null : t.id)}
+                                                    onKeyDown={onEnter(() => select(t.id))}
+                                                >
                                                     {t.steps.length || kids.length ? (
                                                         <button
                                                             className="pt-caret"
@@ -256,7 +381,7 @@ export default function ProjectShow() {
                                                     <Check
                                                         done={false}
                                                         label={`Mark “${t.title}” done`}
-                                                        onClick={() => router.post(route('tasks.complete', t.id), {}, { preserveScroll: true })}
+                                                        onClick={() => router.post(route('tasks.complete', t.id), {}, keep)}
                                                     />
                                                     <span className="rank-badge">{t.rank}</span>
                                                     <div className="pt-main">
@@ -313,14 +438,14 @@ export default function ProjectShow() {
                                                             <li
                                                                 key={`c${c.id}`}
                                                                 className="pt-step pt-subtask"
-                                                                onClick={() => router.visit(`/tasks?task=${c.id}`)}
+                                                                tabIndex={0}
+                                                                onClick={() => select(c.id)}
+                                                                onKeyDown={onEnter(() => select(c.id))}
                                                             >
                                                                 <Check
                                                                     done={false}
                                                                     label={`Mark “${c.title}” done`}
-                                                                    onClick={() =>
-                                                                        router.post(route('tasks.complete', c.id), {}, { preserveScroll: true })
-                                                                    }
+                                                                    onClick={() => router.post(route('tasks.complete', c.id), {}, keep)}
                                                                 />
                                                                 <span className="rank-badge">{c.rank}</span>
                                                                 <span className="pt-step-title">{c.title}</span>
@@ -339,8 +464,10 @@ export default function ProjectShow() {
                                             {props.notReady.map((t) => (
                                                 <li key={t.id} className="pt">
                                                     <div
-                                                        className="pt-row is-quiet"
-                                                        onClick={() => router.visit(`/tasks?task=${t.id}`)}
+                                                        className={`pt-row is-quiet${props.selected?.id === t.id ? ' is-selected' : ''}`}
+                                                        tabIndex={0}
+                                                        onClick={() => select(t.id)}
+                                                        onKeyDown={onEnter(() => select(t.id))}
                                                         style={{ cursor: 'pointer' }}
                                                     >
                                                         <span className="pt-caret-gap" />
@@ -375,7 +502,7 @@ export default function ProjectShow() {
                                                         <Check
                                                             done
                                                             label={`Mark “${t.title}” not done`}
-                                                            onClick={() => router.post(route('tasks.reopen', t.id), {}, { preserveScroll: true })}
+                                                            onClick={() => router.post(route('tasks.reopen', t.id), {}, keep)}
                                                         />
                                                         <span className="rank-badge is-none">–</span>
                                                         <div className="pt-main">
@@ -409,9 +536,7 @@ export default function ProjectShow() {
                                     )}
                                     {props.habits.map((h) => (
                                         <div className="habit" key={h.id}>
-                                            <span className={`habit-btn${h.doneToday ? ' is-done' : ''}`}>
-                                                <Icon name="check" />
-                                            </span>
+                                            <HabitButton habit={h} />
                                             <div>
                                                 <div className={`habit-name${h.doneToday ? ' is-done' : ''}`}>{h.name}</div>
                                                 <div className="habit-detail">
@@ -455,6 +580,20 @@ export default function ProjectShow() {
                     </div>
                 </div>
             </div>
+            {editing && (
+                <ProjectDialog
+                    project={{
+                        id: project.id,
+                        name: project.name,
+                        description: project.description,
+                        dueDate: project.dueDate,
+                        areaId: project.areaId,
+                        goalId: project.goal?.id ?? null,
+                        archived: project.archived,
+                    }}
+                    onClose={() => setEditing(false)}
+                />
+            )}
         </VelocityShell>
     );
 }

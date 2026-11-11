@@ -44,7 +44,8 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-        ] + (in_array($timezone, \DateTimeZone::listIdentifiers(), true) ? ['timezone' => $timezone] : []));
+            'timezone' => in_array($timezone, \DateTimeZone::listIdentifiers(), true) ? $timezone : config('velocity.timezone'),
+        ]);
 
         event(new Registered($user));
 
