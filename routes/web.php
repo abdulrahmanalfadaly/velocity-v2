@@ -8,6 +8,7 @@ use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MilestoneController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskStepController;
@@ -84,6 +85,8 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('goals/{goal}', [GoalController::class, 'destroy'])->name('goals.destroy');
 
         Route::post('habits/{habit}/check', [HabitController::class, 'check'])->name('habits.check');
+        Route::get('reminders/due', [ReminderController::class, 'due'])->name('reminders.due');
+        Route::post('tasks/{task}/snooze', [ReminderController::class, 'snooze'])->name('tasks.snooze');
         Route::get('search', SearchController::class)->name('search');
     });
 });

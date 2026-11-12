@@ -1470,3 +1470,16 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
     .vtimeline { grid-auto-columns: 82%; scroll-snap-type: x mandatory; }
     .layout-seg .btn-label { display: none; }
 }
+
+/* Reminders: cards in the bottom-right corner while Velocity is open. */
+.reminders { position: fixed; right: 18px; bottom: 18px; z-index: 70; display: grid; gap: 10px; width: min(360px, calc(100vw - 24px)); }
+.reminder { display: flex; gap: 11px; align-items: flex-start; padding: 13px 10px 13px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-lg); animation: pop-in .2s var(--ease); }
+.reminder-ic { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--violet-soft); color: var(--violet-ink); }
+.reminder-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.reminder-main b { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.reminder-main > span { font-size: 12.5px; color: var(--text-3); }
+.reminder-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.reminder-close { flex: none; width: 28px; height: 28px; }
+.p-reminder { flex-wrap: wrap; gap: 6px; padding-top: 4px; padding-bottom: 4px; }
+.p-notify { font-size: 12.5px; }
+@media (max-width: 767px) { .reminders { right: 12px; bottom: 76px; } }

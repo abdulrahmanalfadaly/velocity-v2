@@ -153,7 +153,13 @@ organised (to be given later – ask before Phase 2 is finished).
       time). Cards keep the formula's order in every column; filters still
       apply; every drop has Undo. Phones: columns scroll sideways; tap a card
       to change it in the panel. `components/velocity/task-views.tsx`
-- [ ] Reminders
+- [x] Reminders: a Reminder row in the task panel (any time, or 15 min / 1 h /
+      3 h / 1 day before the due time). While Velocity is open it checks every
+      30 s and when its window comes back into view; a due reminder shows a card
+      (Open, snooze 10 min / 1 hour, Done) and, if allowed, a Windows
+      notification. Each reminder is shown once; a new time or a snooze shows it
+      again. Reminders missed while Velocity was closed appear when it opens.
+      Repeat copies carry their reminder forward. `ReminderController`
 - [ ] Files on tasks
 - [x] Undo everywhere (12 Nov): every message with a change offers Undo for
       8 s, and Ctrl+Z (outside a text box) does the same. Undoable: every

@@ -3,6 +3,7 @@ import type { RankedTask, RepeatRule, TaskDetail } from '@/types/velocity';
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
+import { askToNotify, notifyState } from './reminders';
 import { Check, Dots } from './ui';
 
 type Value = string | number | boolean | null | number[];
@@ -283,6 +284,52 @@ export function TaskPanel({
                         </select>
                     </div>
                     <div className="prop-label">
+                        <Icon name="bell" />
+                        Reminder
+                    </div>
+                    <div className="prop-value p-reminder">
+                        <input
+                            type="datetime-local"
+                            aria-label="Reminder"
+                            defaultValue={clock.localInput(task.reminderAt)}
+                            key={`${task.id}-r-${task.reminderAt}`}
+                            onBlur={(e) =>
+                                e.target.value !== clock.localInput(task.reminderAt) && patch(task.id, { reminder_at: e.target.value || null })
+                            }
+                            className="prop-input"
+                        />
+                        {task.dueAt && !done && (
+                            <select
+                                className="prop-input"
+                                aria-label="Quick reminder"
+                                value=""
+                                onChange={(e) => {
+                                    const before = Number(e.target.value);
+                                    if (!before) return;
+                                    const at = new Date(new Date(task.dueAt!).getTime() - before * 60_000).toISOString();
+                                    patch(task.id, { reminder_at: clock.localInput(at) });
+                                }}
+                            >
+                                <option value="">Before due…</option>
+                                <option value="15">15 min before</option>
+                                <option value="60">1 hour before</option>
+                                <option value="180">3 hours before</option>
+                                <option value="1440">1 day before</option>
+                            </select>
+                        )}
+                        {task.reminderAt && (
+                            <button
+                                className="icon-btn"
+                                aria-label="No reminder"
+                                title="No reminder"
+                                onClick={() => patch(task.id, { reminder_at: null })}
+                            >
+                                <Icon name="x" className="ic-sm" />
+                            </button>
+                        )}
+                        <NotifyHint />
+                    </div>
+                    <div className="prop-label">
                         <Icon name="calendar" />
                         Can start
                     </div>
@@ -436,5 +483,16 @@ export function TaskPanel({
                 ) : null}
             </div>
         </>
+    );
+}
+
+/** Asks once for Windows notifications, so reminders also pop up outside the app window. */
+function NotifyHint() {
+    const [state, setState] = useState(notifyState());
+    if (state !== 'ask') return null;
+    return (
+        <button className="link p-notify" onClick={() => askToNotify().then(() => setState(notifyState()))}>
+            Also show in Windows
+        </button>
     );
 }

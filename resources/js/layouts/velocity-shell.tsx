@@ -3,9 +3,11 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { ProjectDialog } from '@/components/velocity/forms';
 import { Icon, Logo } from '@/components/velocity/icon';
 import { QuickAdd } from '@/components/velocity/quick-add';
+import { Reminders } from '@/components/velocity/reminders';
 import { SearchPalette } from '@/components/velocity/search-palette';
 import { Toast, useToast } from '@/components/velocity/toast';
 import { useAppearance } from '@/hooks/use-appearance';
+import { Clock } from '@/lib/velocity';
 import type { User } from '@/types';
 import type { NavProject, VelocityShared } from '@/types/velocity';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -53,6 +55,8 @@ export default function VelocityShell({ title, section, active, children, panel,
         appearance === 'dark' || (appearance === 'system' && typeof window !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
 
     const close = useCallback(() => setOverlay(null), []);
+    // A reminder's "Open": its panel on Up next (or wherever the task is shown on this page).
+    const openTask = useCallback((id: number) => router.visit(`/tasks?task=${id}`, { preserveScroll: true }), []);
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             const mod = e.ctrlKey || e.metaKey;
@@ -253,6 +257,7 @@ export default function VelocityShell({ title, section, active, children, panel,
 
                 {overlay === 'project' && <ProjectDialog onClose={close} />}
 
+                <Reminders clock={Clock.from(props.clock)} onOpen={openTask} />
                 <Toast toast={toast} onDone={() => setToast(null)} />
             </div>
         </>

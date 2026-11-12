@@ -226,10 +226,11 @@ class TaskController extends Controller
                 'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
                 'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
                 'available_from' => ['sometimes', 'nullable', 'date'],
+                'reminder_at' => ['sometimes', 'nullable', 'date'],
                 'depends_on' => ['sometimes', 'array', 'max:20'],
                 'depends_on.*' => ['integer', 'distinct', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
             ], [], ['depends_on.*' => 'task', 'available_from' => 'start date']);
-            foreach (['due_at', 'available_from'] as $key) {
+            foreach (['due_at', 'available_from', 'reminder_at'] as $key) {
                 if (array_key_exists($key, $data)) {
                     $data[$key] = $this->fromLocal($data[$key], $user);
                 }
@@ -240,6 +241,10 @@ class TaskController extends Controller
             $deps = ['before' => $task->dependencies()->pluck('tasks.id')->all(), 'after' => array_map('intval', $data['depends_on'])];
             $this->setDependencies($task, $data['depends_on']);
             unset($data['depends_on']);
+        }
+        // A new reminder time pops up again, even if an earlier one was already shown.
+        if (array_key_exists('reminder_at', $data)) {
+            $data['reminder_sent_at'] = null;
         }
         // A new due date or repeat rule sets a new day of the month to keep to.
         if (array_key_exists('due_at', $data) || array_key_exists('repeat_unit', $data)) {
@@ -257,7 +262,7 @@ class TaskController extends Controller
         $event = $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => [
             'before' => $before, 'after' => $task->only(array_keys($data)), 'depends_on' => $deps,
         ]]);
-        $changed = array_keys(array_diff_key($data, ['repeat_day' => 1, 'repeat_every' => 1]));
+        $changed = array_keys(array_diff_key($data, ['repeat_day' => 1, 'repeat_every' => 1, 'reminder_sent_at' => 1]));
         $what = $deps ? 'Starts after' : (self::LABELS[$changed[0] ?? ''] ?? 'Task');
         $toast = $request->boolean('form') ? $this->placed($task, 'Saved') : "{$what} changed";
 
@@ -267,7 +272,7 @@ class TaskController extends Controller
     private const LABELS = [
         'title' => 'Title', 'notes' => 'Notes', 'importance' => 'Importance', 'urgency' => 'Urgency', 'due_at' => 'Due date',
         'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'project_id' => 'Project',
-        'repeat_unit' => 'Repeat', 'available_from' => 'Start date',
+        'repeat_unit' => 'Repeat', 'available_from' => 'Start date', 'reminder_at' => 'Reminder',
     ];
 
     /** Undo of one change in the task panel: put back what the saved event remembers. */

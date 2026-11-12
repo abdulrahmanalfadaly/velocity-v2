@@ -30,7 +30,7 @@ class Task extends Model
 
     protected $fillable = [
         'project_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
-        'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion', 'reminder_at',
+        'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion', 'reminder_at', 'reminder_sent_at',
         'repeat_unit', 'repeat_every', 'repeat_day', 'repeated_from_id',
     ];
 
@@ -45,6 +45,7 @@ class Task extends Model
             'available_from' => 'datetime',
             'completed_at' => 'datetime',
             'reminder_at' => 'datetime',
+            'reminder_sent_at' => 'datetime',
             'repeat_every' => 'integer',
             'repeat_day' => 'integer',
         ];

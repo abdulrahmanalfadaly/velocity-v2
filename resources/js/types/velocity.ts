@@ -34,6 +34,7 @@ export interface BaseTask {
     availableFrom: string | null;
     completedAt: string | null;
     scoreAtCompletion: number | null;
+    reminderAt: string | null;
     repeat: RepeatRule | null;
     project: ProjectRef | null;
     parent: { id: number; title: string } | null;

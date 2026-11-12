@@ -24,6 +24,7 @@ class TaskPresenter
             'availableFrom' => $task->available_from?->toIso8601ZuluString(),
             'completedAt' => $task->completed_at?->toIso8601ZuluString(),
             'scoreAtCompletion' => $task->score_at_completion,
+            'reminderAt' => $task->reminder_at?->toIso8601ZuluString(),
             'repeat' => $task->repeat_unit ? ['unit' => $task->repeat_unit, 'every' => $task->repeat_every ?? 1] : null,
             'project' => $project ? [
                 'id' => $project->id,
