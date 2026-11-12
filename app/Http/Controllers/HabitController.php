@@ -21,7 +21,10 @@ class HabitController extends Controller
         $today = $ranking->now()->timezone($user->timezone)->toDateString();
         $entry = $habit->entries()->whereDate('day', $today)->first();
         $count = $entry?->count ?? 0;
-        $next = $count >= $habit->target ? 0 : $count + 1;
+        // Undo sends the exact count to go back to; a tap goes one up (and round to 0 after the target).
+        $next = $request->has('count')
+            ? min($habit->target, max(0, $request->integer('count')))
+            : ($count >= $habit->target ? 0 : $count + 1);
 
         if ($next === 0) {
             $entry?->delete();
@@ -31,6 +34,8 @@ class HabitController extends Controller
             $habit->entries()->create(['day' => $today, 'count' => $next]);
         }
 
-        return back();
+        $toast = $habit->target > 1 ? "{$habit->name}: {$next} of {$habit->target}" : ($next ? "Done: {$habit->name}" : "Not done: {$habit->name}");
+
+        return back()->with('toast', $toast)->with('undo', $this->undo('habit-count', $habit->id, ['count' => $count]));
     }
 }

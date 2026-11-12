@@ -145,7 +145,17 @@ organised (to be given later – ask before Phase 2 is finished).
 - [ ] Board / timeline views
 - [ ] Reminders
 - [ ] Files on tasks
-- [ ] Delete with undo everywhere
+- [x] Undo everywhere (12 Nov): every message with a change offers Undo for
+      8 s, and Ctrl+Z (outside a text box) does the same. Undoable: every
+      change in the task panel (put back from the saved event), done / not
+      done, adding a task (quick add, project box, template), delete / restore,
+      removing a step, "Make it a task", removing a milestone, templates
+      (create, edit, delete, use), projects and goals (create while empty,
+      edit, archive / restore), habit taps, weights reset. Steps, milestones
+      and templates are soft-deleted so they can come back. The server names
+      the action (`Controller::undo()`); `toast.tsx` maps it to a route.
+      Not undoable on purpose: ticks that are their own undo (step done,
+      milestone reached), password and account deletion.
 - [ ] Ask the user for their side-menu changes before Phase 2 is finished
 
 ## Run it

@@ -2,15 +2,43 @@ import type { VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
-export type ToastState = { text: string; undo: VelocityShared['flash']['undo'] } | null;
+type Undo = NonNullable<VelocityShared['flash']['undo']>;
+export type ToastState = { text: string; undo: Undo | null } | null;
 
-/** Which route each kind of Undo calls. */
-const UNDO_ROUTE: Record<NonNullable<VelocityShared['flash']['undo']>['action'], string> = {
-    reopen: 'tasks.reopen',
-    restore: 'tasks.restore',
-    'unarchive-project': 'projects.unarchive',
-    'unarchive-goal': 'goals.unarchive',
+/** What each kind of Undo calls. The server names the action; this maps it to a route. */
+const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route: string }> = {
+    reopen: { method: 'post', route: 'tasks.reopen' },
+    complete: { method: 'post', route: 'tasks.complete' },
+    restore: { method: 'post', route: 'tasks.restore' },
+    'delete-task': { method: 'delete', route: 'tasks.destroy' },
+    'revert-task': { method: 'post', route: 'tasks.revert' },
+    unpromote: { method: 'post', route: 'tasks.unpromote' },
+    'restore-step': { method: 'post', route: 'steps.restore' },
+    'restore-milestone': { method: 'post', route: 'milestones.restore' },
+    'restore-template': { method: 'post', route: 'templates.restore' },
+    'delete-template': { method: 'delete', route: 'templates.destroy' },
+    'patch-template': { method: 'patch', route: 'templates.update' },
+    'archive-project': { method: 'post', route: 'projects.archive' },
+    'unarchive-project': { method: 'post', route: 'projects.unarchive' },
+    'delete-project': { method: 'delete', route: 'projects.destroy' },
+    'patch-project': { method: 'patch', route: 'projects.update' },
+    'archive-goal': { method: 'post', route: 'goals.archive' },
+    'unarchive-goal': { method: 'post', route: 'goals.unarchive' },
+    'delete-goal': { method: 'delete', route: 'goals.destroy' },
+    'patch-goal': { method: 'patch', route: 'goals.update' },
+    'habit-count': { method: 'post', route: 'habits.check' },
+    'put-weights': { method: 'put', route: 'weights.update' },
 };
+
+export function runUndo(u: Undo) {
+    const target = UNDO[u.action];
+    if (!target) return;
+    const data = (u.data ?? {}) as Record<string, string | number | boolean | null>;
+    const url = route(target.route, u.id);
+    const opts = { preserveScroll: true, preserveState: true };
+    if (target.method === 'delete') router.delete(url, { ...opts, data });
+    else router[target.method](url, data, opts);
+}
 
 /** One-shot messages from the server ("Done: …", with Undo), plus any the screen raises itself. */
 export function useToast() {
@@ -19,10 +47,25 @@ export function useToast() {
     useEffect(() => {
         if (props.flash?.toast) setToast({ text: props.flash.toast, undo: props.flash.undo });
     }, [props.flash]);
+    // Messages with an Undo stay a little longer.
     useEffect(() => {
         if (!toast) return;
-        const t = setTimeout(() => setToast(null), 5000);
+        const t = setTimeout(() => setToast(null), toast.undo ? 8000 : 5000);
         return () => clearTimeout(t);
+    }, [toast]);
+    // Ctrl+Z (outside a text box) undoes the last thing while its message is still showing.
+    useEffect(() => {
+        if (!toast?.undo) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+            if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+            e.preventDefault();
+            const u = toast.undo!;
+            setToast(null);
+            runUndo(u);
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
     }, [toast]);
     return [toast, setToast] as const;
 }
@@ -35,10 +78,11 @@ export function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void
             {toast.undo && (
                 <button
                     type="button"
+                    title="Undo (Ctrl+Z)"
                     onClick={() => {
                         const u = toast.undo!;
                         onDone();
-                        router.post(route(UNDO_ROUTE[u.action], u.id), {}, { preserveScroll: true });
+                        runUndo(u);
                     }}
                 >
                     Undo

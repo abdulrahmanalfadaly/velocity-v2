@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /** A task to copy from, with its steps. "Use" makes a fresh task that is ranked like any other. */
 class TaskTemplate extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = ['project_id', 'name', 'title', 'notes', 'importance', 'urgency', 'est_hours', 'repeat_unit', 'repeat_every', 'steps', 'used'];
 
     protected function casts(): array

@@ -30,7 +30,7 @@ class WeightController extends Controller
 
         $list = $ranking->rank($user);
         $log->ranking($user, $list, 'weights');
-        $ahp = (new AhpCalculator())->derive(AhpCalculator::velocityMatrix());
+        $ahp = (new AhpCalculator)->derive(AhpCalculator::velocityMatrix());
 
         return Inertia::render('fyp/weights', $settings + [
             'tasks' => $list->toArray(),
@@ -73,9 +73,11 @@ class WeightController extends Controller
     {
         $profile = $request->user()->weights();
         $before = $profile->weights()->toPercentages();
+        $undo = ['weights' => $before, 'horizonDays' => $profile->horizon_days, 'hoursPerDay' => $profile->hours_per_day];
         $profile->update(['importance' => 0.42, 'urgency' => 0.23, 'deadline' => 0.23, 'pressure' => 0.12, 'horizon_days' => 7, 'hours_per_day' => 4]);
         $log->weights($request->user(), $before, ['I' => 42, 'U' => 23, 'D' => 23, 'P' => 12]);
 
-        return back()->with('toast', $request->user()->fyp_mode ? 'Weights are back to the report’s defaults.' : 'Weights reset.');
+        return back()->with('toast', $request->user()->fyp_mode ? 'Weights are back to the report’s defaults.' : 'Weights reset.')
+            ->with('undo', $this->undo('put-weights', $profile->id, $undo));
     }
 }

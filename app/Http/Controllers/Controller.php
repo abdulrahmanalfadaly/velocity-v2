@@ -16,6 +16,16 @@ abstract class Controller
         return $model;
     }
 
+    /**
+     * What the toast's Undo button should call: an action name the front end maps to
+     * a route (see resources/js/components/velocity/toast.tsx), the record's id and
+     * any data to send with it.
+     */
+    protected function undo(string $action, int $id, array $data = []): array
+    {
+        return ['action' => $action, 'id' => $id, 'data' => $data ?: null];
+    }
+
     /** A date and time typed in the user's own time zone, stored in UTC. */
     protected function fromLocal(?string $value, User $user): ?CarbonImmutable
     {

@@ -23,15 +23,29 @@ class GoalController extends Controller
         $user = $request->user();
         $goal = $user->goals()->create($this->fields($request) + ['position' => (int) $user->goals()->max('position') + 1]);
 
-        return back()->with('toast', "Created goal “{$goal->title}”");
+        return back()->with('toast', "Created goal “{$goal->title}”")->with('undo', $this->undo('delete-goal', $goal->id));
+    }
+
+    /** Only for undoing "New goal": a goal with no projects yet goes away for good. */
+    public function destroy(Request $request, Goal $goal): RedirectResponse
+    {
+        $this->own($goal, $request->user());
+        if ($goal->projects()->exists()) {
+            return back()->with('toast', "“{$goal->title}” already has projects – archive it instead");
+        }
+        $goal->delete();
+
+        return back()->with('toast', "Removed goal “{$goal->title}”");
     }
 
     public function update(Request $request, Goal $goal): RedirectResponse
     {
         $this->own($goal, $request->user());
-        $goal->update($this->fields($request, partial: true));
+        $data = $this->fields($request, partial: true);
+        $before = $goal->only(array_keys($data));
+        $goal->update($data);
 
-        return back()->with('toast', 'Saved');
+        return back()->with('toast', 'Goal saved')->with('undo', $this->undo('patch-goal', $goal->id, $before));
     }
 
     /** Archiving hides a goal from the map; its projects stay, just without a goal colour. */
@@ -48,7 +62,7 @@ class GoalController extends Controller
         $this->own($goal, $request->user());
         $goal->update(['archived_at' => null]);
 
-        return back()->with('toast', "Restored goal “{$goal->title}”");
+        return back()->with('toast', "Restored goal “{$goal->title}”")->with('undo', $this->undo('archive-goal', $goal->id));
     }
 
     private function fields(Request $request, bool $partial = false): array

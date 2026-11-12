@@ -41,6 +41,15 @@ class MilestoneController extends Controller
         $this->own($milestone->project, $request->user());
         $milestone->delete();
 
-        return back()->with('toast', "Removed milestone “{$milestone->title}”");
+        return back()->with('toast', "Removed milestone “{$milestone->title}”")->with('undo', $this->undo('restore-milestone', $milestone->id));
+    }
+
+    public function restore(Request $request, int $id): RedirectResponse
+    {
+        $milestone = Milestone::withTrashed()->findOrFail($id);
+        $this->own($milestone->project, $request->user());
+        $milestone->restore();
+
+        return back();
     }
 }

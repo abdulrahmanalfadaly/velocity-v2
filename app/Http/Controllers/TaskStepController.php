@@ -38,7 +38,16 @@ class TaskStepController extends Controller
         $this->taskOf($step, $request);
         $step->delete();
 
-        return back();
+        return back()->with('toast', "Removed step “{$step->title}”")->with('undo', $this->undo('restore-step', $step->id));
+    }
+
+    public function restore(Request $request, int $id): RedirectResponse
+    {
+        $step = TaskStep::withTrashed()->findOrFail($id);
+        $this->taskOf($step, $request);
+        $step->restore();
+
+        return back()->with('toast', "Step “{$step->title}” is back");
     }
 
     /** The step's task, if it is yours (a step of a deleted task is not found). */
@@ -66,6 +75,6 @@ class TaskStepController extends Controller
         $task->events()->create(['user_id' => $user->id, 'type' => 'promoted', 'snapshot' => ['from_step' => $step->id, 'parent' => $parent->id]]);
         $step->delete();
 
-        return back()->with('toast', "“{$task->title}” is now its own task");
+        return back()->with('toast', "“{$task->title}” is now its own task")->with('undo', $this->undo('unpromote', $task->id));
     }
 }

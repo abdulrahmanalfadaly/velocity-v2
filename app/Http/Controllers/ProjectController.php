@@ -23,15 +23,33 @@ class ProjectController extends Controller
         $user = $request->user();
         $project = $user->projects()->create($this->fields($request) + ['position' => (int) $user->projects()->max('position') + 1]);
 
-        return to_route('projects.show', $project)->with('toast', "Created “{$project->name}”");
+        return to_route('projects.show', $project)->with('toast', "Created “{$project->name}”")->with('undo', $this->undo('delete-project', $project->id));
+    }
+
+    /** Only for undoing "New project": a project with nothing in it yet goes away for good. */
+    public function destroy(Request $request, Project $project): RedirectResponse
+    {
+        $this->own($project, $request->user());
+        if ($project->tasks()->withTrashed()->exists() || $project->notes()->exists() || $project->habits()->exists()) {
+            return back()->with('toast', "“{$project->name}” already has things in it – archive it instead");
+        }
+        $project->milestones()->withTrashed()->forceDelete();
+        $project->delete();
+
+        return to_route('tasks.index')->with('toast', "Removed “{$project->name}”");
     }
 
     public function update(Request $request, Project $project): RedirectResponse
     {
         $this->own($project, $request->user());
-        $project->update($this->fields($request, partial: true));
+        $data = $this->fields($request, partial: true);
+        $before = $project->only(array_keys($data));
+        if (array_key_exists('due_date', $before)) {
+            $before['due_date'] = $project->due_date?->toDateString();
+        }
+        $project->update($data);
 
-        return back()->with('toast', 'Saved');
+        return back()->with('toast', 'Project saved')->with('undo', $this->undo('patch-project', $project->id, $before));
     }
 
     /** Archiving hides a project from the menus and the Goals map; its open tasks stay in your list. */
@@ -48,7 +66,7 @@ class ProjectController extends Controller
         $this->own($project, $request->user());
         $project->update(['archived_at' => null]);
 
-        return back()->with('toast', "Restored “{$project->name}”");
+        return back()->with('toast', "Restored “{$project->name}”")->with('undo', $this->undo('archive-project', $project->id));
     }
 
     private function fields(Request $request, bool $partial = false): array

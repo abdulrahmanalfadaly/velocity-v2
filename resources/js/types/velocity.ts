@@ -108,6 +108,7 @@ export interface VelocityShared {
     auth: { user: { id: number; name: string; email: string; timezone: string; fypMode: boolean } | null };
     clock: { now: string; tz: string; frozen?: boolean };
     nav: NavData | null;
-    flash: { toast: string | null; undo: { action: 'reopen' | 'restore' | 'unarchive-project' | 'unarchive-goal'; id: number } | null };
+    /** `undo.action` names a route in toast.tsx; `data` is sent with the request. */
+    flash: { toast: string | null; undo: { action: string; id: number; data?: Record<string, unknown> | null } | null };
     [key: string]: unknown;
 }

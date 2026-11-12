@@ -6,6 +6,7 @@ use App\Domain\Prioritization\PrioritizationEngine;
 use App\Domain\Prioritization\Rounding;
 use App\Domain\Prioritization\TaskInput;
 use App\Models\Task;
+use App\Models\TaskStep;
 use App\Models\User;
 use App\Services\QuickAddParser;
 use App\Services\RankingService;
@@ -117,7 +118,7 @@ class TaskController extends Controller
             $task = $user->tasks()->create($this->formFields($request));
             $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
 
-            return back()->with('toast', $this->placed($task, 'Added'));
+            return back()->with('toast', $this->placed($task, 'Added'))->with('undo', $this->undo('delete-task', $task->id));
         }
 
         $data = $request->validate([
@@ -144,7 +145,7 @@ class TaskController extends Controller
         $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
         $rank = $this->ranking->rank($user)->rankOf($task->id);
 
-        return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''));
+        return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''))->with('undo', $this->undo('delete-task', $task->id));
     }
 
     /** Where a task will land, before it is saved: from quick-add words or from the FYP form's fields. */
@@ -234,7 +235,9 @@ class TaskController extends Controller
                 }
             }
         }
+        $deps = null;
         if (array_key_exists('depends_on', $data)) {
+            $deps = ['before' => $task->dependencies()->pluck('tasks.id')->all(), 'after' => array_map('intval', $data['depends_on'])];
             $this->setDependencies($task, $data['depends_on']);
             unset($data['depends_on']);
         }
@@ -246,14 +249,57 @@ class TaskController extends Controller
         if ($task->status === Task::DONE) {
             unset($data['status']);
         }
-        if (! $data) {
+        if (! $data && ! $deps) {
             return back();
         }
         $before = $task->only(array_keys($data));
         $task->update($data);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => ['before' => $before, 'after' => $task->only(array_keys($data))]]);
+        $event = $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => [
+            'before' => $before, 'after' => $task->only(array_keys($data)), 'depends_on' => $deps,
+        ]]);
+        $changed = array_keys(array_diff_key($data, ['repeat_day' => 1, 'repeat_every' => 1]));
+        $what = $deps ? 'Starts after' : (self::LABELS[$changed[0] ?? ''] ?? 'Task');
+        $toast = $request->boolean('form') ? $this->placed($task, 'Saved') : "{$what} changed";
 
-        return $request->boolean('form') ? back()->with('toast', $this->placed($task, 'Saved')) : back();
+        return back()->with('toast', $toast)->with('undo', $this->undo('revert-task', $task->id, ['event' => $event->id]));
+    }
+
+    private const LABELS = [
+        'title' => 'Title', 'notes' => 'Notes', 'importance' => 'Importance', 'urgency' => 'Urgency', 'due_at' => 'Due date',
+        'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'project_id' => 'Project',
+        'repeat_unit' => 'Repeat', 'available_from' => 'Start date',
+    ];
+
+    /** Undo of one change in the task panel: put back what the saved event remembers. */
+    public function revert(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $event = $task->events()->where('type', 'updated')->findOrFail($request->integer('event'));
+        $snap = $event->snapshot;
+        if (! empty($snap['depends_on'])) {
+            $this->setDependencies($task, $snap['depends_on']['before']);
+        }
+        if (! empty($snap['before'])) {
+            $task->update($snap['before']);
+        }
+        $task->events()->create(['user_id' => $user->id, 'type' => 'reverted', 'snapshot' => ['event' => $event->id]]);
+
+        return back()->with('toast', 'Change undone');
+    }
+
+    /** Undo of "Make it a task": the step comes back and the task it became goes away. */
+    public function unpromote(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $stepId = $task->events()->where('type', 'promoted')->first()?->snapshot['from_step'];
+        $step = $stepId ? TaskStep::withTrashed()->find($stepId) : null;
+        abort_unless($step && $step->task && (int) $step->task->user_id === $user->id, 404);
+        $step->restore();
+        $task->forceDelete();
+
+        return back()->with('toast', "“{$step->title}” is a step again");
     }
 
     /**
@@ -388,7 +434,7 @@ class TaskController extends Controller
             $next->delete();
         }
 
-        return back();
+        return back()->with('toast', "Not done: “{$task->title}”")->with('undo', $this->undo('complete', $task->id));
     }
 
     public function destroy(Request $request, Task $task): RedirectResponse
@@ -409,6 +455,6 @@ class TaskController extends Controller
         $task->restore();
         $task->events()->create(['user_id' => $user->id, 'type' => 'restored']);
 
-        return back()->with('toast', "Restored “{$task->title}”");
+        return back()->with('toast', "Restored “{$task->title}”")->with('undo', $this->undo('delete-task', $task->id));
     }
 }

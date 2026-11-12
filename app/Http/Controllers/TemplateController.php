@@ -33,19 +33,21 @@ class TemplateController extends Controller
             $task = Task::with('steps')->where('user_id', $user->id)->findOrFail($request->integer('task_id'));
             $template = $user->templates()->create(TaskTemplate::fromTask($task));
 
-            return back()->with('toast', "Saved “{$template->name}” as a template");
+            return back()->with('toast', "Saved “{$template->name}” as a template")->with('undo', $this->undo('delete-template', $template->id));
         }
         $template = $user->templates()->create($this->fields($request));
 
-        return back()->with('toast', "Created template “{$template->name}”");
+        return back()->with('toast', "Created template “{$template->name}”")->with('undo', $this->undo('delete-template', $template->id));
     }
 
     public function update(Request $request, TaskTemplate $template): RedirectResponse
     {
         $this->own($template, $request->user());
-        $template->update($this->fields($request, partial: true));
+        $data = $this->fields($request, partial: true);
+        $before = $template->only(array_keys($data));
+        $template->update($data);
 
-        return back()->with('toast', 'Saved');
+        return back()->with('toast', 'Template saved')->with('undo', $this->undo('patch-template', $template->id, $before));
     }
 
     public function destroy(Request $request, TaskTemplate $template): RedirectResponse
@@ -53,7 +55,16 @@ class TemplateController extends Controller
         $this->own($template, $request->user());
         $template->delete();
 
-        return back()->with('toast', "Deleted template “{$template->name}”");
+        return back()->with('toast', "Deleted template “{$template->name}”")->with('undo', $this->undo('restore-template', $template->id));
+    }
+
+    public function restore(Request $request, int $id): RedirectResponse
+    {
+        $template = TaskTemplate::withTrashed()->findOrFail($id);
+        $this->own($template, $request->user());
+        $template->restore();
+
+        return back()->with('toast', "Template “{$template->name}” is back");
     }
 
     /** Make a task from the template. It is an ordinary task from here on, ranked by the formula. */
@@ -84,7 +95,7 @@ class TemplateController extends Controller
         $template->increment('used');
         $rank = $ranking->rank($user)->rankOf($task->id);
 
-        return to_route('tasks.index', ['task' => $task->id])->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''));
+        return to_route('tasks.index', ['task' => $task->id])->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''))->with('undo', $this->undo('delete-task', $task->id));
     }
 
     private function fields(Request $request, bool $partial = false): array
@@ -106,6 +117,8 @@ class TemplateController extends Controller
         ], [], ['est_hours' => 'hours']);
         if (isset($data['steps'])) {
             $data['steps'] = array_values(array_filter(array_map(fn ($x) => trim((string) $x), $data['steps']), fn ($x) => $x !== ''));
+        } elseif (! $partial) {
+            $data['steps'] = []; // a template made without steps
         }
 
         return $data;

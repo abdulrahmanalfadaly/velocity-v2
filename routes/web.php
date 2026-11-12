@@ -29,6 +29,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('tasks/{task}/reopen', [TaskController::class, 'reopen'])->name('tasks.reopen');
     Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('tasks/{id}/restore', [TaskController::class, 'restore'])->whereNumber('id')->name('tasks.restore');
+    Route::post('tasks/{task}/revert', [TaskController::class, 'revert'])->name('tasks.revert');
 
     Route::get('weights', [WeightController::class, 'edit'])->name('weights.edit');
     Route::put('weights', [WeightController::class, 'update'])->name('weights.update');
@@ -50,6 +51,8 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('steps/{step}', [TaskStepController::class, 'update'])->name('steps.update');
         Route::delete('steps/{step}', [TaskStepController::class, 'destroy'])->name('steps.destroy');
         Route::post('steps/{step}/promote', [TaskStepController::class, 'promote'])->name('steps.promote');
+        Route::post('steps/{id}/restore', [TaskStepController::class, 'restore'])->whereNumber('id')->name('steps.restore');
+        Route::post('tasks/{task}/unpromote', [TaskController::class, 'unpromote'])->name('tasks.unpromote');
 
         Route::get('tasks/archive', ArchiveController::class)->name('tasks.archive');
 
@@ -58,6 +61,7 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
         Route::delete('templates/{template}', [TemplateController::class, 'destroy'])->name('templates.destroy');
         Route::post('templates/{template}/use', [TemplateController::class, 'use'])->name('templates.use');
+        Route::post('templates/{id}/restore', [TemplateController::class, 'restore'])->whereNumber('id')->name('templates.restore');
 
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
@@ -67,12 +71,15 @@ Route::middleware(['auth'])->group(function () {
         Route::post('projects/{project}/milestones', [MilestoneController::class, 'store'])->name('milestones.store');
         Route::patch('milestones/{milestone}', [MilestoneController::class, 'update'])->name('milestones.update');
         Route::delete('milestones/{milestone}', [MilestoneController::class, 'destroy'])->name('milestones.destroy');
+        Route::post('milestones/{id}/restore', [MilestoneController::class, 'restore'])->whereNumber('id')->name('milestones.restore');
+        Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
 
         Route::get('goals', [GoalController::class, 'index'])->name('goals.index');
         Route::post('goals', [GoalController::class, 'store'])->name('goals.store');
         Route::patch('goals/{goal}', [GoalController::class, 'update'])->name('goals.update');
         Route::post('goals/{goal}/archive', [GoalController::class, 'archive'])->name('goals.archive');
         Route::post('goals/{goal}/unarchive', [GoalController::class, 'unarchive'])->name('goals.unarchive');
+        Route::delete('goals/{goal}', [GoalController::class, 'destroy'])->name('goals.destroy');
 
         Route::post('habits/{habit}/check', [HabitController::class, 'check'])->name('habits.check');
         Route::get('search', SearchController::class)->name('search');
