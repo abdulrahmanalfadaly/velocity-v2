@@ -76,6 +76,11 @@ class Task extends Model
         return $this->hasMany(TaskStep::class)->orderBy('position');
     }
 
+    public function files(): HasMany
+    {
+        return $this->hasMany(TaskFile::class)->latest('id');
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(TaskEvent::class)->latest('created_at')->latest('id'); // newest first, also within one second

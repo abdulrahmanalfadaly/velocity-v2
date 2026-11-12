@@ -11,6 +11,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskFileController;
 use App\Http\Controllers\TaskStepController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\WeightController;
@@ -54,6 +55,11 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('steps/{step}', [TaskStepController::class, 'update'])->name('steps.update');
         Route::delete('steps/{step}', [TaskStepController::class, 'destroy'])->name('steps.destroy');
         Route::post('steps/{step}/promote', [TaskStepController::class, 'promote'])->name('steps.promote');
+        Route::post('tasks/{task}/files', [TaskFileController::class, 'store'])->name('files.store');
+        Route::post('tasks/{task}/files/remove', [TaskFileController::class, 'removeMany'])->name('files.remove-many');
+        Route::get('files/{file}', [TaskFileController::class, 'show'])->name('files.show');
+        Route::delete('files/{file}', [TaskFileController::class, 'destroy'])->name('files.destroy');
+        Route::post('files/{id}/restore', [TaskFileController::class, 'restore'])->whereNumber('id')->name('files.restore');
         Route::post('steps/{id}/restore', [TaskStepController::class, 'restore'])->whereNumber('id')->name('steps.restore');
         Route::post('tasks/{task}/unpromote', [TaskController::class, 'unpromote'])->name('tasks.unpromote');
 

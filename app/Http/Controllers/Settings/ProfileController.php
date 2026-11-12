@@ -8,6 +8,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -60,6 +61,8 @@ class ProfileController extends Controller
         Auth::logout();
 
         $user->delete();
+        // The account's attached files are stored outside the database: remove them as well.
+        Storage::disk('local')->deleteDirectory("task-files/{$user->id}");
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

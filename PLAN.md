@@ -64,7 +64,7 @@ organised (to be given later – ask before Phase 2 is finished).
 |---|---|---|
 | 0 | Project setup, design system, app shell, demo data | in progress |
 | 1 | The report's core: tasks, inbox, areas, projects, goals, statuses; waiting/blocked tasks leave the ranking; formula, explanations, weights, history; Study mode | in progress |
-| 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | in progress |
+| 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | done (side-menu feedback still to come) |
 | 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | – |
 | 4 | Notes (editor, links to tasks, journal, files, canvas last) | – |
 | 5 | Habits (schedules, check-ins, streaks, routines) | – |
@@ -160,7 +160,12 @@ organised (to be given later – ask before Phase 2 is finished).
       notification. Each reminder is shown once; a new time or a snooze shows it
       again. Reminders missed while Velocity was closed appear when it opens.
       Repeat copies carry their reminder forward. `ReminderController`
-- [ ] Files on tasks
+- [x] Files on tasks: a Files section in the task panel (Attach, or drop files
+      on it; up to 10 at a time, 20 MB each). Stored privately in
+      storage/app/private/task-files/<user> (never public, never in Git); only
+      the owner can open them. Pictures, PDFs and plain text open in a tab,
+      everything else downloads. Remove and attach can both be undone; deleting
+      the account removes its files from the disk. `TaskFileController`
 - [x] Undo everywhere (12 Nov): every message with a change offers Undo for
       8 s, and Ctrl+Z (outside a text box) does the same. Undoable: every
       change in the task panel (put back from the saved event), done / not

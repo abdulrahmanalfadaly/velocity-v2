@@ -4,6 +4,7 @@ import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 import { askToNotify, notifyState } from './reminders';
+import { TaskFiles } from './task-files';
 import { Check, Dots } from './ui';
 
 type Value = string | number | boolean | null | number[];
@@ -379,6 +380,8 @@ export function TaskPanel({
                         </select>
                     </div>
                 </div>
+
+                <TaskFiles taskId={task.id} files={task.files} />
 
                 <section className="p-section">
                     <div className="p-section-head">

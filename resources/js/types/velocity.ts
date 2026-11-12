@@ -68,8 +68,19 @@ export type TaskDetail = BaseTask &
         dependsOn: { id: number; title: string; status: Status }[];
         events: { type: string; at: string | null }[];
         candidates: { id: number; title: string }[];
+        files: TaskFileInfo[];
         goal: { id: number; title: string; color: number } | null;
     };
+
+export interface TaskFileInfo {
+    id: number;
+    name: string;
+    mime: string;
+    size: number;
+    image: boolean;
+    url: string;
+    addedAt: string | null;
+}
 
 export interface RankingSettings {
     weights: Record<CriterionKey, number>;
