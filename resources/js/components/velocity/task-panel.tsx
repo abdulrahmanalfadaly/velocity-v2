@@ -71,6 +71,14 @@ export function TaskPanel({
                 <div className="panel-tools">
                     <button
                         className="icon-btn"
+                        aria-label="Save as template"
+                        title="Save as template (with its steps)"
+                        onClick={() => router.post(route('templates.store'), { task_id: task.id }, { preserveScroll: true, preserveState: true })}
+                    >
+                        <Icon name="file" />
+                    </button>
+                    <button
+                        className="icon-btn"
                         aria-label="Delete task"
                         title="Delete (you can undo)"
                         onClick={() => router.delete(route('tasks.destroy', task.id), { preserveScroll: true })}

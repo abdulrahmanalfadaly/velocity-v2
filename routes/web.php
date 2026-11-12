@@ -11,6 +11,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskStepController;
+use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\WeightController;
 use Illuminate\Support\Facades\Route;
 
@@ -51,6 +52,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('steps/{step}/promote', [TaskStepController::class, 'promote'])->name('steps.promote');
 
         Route::get('tasks/archive', ArchiveController::class)->name('tasks.archive');
+
+        Route::get('tasks/templates', [TemplateController::class, 'index'])->name('templates.index');
+        Route::post('templates', [TemplateController::class, 'store'])->name('templates.store');
+        Route::patch('templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
+        Route::delete('templates/{template}', [TemplateController::class, 'destroy'])->name('templates.destroy');
+        Route::post('templates/{template}/use', [TemplateController::class, 'use'])->name('templates.use');
 
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');

@@ -322,6 +322,7 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                 {item('goals', 'target', 'Goals map', '/goals', nav.counts.goals)}
                 {item('weights', 'sliders', 'Weights', '/weights')}
                 {item('history', 'review', 'History', '/history')}
+                {item('templates', 'file', 'Templates', '/tasks/templates')}
                 {item('archive', 'archive', 'Archive', '/tasks/archive')}
             </nav>
         </>

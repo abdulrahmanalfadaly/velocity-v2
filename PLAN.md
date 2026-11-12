@@ -137,7 +137,10 @@ organised (to be given later – ask before Phase 2 is finished).
       archived items in search and Home, filters resetting after ticking a task,
       double Enter adding twice, Escape not closing the panel, the Goals map on
       phones having no Tasks menu, red used for late finishes in History
-- [ ] Templates
+- [x] Templates: save any task (with its steps) from the task panel, or make
+      one by hand on the Templates page (Tasks menu › More). "Use" asks for a
+      due date and project, then makes an ordinary task with the steps undone,
+      opened in Up next. `TaskTemplate`, `TemplateController`
 - [ ] Bulk actions
 - [ ] Board / timeline views
 - [ ] Reminders
