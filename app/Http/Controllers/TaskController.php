@@ -365,14 +365,121 @@ class TaskController extends Controller
         if ($task->status === Task::DONE) {
             return back();
         }
-        $score = $this->ranking->rank($user)->scoreOf($task->id);
-        $was = $task->status;
-        $task->update(['status' => Task::DONE, 'completed_at' => $this->ranking->now(), 'score_at_completion' => $score]);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'completed', 'snapshot' => ['score' => $score, 'was' => $was]]);
-        $next = $this->repeatNext($task, $user);
+        $next = $this->finish($task, $user, $this->ranking->rank($user)->scoreOf($task->id));
         $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '');
 
         return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+    }
+
+    /** Marks one open task done with the score it had, and returns its next repeat copy (if it repeats). */
+    private function finish(Task $task, User $user, ?float $score): ?Task
+    {
+        $was = $task->status;
+        $task->update(['status' => Task::DONE, 'completed_at' => $this->ranking->now(), 'score_at_completion' => $score]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'completed', 'snapshot' => ['score' => $score, 'was' => $was]]);
+
+        return $this->repeatNext($task, $user);
+    }
+
+    /** Opens a done task again, as it was before, and takes back the repeat copy it made. */
+    private function unfinish(Task $task, User $user): void
+    {
+        // Back to what it was before it was ticked off (Doing, Waiting …), or To do.
+        $was = $task->events()->where('type', 'completed')->first()?->snapshot['was'] ?? Task::TODO;
+        $task->update(['status' => in_array($was, Task::OPEN, true) ? $was : Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'reopened']);
+        // Undoing "done" on a repeating task takes back the copy it created, if that copy is still open.
+        $next = $task->nextRepeat()->open()->first();
+        if ($next) {
+            $next->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
+            $next->delete();
+        }
+    }
+
+    /**
+     * One action on several tasks at once (the selection bar on the task lists):
+     * done, delete, move to a project, or set a due date. Undo puts every task back.
+     */
+    public function bulk(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*' => ['integer', 'distinct'],
+            'action' => ['required', Rule::in(['complete', 'delete', 'move', 'due'])],
+            'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            'due_at' => ['nullable', 'date'],
+        ]);
+        // Only the user's own open tasks; anything else in the list is quietly left out.
+        $tasks = $user->tasks()->open()->whereIn('id', $data['ids'])->get();
+        if ($tasks->isEmpty()) {
+            return back();
+        }
+        $n = $tasks->count();
+        $noun = $n === 1 ? 'task' : 'tasks';
+        $before = [];
+
+        switch ($data['action']) {
+            case 'complete':
+                $list = $this->ranking->rank($user); // one ranking: each task keeps the score it had at this moment
+                $tasks->each(fn (Task $t) => $this->finish($t, $user, $list->scoreOf($t->id)));
+                $toast = "{$n} {$noun} done";
+                break;
+            case 'delete':
+                $tasks->each(function (Task $t) use ($user) {
+                    $t->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
+                    $t->delete();
+                });
+                $toast = "Deleted {$n} {$noun}";
+                break;
+            case 'move':
+                $projectId = $data['project_id'] ?? null;
+                foreach ($tasks as $t) {
+                    $before[$t->id] = ['project_id' => $t->project_id];
+                    $t->update(['project_id' => $projectId]);
+                }
+                $toast = "Moved {$n} {$noun}";
+                break;
+            default: // due
+                $due = $this->fromLocal($data['due_at'] ?? null, $user);
+                foreach ($tasks as $t) {
+                    $before[$t->id] = ['due_at' => $t->due_at?->toIso8601ZuluString(), 'repeat_day' => $t->repeat_day];
+                    $t->update(['due_at' => $due, 'repeat_day' => null]);
+                }
+                $toast = $due ? "Due date set on {$n} {$noun}" : "Due date cleared on {$n} {$noun}";
+        }
+
+        return back()->with('toast', $toast)
+            ->with('undo', $this->undo('bulk-undo', 0, ['action' => $data['action'], 'ids' => $tasks->pluck('id')->all(), 'before' => $before]));
+    }
+
+    /** Undo of a bulk action: not done again, restored, or back to each task's old project / due date. */
+    public function bulkUndo(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'max:200'],
+            'ids.*' => ['integer'],
+            'action' => ['required', Rule::in(['complete', 'delete', 'move', 'due'])],
+            'before' => ['nullable', 'array'],
+            'before.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            'before.*.due_at' => ['nullable', 'date'],
+            'before.*.repeat_day' => ['nullable', 'integer', 'between:1,31'],
+        ]);
+        $tasks = Task::withTrashed()->where('user_id', $user->id)->whereIn('id', $data['ids'])->get();
+
+        foreach ($tasks as $t) {
+            if ($data['action'] === 'complete' && $t->status === Task::DONE) {
+                $this->unfinish($t, $user);
+            } elseif ($data['action'] === 'delete' && $t->trashed()) {
+                $t->restore();
+                $t->events()->create(['user_id' => $user->id, 'type' => 'restored']);
+            } elseif (in_array($data['action'], ['move', 'due'], true) && isset($data['before'][$t->id])) {
+                $t->update(array_intersect_key($data['before'][$t->id], ['project_id' => 1, 'due_at' => 1, 'repeat_day' => 1]));
+            }
+        }
+
+        return back()->with('toast', 'Undone');
     }
 
     /**
@@ -423,16 +530,7 @@ class TaskController extends Controller
         if ($task->status !== Task::DONE) {
             return back();
         }
-        // Back to what it was before it was ticked off (Doing, Waiting …), or To do.
-        $was = $task->events()->where('type', 'completed')->first()?->snapshot['was'] ?? Task::TODO;
-        $task->update(['status' => in_array($was, Task::OPEN, true) ? $was : Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'reopened']);
-        // Undoing "done" on a repeating task takes back the copy it created, if that copy is still open.
-        $next = $task->nextRepeat()->open()->first();
-        if ($next) {
-            $next->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
-            $next->delete();
-        }
+        $this->unfinish($task, $user);
 
         return back()->with('toast', "Not done: “{$task->title}”")->with('undo', $this->undo('complete', $task->id));
     }

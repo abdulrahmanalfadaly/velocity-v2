@@ -1417,3 +1417,17 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .tpl-dots { display: flex; align-items: center; gap: 10px; min-height: 38px; font-size: 13.5px; }
 .tpl-use-title { font-size: 13.5px; color: var(--text-2); }
 @media (max-width: 560px) { .tpl { flex-direction: column; } }
+
+/* Selecting several tasks: square tick boxes on the rows and an action bar at the bottom. */
+.filter-select { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.pick { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line-strong); background: var(--surface); color: transparent; }
+.pick .ic { width: 13px; height: 13px; stroke-width: 3; }
+.pick.is-on { background: var(--violet); border-color: var(--violet); color: #fff; }
+.rank-list.is-picking .row { cursor: pointer; user-select: none; }
+.row.is-picked { background: var(--selected); }
+.bulkbar { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: calc(100vw - 24px); padding: 10px 12px 10px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-lg); font-size: 13.5px; }
+.bulkbar b { font-weight: 700; white-space: nowrap; }
+.bulkbar .prop-input { height: 30px; max-width: 190px; }
+.bulk-sep { width: 1px; height: 20px; background: var(--line); }
+.app:has(.bulkbar) .toast { bottom: 96px; }
+@media (max-width: 767px) { .bulkbar { bottom: 76px; } .bulk-sep { display: none; } }

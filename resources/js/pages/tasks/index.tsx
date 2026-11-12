@@ -49,6 +49,10 @@ export default function TasksIndex() {
     const [weights, setWeights] = useState(props.settings.weights);
     const [popOpen, setPopOpen] = useState(false);
     const [text, setText] = useState('');
+    // Select mode: tick several tasks, then act on all of them from the bar at the bottom.
+    const [picked, setPicked] = useState<number[] | null>(null);
+    const lastPick = useRef<number | null>(null);
+    const [bulkDue, setBulkDue] = useState('');
     const snapshot = useRef(weights);
     const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     useEffect(() => setWeights(props.settings.weights), [props.settings.weights]);
@@ -67,6 +71,29 @@ export default function TasksIndex() {
     const shown = base.filter((t) => fn(t, clock));
     const open = (id: number | null) =>
         router.get(VIEWS[view].href, id ? { task: id } : {}, { preserveState: true, preserveScroll: true, only: ['selected'] });
+
+    const pick = (id: number, range: boolean) => {
+        const anchor = lastPick.current; // read now: it changes below, before React runs the update
+        setPicked((now) => {
+            const cur = now ?? [];
+            // Shift-click ticks everything between the last tick and this one.
+            if (range && anchor != null) {
+                const ids = shown.map((t) => t.id);
+                const [a, b] = [ids.indexOf(anchor), ids.indexOf(id)].sort((x, y) => x - y);
+                if (a >= 0) return [...new Set([...cur, ...ids.slice(a, b + 1)])];
+            }
+            return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+        });
+        lastPick.current = id;
+    };
+    const bulk = (action: 'complete' | 'delete' | 'move' | 'due', extra: Record<string, string | number | null> = {}) => {
+        if (!picked?.length) return;
+        router.post(
+            route('tasks.bulk'),
+            { ids: picked, action, ...extra },
+            { preserveScroll: true, preserveState: true, onSuccess: () => (setPicked(null), setBulkDue('')) },
+        );
+    };
 
     const setWeight = (k: CriterionKey, v: number) => {
         const next = adjustWeights(snapshot.current, k, v);
@@ -93,7 +120,7 @@ export default function TasksIndex() {
                     <TaskPanel key={props.selected.id} task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} />
                 ) : undefined
             }
-            onEscape={() => (popOpen ? setPopOpen(false) : props.selected ? open(null) : undefined)}
+            onEscape={() => (popOpen ? setPopOpen(false) : picked ? setPicked(null) : props.selected ? open(null) : undefined)}
         >
             <div className="main-inner">
                 <header className="page-head">
@@ -245,10 +272,19 @@ export default function TasksIndex() {
                                         {label} <span className="n">{base.filter((t) => f(t, clock)).length}</span>
                                     </button>
                                 ))}
+                                <button
+                                    className="filter-select filter"
+                                    aria-pressed={picked !== null}
+                                    onClick={() => setPicked(picked ? null : [])}
+                                    title="Select several tasks"
+                                >
+                                    <Icon name="tasks" className="ic-sm" />
+                                    Select
+                                </button>
                             </div>
                         </div>
 
-                        <ol className="rank-list" aria-label="Tasks in priority order">
+                        <ol className={`rank-list${picked ? ' is-picking' : ''}`} aria-label="Tasks in priority order">
                             {shown.length === 0 && <li className="list-empty">Nothing here right now.</li>}
                             {shown.map((t) => {
                                 const due = dueInfo(t, clock);
@@ -256,21 +292,30 @@ export default function TasksIndex() {
                                 return (
                                     <li
                                         key={t.id}
-                                        className={`row${props.selected?.id === t.id ? ' is-selected' : ''}`}
+                                        className={`row${props.selected?.id === t.id ? ' is-selected' : ''}${picked?.includes(t.id) ? ' is-picked' : ''}`}
                                         tabIndex={0}
                                         aria-label={`#${t.rank}, ${t.title}, priority ${fmt1(t.score)}`}
-                                        onClick={() => open(props.selected?.id === t.id ? null : t.id)}
+                                        aria-selected={picked ? picked.includes(t.id) : undefined}
+                                        onClick={(e) => (picked ? pick(t.id, e.shiftKey) : open(props.selected?.id === t.id ? null : t.id))}
                                         onKeyDown={(e) =>
-                                            (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open(t.id))
+                                            (e.key === 'Enter' || e.key === ' ') &&
+                                            e.target === e.currentTarget &&
+                                            (e.preventDefault(), picked ? pick(t.id, e.shiftKey) : open(t.id))
                                         }
                                     >
-                                        <Check
-                                            done={false}
-                                            label={`Mark “${t.title}” done`}
-                                            onClick={() =>
-                                                router.post(route('tasks.complete', t.id), {}, { preserveScroll: true, preserveState: true })
-                                            }
-                                        />
+                                        {picked ? (
+                                            <span className={`pick${picked.includes(t.id) ? ' is-on' : ''}`} aria-hidden="true">
+                                                <Icon name="check" />
+                                            </span>
+                                        ) : (
+                                            <Check
+                                                done={false}
+                                                label={`Mark “${t.title}” done`}
+                                                onClick={() =>
+                                                    router.post(route('tasks.complete', t.id), {}, { preserveScroll: true, preserveState: true })
+                                                }
+                                            />
+                                        )}
                                         <span className="rank">{t.rank}</span>
                                         <div>
                                             <div className="row-title">{t.title}</div>
@@ -382,6 +427,57 @@ export default function TasksIndex() {
                     </>
                 )}
             </div>
+            {picked && (
+                <div className="bulkbar" role="toolbar" aria-label="Actions for the selected tasks">
+                    <b>{picked.length} selected</b>
+                    <button className="link" onClick={() => setPicked(picked.length === shown.length ? [] : shown.map((t) => t.id))}>
+                        {picked.length === shown.length && shown.length > 0 ? 'None' : 'All'}
+                    </button>
+                    <span className="bulk-sep" />
+                    <button className="btn btn-primary btn-sm" disabled={!picked.length} onClick={() => bulk('complete')}>
+                        <Icon name="check" className="ic-sm" />
+                        Done
+                    </button>
+                    <select
+                        className="prop-input"
+                        aria-label="Move to project"
+                        value=""
+                        disabled={!picked.length}
+                        onChange={(e) => e.target.value && bulk('move', { project_id: e.target.value === 'inbox' ? null : Number(e.target.value) })}
+                    >
+                        <option value="">Move to…</option>
+                        <option value="inbox">Inbox (no project)</option>
+                        {props.projects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                                {p.name}
+                            </option>
+                        ))}
+                    </select>
+                    <input
+                        type="datetime-local"
+                        className="prop-input"
+                        aria-label="Due date for the selected tasks"
+                        value={bulkDue}
+                        disabled={!picked.length}
+                        onChange={(e) => setBulkDue(e.target.value)}
+                    />
+                    <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={!picked.length || !bulkDue}
+                        onClick={() => bulk('due', { due_at: bulkDue })}
+                    >
+                        Set due
+                    </button>
+                    <button className="btn btn-secondary btn-sm" disabled={!picked.length} onClick={() => bulk('delete')}>
+                        <Icon name="archive" className="ic-sm" />
+                        Delete
+                    </button>
+                    <span className="bulk-sep" />
+                    <button className="icon-btn" onClick={() => setPicked(null)} aria-label="Stop selecting" title="Stop selecting (Esc)">
+                        <Icon name="x" />
+                    </button>
+                </div>
+            )}
         </VelocityShell>
     );
 }

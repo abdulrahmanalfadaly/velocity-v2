@@ -141,7 +141,10 @@ organised (to be given later – ask before Phase 2 is finished).
       one by hand on the Templates page (Tasks menu › More). "Use" asks for a
       due date and project, then makes an ordinary task with the steps undone,
       opened in Up next. `TaskTemplate`, `TemplateController`
-- [ ] Bulk actions
+- [x] Bulk actions: "Select" on Up next and Inbox turns the rows into tick
+      boxes (shift-click for a range, "All"); the bar at the bottom marks them
+      done, moves them to a project, sets a due date or deletes them. One Undo
+      puts every task back as it was. `TaskController::bulk` / `bulkUndo`
 - [ ] Board / timeline views
 - [ ] Reminders
 - [ ] Files on tasks

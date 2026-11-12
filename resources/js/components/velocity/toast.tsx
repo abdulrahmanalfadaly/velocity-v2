@@ -13,6 +13,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'delete-task': { method: 'delete', route: 'tasks.destroy' },
     'revert-task': { method: 'post', route: 'tasks.revert' },
     unpromote: { method: 'post', route: 'tasks.unpromote' },
+    'bulk-undo': { method: 'post', route: 'tasks.bulk-undo' },
     'restore-step': { method: 'post', route: 'steps.restore' },
     'restore-milestone': { method: 'post', route: 'milestones.restore' },
     'restore-template': { method: 'post', route: 'templates.restore' },
@@ -33,7 +34,8 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
 export function runUndo(u: Undo) {
     const target = UNDO[u.action];
     if (!target) return;
-    const data = (u.data ?? {}) as Record<string, string | number | boolean | null>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- whatever the server asked to get back, sent as it is
+    const data = (u.data ?? {}) as Record<string, any>;
     const url = route(target.route, u.id);
     const opts = { preserveScroll: true, preserveState: true };
     if (target.method === 'delete') router.delete(url, { ...opts, data });

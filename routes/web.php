@@ -24,6 +24,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('tasks', [TaskController::class, 'index'])->name('tasks.index');
     Route::post('tasks', [TaskController::class, 'store'])->name('tasks.store');
     Route::post('tasks/preview', [TaskController::class, 'preview'])->name('tasks.preview');
+    Route::post('tasks/bulk', [TaskController::class, 'bulk'])->name('tasks.bulk');
+    Route::post('tasks/bulk/undo', [TaskController::class, 'bulkUndo'])->name('tasks.bulk-undo');
     Route::patch('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::post('tasks/{task}/complete', [TaskController::class, 'complete'])->name('tasks.complete');
     Route::post('tasks/{task}/reopen', [TaskController::class, 'reopen'])->name('tasks.reopen');
