@@ -160,6 +160,10 @@ organised (to be given later – ask before Phase 2 is finished).
 
 ## Run it
 
+**One click:** `scripts/Velocity.bat` (a copy sits on the Desktop) starts the database, the app
+server and the live server, opens Velocity in its own Chrome window, and stops everything it
+started when that window is closed. Log: `%LOCALAPPDATA%\Velocity\launcher.log`. By hand:
+
 ```bash
 composer install && npm install
 php artisan migrate --seed      # demo account: see database/seeders/DemoSeeder.php
