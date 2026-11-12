@@ -3,9 +3,15 @@
   "configurations": [
     {
       "name": "velocity-v2",
-      "runtimeExecutable": "C:\xampp\php\php.exe",
+      "runtimeExecutable": "C:\\xampp\\php\\php.exe",
       "runtimeArgs": ["artisan", "serve", "--port=8200", "--no-reload"],
       "port": 8200
+    },
+    {
+      "name": "vite",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
     }
   ]
 }

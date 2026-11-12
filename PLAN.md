@@ -153,7 +153,10 @@ organised (to be given later – ask before Phase 2 is finished).
 ```bash
 composer install && npm install
 php artisan migrate --seed      # demo account: see database/seeders/DemoSeeder.php
-npm run build                   # or: npm run dev (hot reload)
+npm run dev                     # live reload while working (or npm run build once)
 php artisan serve --port=8200   # http://localhost:8200
+# Speed: opcache is on in C:\xampp\php\php.ini (zend_extension=opcache, opcache.enable=1,
+# opcache.revalidate_freq=0 so code changes still show at once). Pages went ~0.6 s → ~0.3 s.
+# The app refreshes its data by itself when you come back to its tab after 20 s away.
 php vendor/bin/phpunit
 ```

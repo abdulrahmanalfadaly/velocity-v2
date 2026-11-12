@@ -70,6 +70,16 @@ export default function VelocityShell({ title, section, active, children, panel,
         return () => document.removeEventListener('keydown', onKey);
     }, [overlay, onEscape]);
     useEffect(() => router.on('navigate', () => setOverlay(null)), []);
+    // Coming back to this tab after a while (say, after ticking things off on the phone): fetch fresh data quietly.
+    useEffect(() => {
+        let hiddenAt = 0;
+        const onVisibility = () => {
+            if (document.hidden) hiddenAt = Date.now();
+            else if (hiddenAt && Date.now() - hiddenAt > 20_000) router.reload(); // keeps scroll and typed text
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => document.removeEventListener('visibilitychange', onVisibility);
+    }, []);
 
     const soon = (s: (typeof SECTIONS)[number]) => setToast({ text: `${s.label} isn’t built yet.`, undo: null });
     const sectionLink = (s: (typeof SECTIONS)[number], cls: string, withLabel = true) =>
