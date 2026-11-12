@@ -1431,3 +1431,42 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .bulk-sep { width: 1px; height: 20px; background: var(--line); }
 .app:has(.bulkbar) .toast { bottom: 96px; }
 @media (max-width: 767px) { .bulkbar { bottom: 76px; } .bulk-sep { display: none; } }
+
+/* List / Board / Timeline switch. */
+.layout-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-3); }
+.layout-seg button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.layout-seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }
+.page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Board and timeline: columns of cards. Cards keep the formula's order inside each column. */
+.vboard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; margin-top: 4px; }
+.vtimeline { display: grid; grid-auto-flow: column; grid-auto-columns: 230px; gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 12px; margin-top: 4px; scroll-snap-type: x proximity; }
+.vcol { display: flex; flex-direction: column; min-height: 120px; border-radius: 14px; background: var(--surface-2, var(--surface-3)); border: 1px solid var(--line); transition: border-color .12s, background .12s; scroll-snap-align: start; }
+.vcol.is-over { border-color: var(--violet); background: var(--violet-soft); }
+.vcol-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 11px 12px 6px; }
+.vcol-head b { font-size: 13px; font-weight: 700; }
+.vcol-head span { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+.vcol.is-today .vcol-head b { color: var(--violet-ink); }
+.vcol.is-late-col .vcol-head b { color: var(--critical-ink); }
+.vcol.is-weekend { background: transparent; }
+.vcol-body { display: grid; gap: 8px; padding: 4px 8px 10px; }
+.vcol-empty { padding: 4px 12px 12px; font-size: 12.5px; color: var(--text-3); }
+.vcard { display: grid; gap: 6px; padding: 10px 11px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-xs); cursor: grab; user-select: none; }
+.vcard:hover { border-color: var(--line-strong); }
+.vcard:active { cursor: grabbing; }
+.vcard.is-selected { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
+.vcard.is-quiet .vcard-title { color: var(--text-2); }
+.vcard.is-done .vcard-title { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--faint); }
+.vcard-top { display: flex; align-items: flex-start; gap: 8px; }
+.vcard-top .rank-badge, .vcard-top .att-ic { flex: none; }
+.vcard-title { font-size: 13.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.vcard-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--text-3); }
+.vcard-project { display: inline-flex; align-items: center; gap: 5px; }
+.vcard-project i { width: 7px; height: 7px; border-radius: 50%; background: var(--g); }
+@media (max-width: 1100px) { .vboard { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) {
+    .vboard { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 82%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 12px; }
+    .vboard .vcol { scroll-snap-align: start; }
+    .vtimeline { grid-auto-columns: 82%; scroll-snap-type: x mandatory; }
+    .layout-seg .btn-label { display: none; }
+}

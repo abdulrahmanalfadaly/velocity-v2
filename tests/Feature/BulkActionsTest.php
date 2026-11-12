@@ -100,4 +100,16 @@ class BulkActionsTest extends TestCase
         $this->post(route('tasks.bulk'), ['ids' => [$theirs->id], 'action' => 'complete']);
         $this->assertSame('todo', $theirs->fresh()->status);
     }
+
+    public function test_a_done_task_dropped_on_a_board_column_opens_in_that_column(): void
+    {
+        $task = $this->task('Card', ['status' => 'doing']);
+        $this->post(route('tasks.complete', $task));
+        $this->post(route('tasks.reopen', $task), ['status' => 'waiting']);
+        $this->assertSame('waiting', $task->fresh()->status);
+        $this->post(route('tasks.complete', $task));
+        $this->post(route('tasks.reopen', $task), ['status' => 'done'])->assertSessionHasErrors('status');
+        $this->post(route('tasks.reopen', $task));
+        $this->assertSame('waiting', $task->fresh()->status); // without a status: back to what it was
+    }
 }

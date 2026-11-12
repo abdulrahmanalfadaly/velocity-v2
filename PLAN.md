@@ -145,7 +145,14 @@ organised (to be given later – ask before Phase 2 is finished).
       boxes (shift-click for a range, "All"); the bar at the bottom marks them
       done, moves them to a project, sets a due date or deletes them. One Undo
       puts every task back as it was. `TaskController::bulk` / `bulkUndo`
-- [ ] Board / timeline views
+- [x] Board and timeline views (List / Board / Timeline on Up next and Inbox,
+      remembered per device). Board: To do / Doing / Waiting / Done today; drag
+      a card to change its status (onto Done = done; from Done = opened again in
+      that column). Timeline: Overdue, the next 14 days (with hours per day),
+      Later, No date; drag a card to a day to give it that due date (keeps its
+      time). Cards keep the formula's order in every column; filters still
+      apply; every drop has Undo. Phones: columns scroll sideways; tap a card
+      to change it in the panel. `components/velocity/task-views.tsx`
 - [ ] Reminders
 - [ ] Files on tasks
 - [x] Undo everywhere (12 Nov): every message with a change offers Undo for

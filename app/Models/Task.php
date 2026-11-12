@@ -77,7 +77,7 @@ class Task extends Model
 
     public function events(): HasMany
     {
-        return $this->hasMany(TaskEvent::class)->latest('created_at');
+        return $this->hasMany(TaskEvent::class)->latest('created_at')->latest('id'); // newest first, also within one second
     }
 
     /** Tasks this one waits for: it cannot start until they are done. */

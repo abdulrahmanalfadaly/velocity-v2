@@ -382,10 +382,11 @@ class TaskController extends Controller
     }
 
     /** Opens a done task again, as it was before, and takes back the repeat copy it made. */
-    private function unfinish(Task $task, User $user): void
+    private function unfinish(Task $task, User $user, ?string $status = null): void
     {
-        // Back to what it was before it was ticked off (Doing, Waiting …), or To do.
-        $was = $task->events()->where('type', 'completed')->first()?->snapshot['was'] ?? Task::TODO;
+        // Back to what it was before it was ticked off (Doing, Waiting …), or To do, unless a status is asked for
+        // (a card dropped from "Done today" onto another column of the board).
+        $was = $status ?? $task->events()->where('type', 'completed')->first()?->snapshot['was'] ?? Task::TODO;
         $task->update(['status' => in_array($was, Task::OPEN, true) ? $was : Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
         $task->events()->create(['user_id' => $user->id, 'type' => 'reopened']);
         // Undoing "done" on a repeating task takes back the copy it created, if that copy is still open.
@@ -530,7 +531,8 @@ class TaskController extends Controller
         if ($task->status !== Task::DONE) {
             return back();
         }
-        $this->unfinish($task, $user);
+        $status = $request->validate(['status' => ['sometimes', Rule::in(Task::OPEN)]])['status'] ?? null;
+        $this->unfinish($task, $user, $status);
 
         return back()->with('toast', "Not done: “{$task->title}”")->with('undo', $this->undo('complete', $task->id));
     }

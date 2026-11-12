@@ -1,5 +1,6 @@
 import { Icon } from '@/components/velocity/icon';
 import { TaskPanel } from '@/components/velocity/task-panel';
+import { Board, Timeline } from '@/components/velocity/task-views';
 import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { adjustWeights, Clock, CRIT, DEFAULT_WEIGHTS, dueInfo, fmt1, fmtHours, repeatText, rerank, sameWeights } from '@/lib/velocity';
@@ -24,6 +25,13 @@ const VIEWS: Record<View, { title: string; href: string }> = {
     inbox: { title: 'Inbox', href: '/tasks/inbox' },
     waiting: { title: 'Not ready yet', href: '/tasks/waiting' },
 };
+
+type Layout = 'list' | 'board' | 'timeline';
+const LAYOUTS: [Layout, string, string][] = [
+    ['list', 'List', 'list'],
+    ['board', 'Board', 'columns'],
+    ['timeline', 'Timeline', 'calendar'],
+];
 
 type Filter = 'all' | 'week' | 'quick' | 'overdue' | 'inbox';
 const FILTERS: [Filter, string, (t: RankedTask, c: Clock) => boolean][] = [
@@ -53,6 +61,16 @@ export default function TasksIndex() {
     const [picked, setPicked] = useState<number[] | null>(null);
     const lastPick = useRef<number | null>(null);
     const [bulkDue, setBulkDue] = useState('');
+    // List, board or timeline: remembered on this device.
+    const [layout, setLayoutState] = useState<Layout>(() => {
+        const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('velocity.layout') : null;
+        return saved === 'board' || saved === 'timeline' ? saved : 'list';
+    });
+    const setLayout = (l: Layout) => {
+        setLayoutState(l);
+        setPicked(null);
+        localStorage.setItem('velocity.layout', l);
+    };
     const snapshot = useRef(weights);
     const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     useEffect(() => setWeights(props.settings.weights), [props.settings.weights]);
@@ -132,6 +150,14 @@ export default function TasksIndex() {
                     </div>
                     {view !== 'waiting' && (
                         <div className="page-actions">
+                            <div className="layout-seg" role="radiogroup" aria-label="Show as">
+                                {LAYOUTS.map(([k, label, icon]) => (
+                                    <button key={k} role="radio" aria-checked={layout === k} onClick={() => setLayout(k)} title={label}>
+                                        <Icon name={icon} className="ic-sm" />
+                                        <span className="btn-label">{label}</span>
+                                    </button>
+                                ))}
+                            </div>
                             <div className="pop-wrap">
                                 <button
                                     className="btn btn-secondary"
@@ -272,157 +298,183 @@ export default function TasksIndex() {
                                         {label} <span className="n">{base.filter((t) => f(t, clock)).length}</span>
                                     </button>
                                 ))}
-                                <button
-                                    className="filter-select filter"
-                                    aria-pressed={picked !== null}
-                                    onClick={() => setPicked(picked ? null : [])}
-                                    title="Select several tasks"
-                                >
-                                    <Icon name="tasks" className="ic-sm" />
-                                    Select
-                                </button>
+                                {layout === 'list' && (
+                                    <button
+                                        className="filter-select filter"
+                                        aria-pressed={picked !== null}
+                                        onClick={() => setPicked(picked ? null : [])}
+                                        title="Select several tasks"
+                                    >
+                                        <Icon name="tasks" className="ic-sm" />
+                                        Select
+                                    </button>
+                                )}
                             </div>
                         </div>
 
-                        <ol className={`rank-list${picked ? ' is-picking' : ''}`} aria-label="Tasks in priority order">
-                            {shown.length === 0 && <li className="list-empty">Nothing here right now.</li>}
-                            {shown.map((t) => {
-                                const due = dueInfo(t, clock);
-                                const done = t.steps.filter((s) => s.done).length;
+                        {layout !== 'list' ? (
+                            (() => {
+                                const View = layout === 'board' ? Board : Timeline;
                                 return (
-                                    <li
-                                        key={t.id}
-                                        className={`row${props.selected?.id === t.id ? ' is-selected' : ''}${picked?.includes(t.id) ? ' is-picked' : ''}`}
-                                        tabIndex={0}
-                                        aria-label={`#${t.rank}, ${t.title}, priority ${fmt1(t.score)}`}
-                                        aria-selected={picked ? picked.includes(t.id) : undefined}
-                                        onClick={(e) => (picked ? pick(t.id, e.shiftKey) : open(props.selected?.id === t.id ? null : t.id))}
-                                        onKeyDown={(e) =>
-                                            (e.key === 'Enter' || e.key === ' ') &&
-                                            e.target === e.currentTarget &&
-                                            (e.preventDefault(), picked ? pick(t.id, e.shiftKey) : open(t.id))
-                                        }
-                                    >
-                                        {picked ? (
-                                            <span className={`pick${picked.includes(t.id) ? ' is-on' : ''}`} aria-hidden="true">
-                                                <Icon name="check" />
-                                            </span>
-                                        ) : (
-                                            <Check
-                                                done={false}
-                                                label={`Mark “${t.title}” done`}
-                                                onClick={() =>
-                                                    router.post(route('tasks.complete', t.id), {}, { preserveScroll: true, preserveState: true })
-                                                }
-                                            />
-                                        )}
-                                        <span className="rank">{t.rank}</span>
-                                        <div>
-                                            <div className="row-title">{t.title}</div>
-                                            <div className="row-sub">
-                                                <span>{t.project?.name ?? 'No project'}</span>
-                                                <span className="dotsep" />
-                                                <span>{fmtHours(t.estHours)}</span>
-                                                {t.repeat && (
-                                                    <>
-                                                        <span className="dotsep" />
-                                                        <span className="is-repeat">
-                                                            <Icon name="habits" className="ic-xs" />
-                                                            {repeatText(t.repeat)}
-                                                        </span>
-                                                    </>
-                                                )}
-                                                {t.steps.length > 0 && (
-                                                    <>
-                                                        <span className="dotsep" />
-                                                        <span>
-                                                            {done}/{t.steps.length} steps
-                                                        </span>
-                                                    </>
-                                                )}
-                                                {t.parent && (
-                                                    <>
-                                                        <span className="dotsep" />
-                                                        <span className="is-parent">
-                                                            <Icon name="branch" className="ic-xs" />
-                                                            in “{t.parent.title}”
-                                                        </span>
-                                                    </>
-                                                )}
-                                                {t.status === 'doing' && <span className="chip is-doing">Doing</span>}
-                                                <span className={`chip due-mobile ${due.cls}`}>{due.text}</span>
-                                            </div>
-                                        </div>
-                                        <span className={`chip ${due.cls}`}>
-                                            <Icon name="clock" />
-                                            {due.text}
-                                        </span>
-                                        <span className="score-num">{fmt1(t.score)}</span>
-                                    </li>
+                                    <View
+                                        tasks={shown}
+                                        notReady={notReady}
+                                        doneToday={doneToday}
+                                        clock={clock}
+                                        selectedId={props.selected?.id ?? null}
+                                        onOpen={(id) => open(props.selected?.id === id ? null : id)}
+                                    />
                                 );
-                            })}
-                        </ol>
+                            })()
+                        ) : (
+                            <>
+                                <ol className={`rank-list${picked ? ' is-picking' : ''}`} aria-label="Tasks in priority order">
+                                    {shown.length === 0 && <li className="list-empty">Nothing here right now.</li>}
+                                    {shown.map((t) => {
+                                        const due = dueInfo(t, clock);
+                                        const done = t.steps.filter((s) => s.done).length;
+                                        return (
+                                            <li
+                                                key={t.id}
+                                                className={`row${props.selected?.id === t.id ? ' is-selected' : ''}${picked?.includes(t.id) ? ' is-picked' : ''}`}
+                                                tabIndex={0}
+                                                aria-label={`#${t.rank}, ${t.title}, priority ${fmt1(t.score)}`}
+                                                aria-selected={picked ? picked.includes(t.id) : undefined}
+                                                onClick={(e) => (picked ? pick(t.id, e.shiftKey) : open(props.selected?.id === t.id ? null : t.id))}
+                                                onKeyDown={(e) =>
+                                                    (e.key === 'Enter' || e.key === ' ') &&
+                                                    e.target === e.currentTarget &&
+                                                    (e.preventDefault(), picked ? pick(t.id, e.shiftKey) : open(t.id))
+                                                }
+                                            >
+                                                {picked ? (
+                                                    <span className={`pick${picked.includes(t.id) ? ' is-on' : ''}`} aria-hidden="true">
+                                                        <Icon name="check" />
+                                                    </span>
+                                                ) : (
+                                                    <Check
+                                                        done={false}
+                                                        label={`Mark “${t.title}” done`}
+                                                        onClick={() =>
+                                                            router.post(
+                                                                route('tasks.complete', t.id),
+                                                                {},
+                                                                { preserveScroll: true, preserveState: true },
+                                                            )
+                                                        }
+                                                    />
+                                                )}
+                                                <span className="rank">{t.rank}</span>
+                                                <div>
+                                                    <div className="row-title">{t.title}</div>
+                                                    <div className="row-sub">
+                                                        <span>{t.project?.name ?? 'No project'}</span>
+                                                        <span className="dotsep" />
+                                                        <span>{fmtHours(t.estHours)}</span>
+                                                        {t.repeat && (
+                                                            <>
+                                                                <span className="dotsep" />
+                                                                <span className="is-repeat">
+                                                                    <Icon name="habits" className="ic-xs" />
+                                                                    {repeatText(t.repeat)}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {t.steps.length > 0 && (
+                                                            <>
+                                                                <span className="dotsep" />
+                                                                <span>
+                                                                    {done}/{t.steps.length} steps
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {t.parent && (
+                                                            <>
+                                                                <span className="dotsep" />
+                                                                <span className="is-parent">
+                                                                    <Icon name="branch" className="ic-xs" />
+                                                                    in “{t.parent.title}”
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {t.status === 'doing' && <span className="chip is-doing">Doing</span>}
+                                                        <span className={`chip due-mobile ${due.cls}`}>{due.text}</span>
+                                                    </div>
+                                                </div>
+                                                <span className={`chip ${due.cls}`}>
+                                                    <Icon name="clock" />
+                                                    {due.text}
+                                                </span>
+                                                <span className="score-num">{fmt1(t.score)}</span>
+                                            </li>
+                                        );
+                                    })}
+                                </ol>
 
-                        {notReady.length > 0 && (
-                            <details className="section-fold" open id="not-ready">
-                                <summary>
-                                    <Icon name="chevR" className="chev" />
-                                    Not ready yet <span className="hint">· {notReady.length}</span>
-                                </summary>
-                                {notReady.map((w) => (
-                                    <div
-                                        className={`fold-row is-link${props.selected?.id === w.id ? ' is-selected' : ''}`}
-                                        key={w.id}
-                                        tabIndex={0}
-                                        onClick={() => open(props.selected?.id === w.id ? null : w.id)}
-                                        onKeyDown={(e) =>
-                                            (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open(w.id))
-                                        }
-                                    >
-                                        <span className="att-ic">
-                                            <Icon name={w.kind === 'waiting' ? 'hourglass' : w.kind === 'blocked' ? 'lock' : 'calendar'} />
-                                        </span>
-                                        <div>
-                                            <div className="row-title">{w.title}</div>
-                                            <div className="row-sub">
-                                                <span>{w.project?.name ?? 'No project'}</span>
-                                                <span className="dotsep" />
-                                                <span>{w.why}</span>
+                                {notReady.length > 0 && (
+                                    <details className="section-fold" open id="not-ready">
+                                        <summary>
+                                            <Icon name="chevR" className="chev" />
+                                            Not ready yet <span className="hint">· {notReady.length}</span>
+                                        </summary>
+                                        {notReady.map((w) => (
+                                            <div
+                                                className={`fold-row is-link${props.selected?.id === w.id ? ' is-selected' : ''}`}
+                                                key={w.id}
+                                                tabIndex={0}
+                                                onClick={() => open(props.selected?.id === w.id ? null : w.id)}
+                                                onKeyDown={(e) =>
+                                                    (e.key === 'Enter' || e.key === ' ') &&
+                                                    e.target === e.currentTarget &&
+                                                    (e.preventDefault(), open(w.id))
+                                                }
+                                            >
+                                                <span className="att-ic">
+                                                    <Icon name={w.kind === 'waiting' ? 'hourglass' : w.kind === 'blocked' ? 'lock' : 'calendar'} />
+                                                </span>
+                                                <div>
+                                                    <div className="row-title">{w.title}</div>
+                                                    <div className="row-sub">
+                                                        <span>{w.project?.name ?? 'No project'}</span>
+                                                        <span className="dotsep" />
+                                                        <span>{w.why}</span>
+                                                    </div>
+                                                </div>
+                                                <span />
                                             </div>
-                                        </div>
-                                        <span />
-                                    </div>
-                                ))}
-                            </details>
-                        )}
-                        {doneToday.length > 0 && (
-                            <details className="section-fold">
-                                <summary>
-                                    <Icon name="chevR" className="chev" />
-                                    Done today <span className="hint">· {doneToday.length}</span>
-                                </summary>
-                                {doneToday.map((d) => (
-                                    <div className="fold-row" key={d.id}>
-                                        <Check
-                                            done
-                                            label={`Mark “${d.title}” not done`}
-                                            onClick={() =>
-                                                router.post(route('tasks.reopen', d.id), {}, { preserveScroll: true, preserveState: true })
-                                            }
-                                        />
-                                        <div>
-                                            <div className="row-title" style={{ color: 'var(--text-3)' }}>
-                                                {d.title}
+                                        ))}
+                                    </details>
+                                )}
+                                {doneToday.length > 0 && (
+                                    <details className="section-fold">
+                                        <summary>
+                                            <Icon name="chevR" className="chev" />
+                                            Done today <span className="hint">· {doneToday.length}</span>
+                                        </summary>
+                                        {doneToday.map((d) => (
+                                            <div className="fold-row" key={d.id}>
+                                                <Check
+                                                    done
+                                                    label={`Mark “${d.title}” not done`}
+                                                    onClick={() =>
+                                                        router.post(route('tasks.reopen', d.id), {}, { preserveScroll: true, preserveState: true })
+                                                    }
+                                                />
+                                                <div>
+                                                    <div className="row-title" style={{ color: 'var(--text-3)' }}>
+                                                        {d.title}
+                                                    </div>
+                                                    <div className="row-sub">
+                                                        {d.project?.name ?? 'No project'} <span className="dotsep" />{' '}
+                                                        {d.completedAt ? clock.time(d.completedAt) : ''}
+                                                    </div>
+                                                </div>
+                                                <span />
                                             </div>
-                                            <div className="row-sub">
-                                                {d.project?.name ?? 'No project'} <span className="dotsep" />{' '}
-                                                {d.completedAt ? clock.time(d.completedAt) : ''}
-                                            </div>
-                                        </div>
-                                        <span />
-                                    </div>
-                                ))}
-                            </details>
+                                        ))}
+                                    </details>
+                                )}
+                            </>
                         )}
                     </>
                 )}
