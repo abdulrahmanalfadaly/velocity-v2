@@ -19,7 +19,7 @@ export type Section = 'home' | 'tasks' | 'planner' | 'notes' | 'habits' | 'peopl
 const SECTIONS: { key: Section; label: string; icon: string; href?: string; phase?: number }[] = [
     { key: 'home', label: 'Home', icon: 'home', href: '/home' },
     { key: 'tasks', label: 'Tasks', icon: 'tasks', href: '/tasks' },
-    { key: 'planner', label: 'Planner', icon: 'planner', phase: 3 },
+    { key: 'planner', label: 'Planner', icon: 'planner', href: '/planner' },
     { key: 'notes', label: 'Notes', icon: 'notes', phase: 4 },
     { key: 'habits', label: 'Habits', icon: 'habits', phase: 5 },
     { key: 'people', label: 'People', icon: 'people', phase: 6 },
@@ -41,17 +41,22 @@ interface ShellProps {
     hideSidebar?: boolean;
     /** Escape with nothing else open (and not typing in a field): close the panel. */
     onEscape?: () => void;
+    /** The section's own side menu (Tasks has its built-in one). */
+    menu?: (opts: { autoFocus: boolean }) => ReactNode;
 }
 
-export default function VelocityShell({ title, section, active, children, panel, canvas = false, hideSidebar = false, onEscape }: ShellProps) {
+export default function VelocityShell({ title, section, active, children, panel, canvas = false, hideSidebar = false, onEscape, menu }: ShellProps) {
     const { props } = usePage<VelocityShared>();
     const [overlay, setOverlay] = useState<Overlay>(null);
     const [toast, setToast] = useToast();
     const { appearance, updateAppearance } = useAppearance();
     const user = props.auth.user;
-    // The Tasks menu: a sidebar on wide screens, a drawer on phones and tablets (also on the Goals map).
-    const hasMenu = section === 'tasks';
+    // The section's side menu: a sidebar on wide screens, a drawer on phones and tablets (also on the Goals map).
+    const hasMenu = section === 'tasks' || !!menu;
     const hasSidebar = hasMenu && !hideSidebar;
+    const sectionLabel = SECTIONS.find((s) => s.key === section)?.label ?? title;
+    const sideMenu = (autoFocus: boolean) =>
+        menu ? menu({ autoFocus }) : <TasksMenu active={active} onNewProject={() => setOverlay('project')} autoFocus={autoFocus} />;
     const isDark =
         appearance === 'dark' || (appearance === 'system' && typeof window !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -137,7 +142,7 @@ export default function VelocityShell({ title, section, active, children, panel,
             >
                 <header className="gtop">
                     {hasMenu && (
-                        <button className="icon-btn gtop-menu" onClick={() => setOverlay('drawer')} aria-label="Open the Tasks menu">
+                        <button className="icon-btn gtop-menu" onClick={() => setOverlay('drawer')} aria-label={`Open the ${sectionLabel} menu`}>
                             <Icon name="menu" />
                         </button>
                     )}
@@ -165,7 +170,7 @@ export default function VelocityShell({ title, section, active, children, panel,
 
                 <header className="topbar">
                     {hasMenu ? (
-                        <button className="topbar-section" onClick={() => setOverlay('drawer')} aria-label="Open the Tasks menu">
+                        <button className="topbar-section" onClick={() => setOverlay('drawer')} aria-label={`Open the ${sectionLabel} menu`}>
                             {SECTIONS.find((s) => s.key === section)?.label}
                             <Icon name="chevD" className="ic-sm" />
                         </button>
@@ -184,8 +189,8 @@ export default function VelocityShell({ title, section, active, children, panel,
                 </header>
 
                 {hasSidebar && (
-                    <aside className="sidebar" aria-label="Tasks menu">
-                        <TasksMenu active={active} onNewProject={() => setOverlay('project')} />
+                    <aside className="sidebar" aria-label={`${sectionLabel} menu`}>
+                        {sideMenu(false)}
                     </aside>
                 )}
 
@@ -224,8 +229,8 @@ export default function VelocityShell({ title, section, active, children, panel,
                             <QuickAdd onClose={close} projectId={active?.startsWith('project:') ? Number(active.slice(8)) : undefined} />
                         )}
                         {overlay === 'drawer' && (
-                            <div className="drawer" role="dialog" aria-modal="true" aria-label="Tasks menu">
-                                <TasksMenu active={active} onNewProject={() => setOverlay('project')} autoFocus />
+                            <div className="drawer" role="dialog" aria-modal="true" aria-label={`${sectionLabel} menu`}>
+                                {sideMenu(true)}
                             </div>
                         )}
                         {overlay === 'more' && (

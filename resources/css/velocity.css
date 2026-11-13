@@ -1511,3 +1511,61 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .btn-primary + .start-focus-len { background: var(--violet); border-color: var(--violet); color: #fff; border-left: 1px solid rgba(255,255,255,.25); }
 .start-focus-len:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
 .focus-left { width: 80px; height: 30px; }
+
+/* Planner: a day or week grid of classes and events. Events are neutral (colour is kept for
+   the score parts, overdue and goals); each calendar has its own icon instead. */
+.planner { max-width: none; }
+.planner-head { align-items: flex-end; }
+.planner-nav { display: inline-flex; align-items: center; gap: 4px; }
+.pgrid-wrap { --gutter: 52px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.pg-head, .pg-allday { display: grid; grid-template-columns: var(--gutter) repeat(var(--days), minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.pg-day { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 0 7px; border: 0; border-left: 1px solid var(--line); background: none; color: var(--text-2); font-size: 12px; }
+.pgrid-wrap.is-week .pg-day:hover { background: var(--hover); }
+.pg-day b { display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 4px; border-radius: 9px; font-size: 16px; font-weight: 700; color: var(--text); }
+.pg-day.is-today { color: var(--violet-ink); }
+.pg-day.is-today b { background: var(--violet); color: var(--on-accent); }
+.pg-gutter { display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 11px; color: var(--text-3); }
+.pg-allday-col { display: grid; gap: 3px; padding: 4px; border-left: 1px solid var(--line); min-width: 0; }
+.pg-allday .pev { position: static; height: auto; flex-direction: row; align-items: center; gap: 5px; padding: 3px 7px; }
+.pg-scroll { max-height: calc(100svh - 230px); min-height: 360px; overflow-y: auto; }
+.pg-body { position: relative; display: grid; grid-template-columns: var(--gutter) repeat(var(--days), minmax(0, 1fr));
+    background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px 48px); }
+.pg-hours { position: relative; align-items: flex-start; padding: 0; }
+.pg-hours span { position: absolute; right: 8px; transform: translateY(-50%); font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.pg-col { position: relative; border-left: 1px solid var(--line); cursor: copy; min-width: 0; }
+.pg-col.is-today { background: color-mix(in srgb, var(--violet) 3%, transparent); }
+.pev { position: absolute; display: flex; flex-direction: column; gap: 1px; padding: 4px 7px; overflow: hidden; border: 1px solid var(--line-strong); border-left-width: 3px; border-radius: 8px;
+    background: var(--surface-3); color: var(--text); text-align: left; font-size: 12px; line-height: 1.25; cursor: pointer; z-index: 1; }
+.pev:hover { border-color: var(--text-3); z-index: 2; }
+.pev:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
+.pev.is-work { border-left-style: double; border-left-width: 4px; }
+.pev.is-personal { border-left-style: dashed; }
+.pev-title { display: flex; align-items: center; gap: 5px; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pev-title .ic { flex: none; color: var(--text-3); }
+.pev-sub { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pev.is-short { flex-direction: row; align-items: center; gap: 6px; }
+.pev.is-short .pev-sub { flex: none; }
+.pg-due { position: absolute; right: 3px; max-width: calc(100% - 6px); display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 6px;
+    background: var(--surface); border: 1px dashed var(--line-strong); font-size: 11px; font-weight: 600; color: var(--text-2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; z-index: 3; }
+.pg-due:hover { border-style: solid; color: var(--text); }
+.pg-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--violet); z-index: 4; pointer-events: none; }
+.pg-now::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--violet); }
+
+/* Planner side menu and the event dialog. */
+button.mcal-day { border: 0; background: none; font: inherit; cursor: pointer; }
+button.mcal-day:hover { background: var(--hover); }
+.mcal-day.is-shown:not(.is-today) { background: var(--violet-soft); color: var(--violet-ink); }
+button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+.nav-item.is-off { opacity: .55; }
+.ev-seg { margin: 0; }
+.ev-seg button { display: inline-flex; align-items: center; gap: 6px; }
+.ev-times { gap: 8px; }
+.ev-checks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 13.5px; }
+.ev-until { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); }
+.ev-until .input { width: auto; height: 34px; }
+.vform-foot-left { display: flex; flex-wrap: wrap; gap: 4px; }
+@media (max-width: 767px) {
+    .pgrid-wrap { --gutter: 44px; border-radius: 12px; }
+    .pg-scroll { max-height: calc(100svh - 250px); }
+    .planner-head .btn-label { display: none; }
+}

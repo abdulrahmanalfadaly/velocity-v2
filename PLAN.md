@@ -193,7 +193,20 @@ huge screens, tangled timer), never a source of code or design.
       feeds the workload score, so changing it is the user's call). Focused time
       on the task panel and "focused this week" on projects. Undo for start
       and stop. `FocusController`, `FocusSession`
-- [ ] Classes and events (one-off or weekly; Classes / Work / Personal)
+- [x] Classes and events, and the Planner page: Day / Week grid (phones: Day),
+      side menu with New event, a month calendar (dots on busy days), Day / Week
+      and the Classes / Work / Personal calendars (click to hide). Click an empty
+      slot to add an event there. Events can be all day (one or more days), run
+      past midnight, or repeat weekly until a last week; one week can be removed
+      (a holiday). Weekly repeats are worked out in the user's time zone, so a
+      9:00 class stays at 9:00 when clocks change. Today's due tasks show as flags
+      on the grid. Events are neutral with an icon per calendar (colour is kept
+      for score parts, overdue and goals). Undo for add / edit / remove.
+      `EventController`, `PlannerController`, `Event::occurrences`
+- [x] Phone on the same Wi-Fi: the launcher opens the app server to the local
+      network and writes the link to %LOCALAPPDATA%\Velocity\phone-link.txt;
+      phones get the built app (the live server only answers this PC), which the
+      launcher rebuilds at start. Windows must treat the Wi-Fi as Private.
 - [ ] Planner: day and week views; "Plan my day / week" books tasks in ranking
       order before each due time, around events, up to H hours a day; flags
       what can't fit; drag to move; Home's "Today's plan" card

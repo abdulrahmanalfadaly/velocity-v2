@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArchiveController;
+use App\Http\Controllers\EventController;
 use App\Http\Controllers\FocusController;
 use App\Http\Controllers\FypController;
 use App\Http\Controllers\GoalController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\HabitController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MilestoneController;
+use App\Http\Controllers\PlannerController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\SearchController;
@@ -92,6 +94,12 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('goals/{goal}', [GoalController::class, 'destroy'])->name('goals.destroy');
 
         Route::post('habits/{habit}/check', [HabitController::class, 'check'])->name('habits.check');
+        Route::get('planner', [PlannerController::class, 'index'])->name('planner.index');
+        Route::post('events', [EventController::class, 'store'])->name('events.store');
+        Route::patch('events/{event}', [EventController::class, 'update'])->name('events.update');
+        Route::delete('events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
+        Route::post('events/{id}/restore', [EventController::class, 'restore'])->whereNumber('id')->name('events.restore');
+        Route::post('events/{event}/unskip', [EventController::class, 'unskip'])->name('events.unskip');
         Route::post('focus', [FocusController::class, 'start'])->name('focus.start');
         Route::post('focus/{session}/pause', [FocusController::class, 'pause'])->name('focus.pause');
         Route::post('focus/{session}/resume', [FocusController::class, 'resume'])->name('focus.resume');

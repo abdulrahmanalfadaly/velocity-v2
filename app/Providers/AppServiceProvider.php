@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +20,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // The live (Vite) server only answers this computer. A phone on the same Wi-Fi
+        // gets the built app instead, so it never waits on a server it can't reach.
+        $host = request()->getHost();
+        if (! app()->runningInConsole() && ! in_array($host, ['localhost', '127.0.0.1', '::1', '[::1]'], true)) {
+            Vite::useHotFile(storage_path('framework/vite.hot.none'));
+        }
     }
 }
