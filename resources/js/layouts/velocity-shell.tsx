@@ -1,5 +1,6 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserMenuContent } from '@/components/user-menu-content';
+import { FocusDone, FocusTimer } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
 import { Icon, Logo } from '@/components/velocity/icon';
 import { QuickAdd } from '@/components/velocity/quick-add';
@@ -131,7 +132,9 @@ export default function VelocityShell({ title, section, active, children, panel,
     return (
         <>
             <Head title={title} />
-            <div className={`app${hasSidebar ? '' : ' no-sidebar'}${panel ? ' has-panel' : ''}${canvas ? ' is-canvas' : ''}`}>
+            <div
+                className={`app${hasSidebar ? '' : ' no-sidebar'}${panel ? ' has-panel' : ''}${canvas ? ' is-canvas' : ''}${props.focusSession ? ' has-focus' : ''}`}
+            >
                 <header className="gtop">
                     {hasMenu && (
                         <button className="icon-btn gtop-menu" onClick={() => setOverlay('drawer')} aria-label="Open the Tasks menu">
@@ -154,6 +157,7 @@ export default function VelocityShell({ title, section, active, children, panel,
                         <button className="sb-new" onClick={() => setOverlay('add')} aria-label="Add something" title="Add (Ctrl Shift K)">
                             <Icon name="plus" />
                         </button>
+                        <FocusTimer variant="chip" />
                         {themeButton}
                         {account}
                     </div>
@@ -258,6 +262,8 @@ export default function VelocityShell({ title, section, active, children, panel,
                 {overlay === 'project' && <ProjectDialog onClose={close} />}
 
                 <Reminders clock={Clock.from(props.clock)} onOpen={openTask} />
+                <FocusDone />
+                <FocusTimer variant="float" />
                 <Toast toast={toast} onDone={() => setToast(null)} />
             </div>
         </>

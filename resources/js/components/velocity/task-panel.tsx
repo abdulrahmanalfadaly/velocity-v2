@@ -2,6 +2,7 @@ import { Clock, dueInfo, fmt1, fmtHours, goalVar, LEVEL, REPEAT_CHOICES, repeatT
 import type { RankedTask, RepeatRule, TaskDetail } from '@/types/velocity';
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import { StartFocus } from './focus';
 import { Icon } from './icon';
 import { askToNotify, notifyState } from './reminders';
 import { TaskFiles } from './task-files';
@@ -284,6 +285,21 @@ export function TaskPanel({
                             ))}
                         </select>
                     </div>
+                    {task.focused.seconds > 0 && (
+                        <>
+                            <div className="prop-label">
+                                <Icon name="focus" />
+                                Focused
+                            </div>
+                            <div className="prop-value">
+                                {fmtHours(task.focused.seconds / 3600)}
+                                <span className="muted">
+                                    · {task.focused.sessions} {task.focused.sessions === 1 ? 'session' : 'sessions'} · {fmtHours(task.estHours)}{' '}
+                                    estimated
+                                </span>
+                            </div>
+                        </>
+                    )}
                     <div className="prop-label">
                         <Icon name="bell" />
                         Reminder
@@ -478,12 +494,7 @@ export function TaskPanel({
                     <Icon name="check" />
                     {done ? 'Not done' : 'Mark done'}
                 </button>
-                {!done && task.status !== 'doing' ? (
-                    <button className="btn btn-secondary btn-lg" onClick={() => patch(task.id, { status: 'doing' })}>
-                        <Icon name="play" />
-                        Start
-                    </button>
-                ) : null}
+                {!done && <StartFocus taskId={task.id} className="btn btn-secondary btn-lg" />}
             </div>
         </>
     );

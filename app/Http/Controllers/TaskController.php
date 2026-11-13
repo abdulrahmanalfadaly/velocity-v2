@@ -105,6 +105,7 @@ class TaskController extends Controller
             'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
             // Open tasks this one could be set to start after.
             'files' => $task->files->map(fn ($f) => $f->present())->values(),
+            'focused' => ['seconds' => (int) $task->focusSessions()->whereNotNull('ended_at')->sum('seconds'), 'sessions' => $task->focusSessions()->whereNotNull('ended_at')->count()],
             'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
             'goal' => $task->project?->goal ? ['id' => $task->project->goal->id, 'title' => $task->project->goal->title, 'color' => $task->project->goal->color] : null,
             'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString()])->values(),

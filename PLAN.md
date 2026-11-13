@@ -65,7 +65,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 0 | Project setup, design system, app shell, demo data | in progress |
 | 1 | The report's core: tasks, inbox, areas, projects, goals, statuses; waiting/blocked tasks leave the ranking; formula, explanations, weights, history; Study mode | in progress |
 | 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | done (side-menu feedback still to come) |
-| 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | – |
+| 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | in progress |
 | 4 | Notes (editor, links to tasks, journal, files, canvas last) | – |
 | 5 | Habits (schedules, check-ins, streaks, routines) | – |
 | 6 | People (contacts, dates, follow-ups) | – |
@@ -178,6 +178,25 @@ organised (to be given later – ask before Phase 2 is finished).
       Not undoable on purpose: ticks that are their own undo (step done,
       milestone reached), password and account deletion.
 - [ ] Ask the user for their side-menu changes before Phase 2 is finished
+
+## Phase 3 checklist
+
+Built from the user's instructions, the mockups and the report only. The old
+GPT version is a list of mistakes to avoid (a planner that ignored priority,
+huge screens, tangled timer), never a source of code or design.
+
+- [x] Focus timer: Start focus on the task panel, Home and project pages (50 min,
+      or 25 / 90 / no limit); a chip in the top bar (a bar on phones) with the
+      time, pause and stop. Time is worked out from timestamps, so a closed or
+      reloaded window loses nothing. Starting marks the task Doing; under a
+      minute isn't counted. Stopping asks "hours of work left?" (the estimate
+      feeds the workload score, so changing it is the user's call). Focused time
+      on the task panel and "focused this week" on projects. Undo for start
+      and stop. `FocusController`, `FocusSession`
+- [ ] Classes and events (one-off or weekly; Classes / Work / Personal)
+- [ ] Planner: day and week views; "Plan my day / week" books tasks in ranking
+      order before each due time, around events, up to H hours a day; flags
+      what can't fit; drag to move; Home's "Today's plan" card
 
 ## Run it
 

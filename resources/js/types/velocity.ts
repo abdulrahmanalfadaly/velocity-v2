@@ -69,6 +69,7 @@ export type TaskDetail = BaseTask &
         events: { type: string; at: string | null }[];
         candidates: { id: number; title: string }[];
         files: TaskFileInfo[];
+        focused: { seconds: number; sessions: number };
         goal: { id: number; title: string; color: number } | null;
     };
 
@@ -121,6 +122,23 @@ export interface VelocityShared {
     clock: { now: string; tz: string; frozen?: boolean };
     nav: NavData | null;
     /** `undo.action` names a route in toast.tsx; `data` is sent with the request. */
-    flash: { toast: string | null; undo: { action: string; id: number; data?: Record<string, unknown> | null } | null };
+    flash: {
+        toast: string | null;
+        undo: { action: string; id: number; data?: Record<string, unknown> | null } | null;
+        /** After stopping focus on a task: asks whether to update its hours left. */
+        focusDone?: { taskId: number; title: string; seconds: number; estHours: number; hoursLeft: number } | null;
+    };
+    /** The focus session that is running, if any (personal mode only). */
+    focusSession?: FocusRunning | null;
     [key: string]: unknown;
+}
+
+export interface FocusRunning {
+    id: number;
+    taskId: number | null;
+    taskTitle: string | null;
+    plannedMinutes: number | null;
+    startedAt: string;
+    pausedAt: string | null;
+    pausedSeconds: number;
 }

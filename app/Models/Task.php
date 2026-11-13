@@ -76,6 +76,11 @@ class Task extends Model
         return $this->hasMany(TaskStep::class)->orderBy('position');
     }
 
+    public function focusSessions(): HasMany
+    {
+        return $this->hasMany(FocusSession::class);
+    }
+
     public function files(): HasMany
     {
         return $this->hasMany(TaskFile::class)->latest('id');

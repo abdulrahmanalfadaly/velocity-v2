@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArchiveController;
+use App\Http\Controllers\FocusController;
 use App\Http\Controllers\FypController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\HabitController;
@@ -91,6 +92,12 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('goals/{goal}', [GoalController::class, 'destroy'])->name('goals.destroy');
 
         Route::post('habits/{habit}/check', [HabitController::class, 'check'])->name('habits.check');
+        Route::post('focus', [FocusController::class, 'start'])->name('focus.start');
+        Route::post('focus/{session}/pause', [FocusController::class, 'pause'])->name('focus.pause');
+        Route::post('focus/{session}/resume', [FocusController::class, 'resume'])->name('focus.resume');
+        Route::post('focus/{session}/stop', [FocusController::class, 'stop'])->name('focus.stop');
+        Route::post('focus/{session}/undo-stop', [FocusController::class, 'undoStop'])->name('focus.undo-stop');
+        Route::post('focus/{session}/cancel', [FocusController::class, 'cancel'])->name('focus.cancel');
         Route::get('reminders/due', [ReminderController::class, 'due'])->name('reminders.due');
         Route::post('tasks/{task}/snooze', [ReminderController::class, 'snooze'])->name('tasks.snooze');
         Route::get('search', SearchController::class)->name('search');

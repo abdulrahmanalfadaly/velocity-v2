@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\FocusSession;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\HabitStats;
@@ -119,7 +120,12 @@ class ProjectController extends Controller
                 'goal' => $project->goal ? ['id' => $project->goal->id, 'title' => $project->goal->title, 'color' => $project->goal->color] : null,
                 'archived' => $project->archived_at !== null,
             ],
-            'stats' => ['done' => $doneCount, 'total' => $total, 'pct' => $total ? (int) round($doneCount / $total * 100) : 0, 'bestRank' => $open[0]['rank'] ?? null],
+            'stats' => [
+                'done' => $doneCount, 'total' => $total, 'pct' => $total ? (int) round($doneCount / $total * 100) : 0, 'bestRank' => $open[0]['rank'] ?? null,
+                // Focused on this project's tasks since Monday, in the user's own week.
+                'focusedWeek' => (int) FocusSession::whereNotNull('ended_at')->whereIn('task_id', $project->tasks()->withTrashed()->select('id'))
+                    ->where('started_at', '>=', $todayLocal->startOfWeek()->utc())->sum('seconds'),
+            ],
             'milestones' => $project->milestones->map(fn ($m) => [
                 'id' => $m->id, 'title' => $m->title, 'dueDate' => $m->due_date?->toDateString(), 'done' => $m->done_at !== null,
             ])->values(),

@@ -63,6 +63,11 @@ class User extends Authenticatable
         return $this->hasMany(Task::class);
     }
 
+    public function focusSessions(): HasMany
+    {
+        return $this->hasMany(FocusSession::class);
+    }
+
     public function templates(): HasMany
     {
         return $this->hasMany(TaskTemplate::class)->orderBy('name');

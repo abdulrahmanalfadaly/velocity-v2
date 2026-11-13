@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\FocusController;
 use App\Services\NavData;
 use App\Support\Clock;
 use Illuminate\Foundation\Inspiring;
@@ -44,9 +45,12 @@ class HandleInertiaRequests extends Middleware
                 'frozen' => config('velocity.fixed_now') !== null,
             ],
             'nav' => fn () => $user && ! $user->fyp_mode ? app(NavData::class)->for($user) : null,
+            // The focus session that is running (personal mode only), drawn as the timer in the top bar.
+            'focusSession' => fn () => $user && ! $user->fyp_mode ? FocusController::running($user)?->present() : null,
             'flash' => fn () => [
                 'toast' => $request->session()->get('toast'),
                 'undo' => $request->session()->get('undo'),
+                'focusDone' => $request->session()->get('focusDone'),
             ],
         ];
     }

@@ -1,3 +1,4 @@
+import { StartFocus } from '@/components/velocity/focus';
 import { Icon } from '@/components/velocity/icon';
 import { HabitButton } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
@@ -92,21 +93,7 @@ function DoNext({ task, next, total, clock }: { task: RankedTask; next: RankedTa
                     {task.status === 'doing' && <span className="chip is-doing">Doing</span>}
                 </div>
                 <div className="hero-actions">
-                    <button
-                        className="btn btn-primary btn-lg"
-                        onClick={() =>
-                            task.status === 'doing'
-                                ? router.visit(`/tasks?task=${task.id}`)
-                                : router.patch(
-                                      route('tasks.update', task.id),
-                                      { status: 'doing' },
-                                      { preserveScroll: true, onSuccess: () => router.visit(`/tasks?task=${task.id}`) },
-                                  )
-                        }
-                    >
-                        <Icon name="play" />
-                        {task.status === 'doing' ? 'Open' : 'Open and start'}
-                    </button>
+                    <StartFocus taskId={task.id} />
                     <button
                         className="btn btn-secondary btn-lg"
                         onClick={() => router.post(route('tasks.complete', task.id), {}, { preserveScroll: true, preserveState: true })}

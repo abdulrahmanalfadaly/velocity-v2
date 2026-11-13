@@ -1,3 +1,4 @@
+import { StartFocus } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
 import { Icon } from '@/components/velocity/icon';
 import { TaskPanel } from '@/components/velocity/task-panel';
@@ -29,7 +30,7 @@ interface Props extends VelocityShared {
         goal: { id: number; title: string; color: number } | null;
         archived: boolean;
     };
-    stats: { done: number; total: number; pct: number; bestRank: number | null };
+    stats: { done: number; total: number; pct: number; bestRank: number | null; focusedWeek: number };
     milestones: { id: number; title: string; dueDate: string | null; done: boolean }[];
     tasks: RankedTask[];
     totalRanked: number;
@@ -173,6 +174,14 @@ export default function ProjectShow() {
                                     </div>
                                 </div>
                             )}
+                            {stats.focusedWeek > 0 && (
+                                <div className="wstat">
+                                    <div>
+                                        <b>{fmtHours(stats.focusedWeek / 3600)}</b>
+                                        <span>focused this week</span>
+                                    </div>
+                                </div>
+                            )}
                             {stats.bestRank && (
                                 <div className="wstat">
                                     <div>
@@ -298,20 +307,9 @@ export default function ProjectShow() {
                                     <span>{fmtHours(next.estHours)} of work</span>
                                 </div>
                                 <div className="hero-actions">
-                                    <button
-                                        className="btn btn-primary"
-                                        onClick={() =>
-                                            next.status === 'doing'
-                                                ? select(next.id)
-                                                : router.patch(
-                                                      route('tasks.update', next.id),
-                                                      { status: 'doing' },
-                                                      { ...keep, onSuccess: () => select(next.id) },
-                                                  )
-                                        }
-                                    >
-                                        <Icon name="play" />
-                                        {next.status === 'doing' ? 'Open' : 'Open and start'}
+                                    <StartFocus taskId={next.id} className="btn btn-primary" />
+                                    <button className="btn btn-secondary" onClick={() => select(next.id)}>
+                                        Open
                                     </button>
                                 </div>
                             </section>
