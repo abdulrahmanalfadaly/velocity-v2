@@ -1,5 +1,6 @@
 import { StartFocus } from '@/components/velocity/focus';
 import { Icon } from '@/components/velocity/icon';
+import type { PlanBlock } from '@/components/velocity/planner-parts';
 import { HabitButton } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
@@ -12,6 +13,7 @@ interface Props extends VelocityShared {
     overdue: number;
     dueSoon: number;
     upcoming: RankedTask[];
+    plan: { items: PlanItem[]; booked: number; limit: number };
     habits: HabitToday[];
     attention: {
         overdue: RankedTask[];
@@ -20,6 +22,19 @@ interface Props extends VelocityShared {
     };
     week: { days: { day: string; count: number }[]; done: number; onTime: number | null; avgScore: number | null };
 }
+
+type PlanItem =
+    | {
+          kind: 'event';
+          key: string;
+          title: string;
+          calendar: 'class' | 'work' | 'personal';
+          allDay: boolean;
+          location: string | null;
+          start: string;
+          end: string;
+      }
+    | ({ kind: 'block'; key: string } & PlanBlock);
 
 export default function Home() {
     const { props } = usePage<Props>();
@@ -51,6 +66,7 @@ export default function Home() {
                 <div className="home-grid">
                     <div className="col">
                         {top ? <DoNext task={top} next={next} total={props.total} clock={clock} /> : <EmptyHero />}
+                        <TodayPlan plan={props.plan} clock={clock} hasTasks={props.total > 0} />
                         <Upcoming tasks={props.upcoming} clock={clock} />
                     </div>
                     <div className="col">
@@ -158,6 +174,91 @@ function EmptyHero() {
                 Do next
             </span>
             <h2 className="hero-title">Nothing to do</h2>
+        </section>
+    );
+}
+
+const PLAN_ICON = { class: 'cap', work: 'briefcase', personal: 'heart' };
+
+/** Today on the Planner: classes, events and booked work, with where "now" is. */
+function TodayPlan({ plan, clock, hasTasks }: { plan: Props['plan']; clock: Clock; hasTasks: boolean }) {
+    const now = clock.now.getTime();
+    const today = clock.localInput(clock.now.toISOString()).slice(0, 10);
+    const href = `/planner?date=${today}&view=day`;
+    const nowAt = plan.items.findIndex((i) => !(i.kind === 'event' && i.allDay) && Date.parse(i.start) > now);
+    const rows = plan.items.map((i) => {
+        const timed = !(i.kind === 'event' && i.allDay);
+        const current = timed && Date.parse(i.start) <= now && now < Date.parse(i.end);
+        const past = timed && Date.parse(i.end) <= now;
+        const minutes = Math.round((Date.parse(i.end) - Date.parse(i.start)) / 60000);
+        return (
+            <li key={i.key} className={`tl-item${i.kind === 'block' ? ' is-task' : ''}${current ? ' is-now' : ''}${past ? ' is-past' : ''}`}>
+                <span className="tl-time">{timed ? clock.time(i.start) : 'All day'}</span>
+                <span className="tl-rail">
+                    <span className="tl-dot" />
+                </span>
+                <Link className="tl-block" href={href}>
+                    <div className="tl-title">{i.title}</div>
+                    <div className="tl-sub">
+                        {i.kind === 'block' ? (
+                            <>
+                                {i.rank && (
+                                    <>
+                                        <Icon name="rank" className="ic-xs" />#{i.rank} ·{' '}
+                                    </>
+                                )}
+                                {fmtHours(minutes / 60)}
+                            </>
+                        ) : (
+                            <>
+                                <Icon name={PLAN_ICON[i.calendar]} className="ic-xs" />
+                                {timed && `${clock.time(i.start)}–${clock.time(i.end)}`}
+                                {i.location && ` · ${i.location}`}
+                            </>
+                        )}
+                    </div>
+                </Link>
+            </li>
+        );
+    });
+    if (nowAt >= 0) {
+        rows.splice(
+            nowAt,
+            0,
+            <li key="now" className="tl-now" aria-label={`Now, ${clock.time(clock.now)}`}>
+                <span>{clock.time(clock.now)}</span>
+                <i />
+            </li>,
+        );
+    }
+    const planDay = () => router.post(route('planner.plan'), { date: today, span: 'day' }, { preserveScroll: true });
+    return (
+        <section className="card" aria-labelledby="plan-title">
+            <div className="card-head">
+                <h2 className="card-title" id="plan-title">
+                    <Icon name="planner" />
+                    Today's plan
+                </h2>
+                {plan.booked > 0 ? (
+                    <span className="card-sub">
+                        {fmtHours(plan.booked / 60)} / {fmtHours(plan.limit)} booked
+                    </span>
+                ) : (
+                    hasTasks && (
+                        <button className="btn btn-secondary btn-sm" onClick={planDay}>
+                            <Icon name="wand" />
+                            Plan day
+                        </button>
+                    )
+                )}
+            </div>
+            {plan.items.length === 0 ? <p className="card-empty">Nothing on today.</p> : <ol className="tl">{rows}</ol>}
+            <div className="card-foot">
+                <Link className="card-link" href={href}>
+                    Open Planner
+                    <Icon name="arrowR" className="ic-xs" />
+                </Link>
+            </div>
         </section>
     );
 }

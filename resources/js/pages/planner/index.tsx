@@ -1,10 +1,11 @@
 import { CALENDARS, type CalendarKey, EventDialog, type EventForm } from '@/components/velocity/event-dialog';
 import { Icon } from '@/components/velocity/icon';
+import { BlockMenu, type Hours, HoursDialog, type PlanBlock } from '@/components/velocity/planner-parts';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock } from '@/lib/velocity';
+import { Clock, fmtHours, round1 } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Occurrence {
     id: number;
@@ -19,20 +20,34 @@ interface Occurrence {
     repeats: boolean;
     form: EventForm;
 }
+interface Unbooked {
+    taskId: number;
+    title: string;
+    rank: number | null;
+    minutes: number;
+    dueAt: string | null;
+    dueInPeriod: boolean;
+}
 interface Props extends VelocityShared {
     view: 'day' | 'week';
     date: string;
     today: string;
     days: string[];
     events: Occurrence[];
+    blocks: PlanBlock[];
+    unbooked: Unbooked[];
+    hours: Hours;
+    dayLimit: number;
     busy: string[];
     calendars: Record<CalendarKey, number>;
     dueTasks: { id: number; title: string; dueAt: string }[];
 }
 
 const HOUR = 48; // px for one hour in the grid
+const SNAP = 15; // minutes a dragged block snaps to
 const ICON: Record<CalendarKey, string> = { class: 'cap', work: 'briefcase', personal: 'heart' };
 const LABEL: Record<CalendarKey, string> = { class: 'Class', work: 'Work', personal: 'Personal' };
+const keep = { preserveScroll: true, preserveState: true };
 
 /** "2026-11-13" ± n days. */
 const shift = (day: string, n: number) => {
@@ -42,36 +57,47 @@ const shift = (day: string, n: number) => {
 };
 const at = (day: string) => `${day}T12:00:00Z`; // a moment on that date, for formatting
 const hhmm = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+/** A minute of the day as the app shows times: "9:30 am", or "9 am" when short. */
+const minLabel = (min: number, short = false) => {
+    const h = Math.floor(min / 60) % 24;
+    const m = min % 60;
+    return `${((h + 11) % 12) + 1}${m || !short ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
+};
 
-/** A local date and minute of the day for an ISO moment. */
-function local(clock: Clock, iso: string) {
+/** A local date and minute of the day. */
+interface Spot {
+    date: string;
+    min: number;
+}
+function local(clock: Clock, iso: string): Spot {
     const v = clock.localInput(iso);
     return { date: v.slice(0, 10), min: Number(v.slice(11, 13)) * 60 + Number(v.slice(14, 16)) };
 }
+const later = (s: Spot, minutes: number): Spot => ({ date: shift(s.date, Math.floor((s.min + minutes) / 1440)), min: (s.min + minutes) % 1440 });
+const lengthOf = (b: PlanBlock) => Math.round((Date.parse(b.end) - Date.parse(b.start)) / 60000);
+/** Minutes from one spot to a later one. */
+const between = (a: Spot, b: Spot) => Math.round((Date.parse(b.date) - Date.parse(a.date)) / 60000) + b.min - a.min;
 
+type Item = { key: string; s: Spot; e: Spot } & ({ kind: 'event'; ev: Occurrence } | { kind: 'block'; bl: PlanBlock });
 interface Piece {
-    ev: Occurrence;
+    it: Item;
     top: number;
     bottom: number;
     lane: number;
     lanes: number;
 }
 
-/** The parts of the timed events that fall on one day, side by side where they overlap. */
-function layoutDay(events: Occurrence[], day: string, clock: Clock): Piece[] {
+/** The parts of events and blocks that fall on one day, side by side where they overlap. */
+function layoutDay(items: Item[], day: string): Piece[] {
     const pieces: Piece[] = [];
-    events
-        .filter((e) => !e.allDay)
-        .forEach((ev) => {
-            const s = local(clock, ev.start);
-            const e = local(clock, ev.end);
-            if (s.date > day || e.date < day || (e.date === day && e.min === 0)) return;
-            const top = s.date === day ? s.min : 0;
-            const bottom = e.date === day ? e.min : 1440;
-            if (bottom > top) pieces.push({ ev, top, bottom, lane: 0, lanes: 1 });
-        });
+    items.forEach((it) => {
+        if (it.s.date > day || it.e.date < day || (it.e.date === day && it.e.min === 0)) return;
+        const top = it.s.date === day ? it.s.min : 0;
+        const bottom = it.e.date === day ? it.e.min : 1440;
+        if (bottom > top) pieces.push({ it, top, bottom, lane: 0, lanes: 1 });
+    });
     pieces.sort((a, b) => a.top - b.top || b.bottom - a.bottom);
-    // Groups of events that overlap share the width of the column.
+    // Groups of things that overlap share the width of the column.
     let group: Piece[] = [];
     let groupEnd = -1;
     const close = () => {
@@ -109,11 +135,26 @@ const blank = (date: string, start = 9 * 60): EventForm => ({
     repeat_until: null,
 });
 
-/** The Planner: a day or a week of classes and events. */
+/** A block being dragged: one already on the grid (move) or a task from "Not booked yet" (new). */
+interface Drag {
+    kind: 'move' | 'new';
+    blockId?: number;
+    taskId: number;
+    title: string;
+    rank: number | null;
+    minutes: number;
+    grab: number; // minutes from the block's top to the pointer
+    from?: Spot;
+    to: Spot | null; // where it would land now (null: not over the grid)
+}
+
+/** The Planner: a day or a week of classes, events and the time booked for tasks. */
 export default function Planner() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
     const [dialog, setDialog] = useState<null | { initial: EventForm; id?: number; occurrence?: string }>(null);
+    const [hoursOpen, setHoursOpen] = useState(false);
+    const [menu, setMenu] = useState<null | { bl: PlanBlock; x: number; y: number; s: Spot; e: Spot }>(null);
     const [hidden, setHidden] = useState<CalendarKey[]>(() => {
         try {
             return JSON.parse(localStorage.getItem('velocity.hiddenCalendars') ?? '[]');
@@ -129,6 +170,7 @@ export default function Planner() {
     const events = props.events.filter((e) => !hidden.includes(e.calendar));
     const go = (date: string, view = props.view) => router.get('/planner', { date, view }, { preserveScroll: true });
     const step = props.view === 'week' ? 7 : 1;
+    const plan = (taskId?: number) => router.post(route('planner.plan'), { date: props.date, span: props.view, task_id: taskId ?? null }, keep);
 
     // Phones show one day at a time.
     useEffect(() => {
@@ -139,7 +181,11 @@ export default function Planner() {
     // Start the grid at 7 am (or just before the first thing on), once.
     const scroller = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        const first = Math.min(7 * 60, ...events.filter((e) => !e.allDay).map((e) => local(clock, e.start).min));
+        const first = Math.min(
+            7 * 60,
+            ...events.filter((e) => !e.allDay).map((e) => local(clock, e.start).min),
+            ...props.blocks.map((b) => local(clock, b.start).min),
+        );
         scroller.current?.scrollTo({ top: Math.max(0, (first / 60) * HOUR - 12) });
     }, [props.date, props.view]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -150,12 +196,138 @@ export default function Planner() {
         return () => clearInterval(t);
     }, []);
 
+    // Moves and drops show at once; the server's answer replaces them (a new `blocks` list).
+    const [pending, setPending] = useState<{ base: PlanBlock[]; moves: Record<number, Spot>; added: Item[] }>({
+        base: props.blocks,
+        moves: {},
+        added: [],
+    });
+    const mine = useMemo(() => (pending.base === props.blocks ? pending : { base: props.blocks, moves: {}, added: [] }), [pending, props.blocks]);
+
+    const items = useMemo<Item[]>(() => {
+        const evs: Item[] = events
+            .filter((e) => !e.allDay)
+            .map((ev) => ({ key: ev.key, kind: 'event', ev, s: local(clock, ev.start), e: local(clock, ev.end) }));
+        const bls: Item[] = props.blocks.map((bl) => {
+            const moved = mine.moves[bl.id];
+            return moved
+                ? { key: `b${bl.id}`, kind: 'block', bl, s: moved, e: later(moved, lengthOf(bl)) }
+                : { key: `b${bl.id}`, kind: 'block', bl, s: local(clock, bl.start), e: local(clock, bl.end) };
+        });
+        return [...evs, ...bls, ...mine.added];
+    }, [props.events, props.blocks, hidden, mine]); // eslint-disable-line react-hooks/exhaustive-deps
+    const pieces = useMemo(() => Object.fromEntries(props.days.map((d) => [d, layoutDay(items, d)])), [items, props.days]);
+    // Time booked for tasks on each day (by the day it starts).
+    const load = useMemo(() => {
+        const out: Record<string, number> = {};
+        items.forEach((it) => {
+            if (it.kind === 'block') out[it.s.date] = (out[it.s.date] ?? 0) + between(it.s, it.e);
+        });
+        return out;
+    }, [items]);
+
+    // ---- Dragging blocks (mouse at once; touch after a short hold, so a swipe still scrolls) ----
+    const cols = useRef<Record<string, HTMLDivElement | null>>({});
+    const [drag, setDrag] = useState<Drag | null>(null);
+    const justDragged = useRef(false);
+
+    const spotAt = (x: number, y: number, d: Drag): Spot | null => {
+        for (const day of props.days) {
+            const r = cols.current[day]?.getBoundingClientRect();
+            if (r && x >= r.left && x < r.right) {
+                const raw = ((y - r.top) / HOUR) * 60 - d.grab;
+                return { date: day, min: Math.max(0, Math.min(1440 - d.minutes, Math.round(raw / SNAP) * SNAP)) };
+            }
+        }
+        return null;
+    };
+
+    const begin = (e: ReactPointerEvent, base: Omit<Drag, 'to'>) => {
+        if (e.button !== 0) return;
+        const start = { x: e.clientX, y: e.clientY };
+        let active = false;
+        let current: Drag = { ...base, to: null };
+        const stopScroll = (ev: TouchEvent) => ev.preventDefault();
+        const activate = (x: number, y: number) => {
+            active = true;
+            current = { ...current, to: spotAt(x, y, current) };
+            setDrag(current);
+            window.addEventListener('touchmove', stopScroll, { passive: false });
+            if (e.pointerType === 'touch') navigator.vibrate?.(8);
+        };
+        const timer = e.pointerType === 'touch' ? window.setTimeout(() => activate(start.x, start.y), 350) : undefined;
+        const onMove = (ev: PointerEvent) => {
+            const far = Math.hypot(ev.clientX - start.x, ev.clientY - start.y);
+            if (!active) {
+                if (e.pointerType === 'touch') {
+                    if (far > 8) end(); // a swipe: let the page scroll
+                    return;
+                }
+                if (far < 4) return;
+                activate(ev.clientX, ev.clientY);
+            }
+            // Near the top or bottom of the grid: scroll it along.
+            const box = scroller.current?.getBoundingClientRect();
+            if (box && ev.clientY > box.bottom - 30) scroller.current?.scrollBy({ top: 12 });
+            if (box && ev.clientY < box.top + 30) scroller.current?.scrollBy({ top: -12 });
+            current = { ...current, to: spotAt(ev.clientX, ev.clientY, current) };
+            setDrag(current);
+        };
+        const onUp = () => {
+            if (active) {
+                justDragged.current = true;
+                setTimeout(() => (justDragged.current = false), 50);
+                drop(current);
+            }
+            end();
+        };
+        const end = () => {
+            clearTimeout(timer);
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', end);
+            window.removeEventListener('touchmove', stopScroll);
+            setDrag(null);
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', end);
+    };
+
+    const drop = (d: Drag) => {
+        const to = d.to;
+        if (!to || (d.from && d.from.date === to.date && d.from.min === to.min)) return;
+        const data = { date: to.date, start: hhmm(to.min) };
+        if (d.kind === 'move' && d.blockId) {
+            setPending({ ...mine, moves: { ...mine.moves, [d.blockId]: to } });
+            router.patch(route('blocks.update', d.blockId), data, keep);
+        } else {
+            const bl: PlanBlock = { id: -Date.now(), taskId: d.taskId, title: d.title, start: '', end: '', pinned: true, rank: d.rank, dueAt: null };
+            setPending({ ...mine, added: [...mine.added, { key: `new${bl.id}`, kind: 'block', bl, s: to, e: later(to, d.minutes) }] });
+            router.post(route('blocks.store'), { ...data, task_id: d.taskId, minutes: d.minutes }, keep);
+        }
+    };
+
+    const grabBlock = (e: ReactPointerEvent<HTMLElement>, bl: PlanBlock, s: Spot) => {
+        const top = e.currentTarget.getBoundingClientRect().top;
+        const grab = Math.round(((e.clientY - top) / HOUR) * 60);
+        begin(e, { kind: 'move', blockId: bl.id, taskId: bl.taskId, title: bl.title, rank: bl.rank, minutes: lengthOf(bl), grab, from: s });
+    };
+    const grabUnbooked = (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        begin(e, { kind: 'new', taskId: u.taskId, title: u.title, rank: u.rank, minutes: Math.min(u.minutes, 120), grab: 15 });
+    };
+    const openBlock = (e: MouseEvent<HTMLElement>, bl: PlanBlock, s: Spot, end: Spot) => {
+        if (justDragged.current || bl.id < 0) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        setMenu({ bl, x: e.clientX || r.left, y: (e.clientY || r.top) + 8, s, e: end });
+    };
+
     const range =
         props.view === 'week'
             ? `${clock.date(at(props.days[0]), { day: 'numeric', month: 'short' })} – ${clock.date(at(props.days[6]), { day: 'numeric', month: 'short', year: 'numeric' })}`
             : clock.date(at(props.date), { weekday: 'long', day: 'numeric', month: 'long' });
     const allDay = events.filter((e) => e.allDay);
-    const pieces = useMemo(() => Object.fromEntries(props.days.map((d) => [d, layoutDay(events, d, clock)])), [props.events, hidden, props.days]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const newAt = (day: string, e: MouseEvent<HTMLDivElement>) => {
         if (e.target !== e.currentTarget) return;
@@ -165,20 +337,23 @@ export default function Planner() {
     };
     const openEvent = (ev: Occurrence) => setDialog({ initial: ev.form, id: ev.id, occurrence: ev.repeats ? ev.date : undefined });
 
-    const menu = () => (
+    const sideMenu = () => (
         <PlannerMenu
             props={props}
             clock={clock}
             hidden={hidden}
             onToggle={toggleCalendar}
             onNew={() => setDialog({ initial: blank(props.date) })}
+            onHours={() => setHoursOpen(true)}
+            onBook={plan}
+            onGrab={grabUnbooked}
             go={go}
         />
     );
 
     return (
-        <VelocityShell title="Planner" section="planner" active={props.view} menu={menu}>
-            <div className="main-inner planner">
+        <VelocityShell title="Planner" section="planner" active={props.view} menu={sideMenu}>
+            <div className={`main-inner planner${drag ? ' is-dragging' : ''}`}>
                 <header className="page-head planner-head">
                     <div>
                         <p className="eyebrow is-section">Planner</p>
@@ -211,9 +386,13 @@ export default function Planner() {
                                 </button>
                             ))}
                         </div>
-                        <button className="btn btn-primary" onClick={() => setDialog({ initial: blank(props.date) })}>
+                        <button className="btn btn-secondary" onClick={() => setDialog({ initial: blank(props.date) })} aria-label="New event">
                             <Icon name="plus" />
-                            <span className="btn-label">New event</span>
+                            <span className="btn-label">Event</span>
+                        </button>
+                        <button className="btn btn-primary" onClick={() => plan()}>
+                            <Icon name="wand" />
+                            <span className="btn-label">{props.view === 'week' ? 'Plan week' : 'Plan day'}</span>
                         </button>
                     </div>
                 </header>
@@ -230,6 +409,9 @@ export default function Planner() {
                             >
                                 <span>{clock.weekday(at(d))}</span>
                                 <b>{clock.date(at(d), { day: 'numeric' })}</b>
+                                <i className={`pg-load${(load[d] ?? 0) > props.dayLimit * 60 ? ' is-over' : ''}`}>
+                                    {load[d] ? `${round1(load[d] / 60)} / ${round1(props.dayLimit)} h` : ''}
+                                </i>
                             </button>
                         ))}
                     </div>
@@ -259,41 +441,73 @@ export default function Planner() {
                             <div className="pg-gutter pg-hours" aria-hidden="true">
                                 {Array.from({ length: 24 }, (_, h) => (
                                     <span key={h} style={{ top: h * HOUR }}>
-                                        {h === 0 ? '' : clock.time(new Date(Date.UTC(2026, 0, 1, h))).replace(':00', '')}
+                                        {h === 0 ? '' : minLabel(h * 60, true)}
                                     </span>
                                 ))}
                             </div>
                             {props.days.map((d) => (
                                 <div
                                     key={d}
+                                    ref={(el) => {
+                                        cols.current[d] = el;
+                                    }}
                                     className={`pg-col${d === props.today ? ' is-today' : ''}`}
                                     onClick={(e) => newAt(d, e)}
                                     role="presentation"
                                     title="Click to add an event"
                                 >
-                                    {pieces[d].map((p) => (
-                                        <button
-                                            key={p.ev.key}
-                                            className={`pev is-${p.ev.calendar}${p.bottom - p.top < 45 ? ' is-short' : ''}`}
-                                            style={{
-                                                top: (p.top / 60) * HOUR,
-                                                height: Math.max(20, ((p.bottom - p.top) / 60) * HOUR - 2),
-                                                left: `calc(${(p.lane / p.lanes) * 100}% + 2px)`,
-                                                width: `calc(${100 / p.lanes}% - 4px)`,
-                                            }}
-                                            onClick={() => openEvent(p.ev)}
-                                            aria-label={`${LABEL[p.ev.calendar]}: ${p.ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}`}
-                                        >
-                                            <span className="pev-title">
-                                                <Icon name={ICON[p.ev.calendar]} className="ic-xs" />
-                                                {p.ev.title}
-                                            </span>
-                                            <span className="pev-sub">
-                                                {clock.time(p.ev.start)}–{clock.time(p.ev.end)}
-                                                {p.ev.location ? ` · ${p.ev.location}` : ''}
-                                            </span>
-                                        </button>
-                                    ))}
+                                    {pieces[d].map((p) => {
+                                        const style = {
+                                            top: (p.top / 60) * HOUR,
+                                            height: Math.max(20, ((p.bottom - p.top) / 60) * HOUR - 2),
+                                            left: `calc(${(p.lane / p.lanes) * 100}% + 2px)`,
+                                            width: `calc(${100 / p.lanes}% - 4px)`,
+                                        };
+                                        const short = p.bottom - p.top < 45;
+                                        if (p.it.kind === 'block') {
+                                            const { bl, s, e } = p.it;
+                                            const when = `${minLabel(s.min)}–${minLabel(e.min)}`;
+                                            return (
+                                                <button
+                                                    key={p.it.key}
+                                                    className={`pblock${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}`}
+                                                    style={style}
+                                                    onPointerDown={(ev) => bl.id > 0 && grabBlock(ev, bl, s)}
+                                                    onClick={(ev) => openBlock(ev, bl, s, e)}
+                                                    onContextMenu={(ev) => ev.preventDefault()}
+                                                    title={bl.title}
+                                                    aria-label={`${bl.title}, ${when}`}
+                                                    aria-haspopup="menu"
+                                                >
+                                                    <span className="pblock-title">
+                                                        {bl.rank && <span className="pblock-rank">#{bl.rank}</span>}
+                                                        {bl.title}
+                                                        {bl.pinned && <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />}
+                                                    </span>
+                                                    <span className="pblock-sub">{when}</span>
+                                                </button>
+                                            );
+                                        }
+                                        const ev = p.it.ev;
+                                        return (
+                                            <button
+                                                key={p.it.key}
+                                                className={`pev is-${ev.calendar}${short ? ' is-short' : ''}`}
+                                                style={style}
+                                                onClick={() => openEvent(ev)}
+                                                aria-label={`${LABEL[ev.calendar]}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}`}
+                                            >
+                                                <span className="pev-title">
+                                                    <Icon name={ICON[ev.calendar]} className="ic-xs" />
+                                                    {ev.title}
+                                                </span>
+                                                <span className="pev-sub">
+                                                    {clock.time(ev.start)}–{clock.time(ev.end)}
+                                                    {ev.location ? ` · ${ev.location}` : ''}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
                                     {props.dueTasks
                                         .filter((t) => local(clock, t.dueAt).date === d)
                                         .map((t) => (
@@ -308,6 +522,23 @@ export default function Planner() {
                                                 {t.title}
                                             </a>
                                         ))}
+                                    {drag?.to?.date === d && (
+                                        <span
+                                            className="pblock is-ghost"
+                                            style={{
+                                                top: (drag.to.min / 60) * HOUR,
+                                                height: Math.max(20, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 2),
+                                                left: 2,
+                                                right: 2,
+                                            }}
+                                            aria-hidden="true"
+                                        >
+                                            <span className="pblock-title">{drag.title}</span>
+                                            <span className="pblock-sub">
+                                                {minLabel(drag.to.min)}–{minLabel(later(drag.to, drag.minutes).min)}
+                                            </span>
+                                        </span>
+                                    )}
                                     {d === props.today && <span className="pg-now" style={{ top: (nowMin / 60) * HOUR }} aria-hidden="true" />}
                                 </div>
                             ))}
@@ -318,17 +549,31 @@ export default function Planner() {
             {dialog && (
                 <EventDialog initial={dialog.initial} eventId={dialog.id} occurrenceDate={dialog.occurrence} onClose={() => setDialog(null)} />
             )}
+            {hoursOpen && <HoursDialog hours={props.hours} onClose={() => setHoursOpen(false)} />}
+            {menu && (
+                <BlockMenu
+                    block={menu.bl}
+                    x={menu.x}
+                    y={menu.y}
+                    minutes={lengthOf(menu.bl)}
+                    when={`${clock.weekday(at(menu.s.date))} ${minLabel(menu.s.min)}–${minLabel(menu.e.min)}`}
+                    onClose={() => setMenu(null)}
+                />
+            )}
         </VelocityShell>
     );
 }
 
-/** The Planner's side menu: New event, a month calendar, Day / Week, and the calendars to show. */
+/** The Planner's side menu: New event, a month calendar, Day / Week, calendars, working hours and what is not booked yet. */
 function PlannerMenu({
     props,
     clock,
     hidden,
     onToggle,
     onNew,
+    onHours,
+    onBook,
+    onGrab,
     go,
 }: {
     props: Props;
@@ -336,6 +581,9 @@ function PlannerMenu({
     hidden: CalendarKey[];
     onToggle: (k: CalendarKey) => void;
     onNew: () => void;
+    onHours: () => void;
+    onBook: (taskId: number) => void;
+    onGrab: (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => void;
     go: (date: string, view?: 'day' | 'week') => void;
 }) {
     const first = `${props.date.slice(0, 8)}01`;
@@ -408,6 +656,43 @@ function PlannerMenu({
                         <span className="count">{hidden.includes(k) ? 'hidden' : props.calendars[k] || ''}</span>
                     </button>
                 ))}
+                <button className="nav-item" onClick={onHours}>
+                    <Icon name="calClock" />
+                    <span className="label">Working hours</span>
+                </button>
+                {props.unbooked.length > 0 && (
+                    <>
+                        <div className="nav-label">
+                            Not booked yet
+                            <span className="count">{props.unbooked.length}</span>
+                        </div>
+                        <ul className="ub-list">
+                            {props.unbooked.map((u) => {
+                                const overdue = u.dueAt !== null && Date.parse(u.dueAt) < clock.now.getTime();
+                                return (
+                                    <li key={u.taskId} className="ub-item" onPointerDown={(e) => onGrab(e, u)} title={u.title}>
+                                        <span className={`rank-badge${u.rank ? '' : ' is-none'}`}>{u.rank ?? '–'}</span>
+                                        <span className="ub-main">
+                                            <span className="ub-title">{u.title}</span>
+                                            <span className="ub-sub">
+                                                {fmtHours(u.minutes / 60)}
+                                                {u.dueAt && (u.dueInPeriod || overdue) && (
+                                                    <span className={overdue ? 'is-late' : 'ub-due'}>
+                                                        <Icon name="flag" className="ic-xs" />
+                                                        {clock.weekday(u.dueAt)} {clock.time(u.dueAt)}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </span>
+                                        <button className="icon-btn" onClick={() => onBook(u.taskId)} aria-label={`Book “${u.title}”`} title="Book">
+                                            <Icon name="calPlus" />
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </>
+                )}
             </nav>
         </>
     );

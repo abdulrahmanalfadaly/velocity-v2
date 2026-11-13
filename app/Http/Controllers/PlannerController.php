@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\PlannerBlock;
 use App\Models\Task;
+use App\Services\PlanBuilder;
+use App\Services\RankedList;
 use App\Services\RankingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -11,10 +14,10 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/** The Planner: a day or a week of classes and events (booking tasks into it comes next). */
+/** The Planner: a day or a week of classes, events and the time booked for tasks. */
 class PlannerController extends Controller
 {
-    public function __construct(private readonly RankingService $ranking) {}
+    public function __construct(private readonly RankingService $ranking, private readonly PlanBuilder $builder) {}
 
     public function index(Request $request): Response
     {
@@ -27,6 +30,10 @@ class PlannerController extends Controller
         $first = $view === 'week' ? $anchor->startOfWeek(CarbonImmutable::MONDAY) : $anchor;
         $count = $view === 'week' ? 7 : 1;
 
+        $days = collect(range(0, $count - 1))->map(fn ($i) => $first->addDays($i)->toDateString());
+        $from = $first->utc();
+        $to = $first->addDays($count)->utc();
+        $list = $this->ranking->rank($user);
         $events = $user->events()->get();
         $occ = fn (CarbonImmutable $from, CarbonImmutable $to) => $events
             ->flatMap(fn (Event $e) => array_map(fn ($o) => ['event' => $e] + $o, $e->occurrences($from->utc(), $to->utc(), $tz)));
@@ -43,14 +50,35 @@ class PlannerController extends Controller
             'view' => $view,
             'date' => $anchor->toDateString(),
             'today' => $today->toDateString(),
-            'days' => collect(range(0, $count - 1))->map(fn ($i) => $first->addDays($i)->toDateString()),
+            'days' => $days,
             'events' => $occ($first, $first->addDays($count))->sortBy(fn ($o) => $o['start']->getTimestamp())->values()
                 ->map(fn ($o) => $this->present($o['event'], $o, $tz)),
+            'blocks' => $user->plannerBlocks()->active()->with('task:id,title,due_at')
+                ->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get()
+                ->map(fn (PlannerBlock $b) => self::block($b, $list)),
+            'unbooked' => $this->builder->unbooked($user, $days->all(), $list),
+            'hours' => PlanBuilder::hours($user),
+            'dayLimit' => $user->weights()->hours_per_day,
             'busy' => $busy,
             'calendars' => collect(Event::CALENDARS)->mapWithKeys(fn ($c) => [$c => $events->where('calendar', $c)->count()]),
             'dueTasks' => $user->tasks()->open()->whereBetween('due_at', [$first->utc(), $first->addDays($count)->utc()])
                 ->get(['id', 'title', 'due_at'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'dueAt' => $t->due_at->toIso8601ZuluString()])->values(),
         ]);
+    }
+
+    /** A block as the grid and Home show it. */
+    public static function block(PlannerBlock $b, RankedList $list): array
+    {
+        return [
+            'id' => $b->id,
+            'taskId' => $b->task_id,
+            'title' => $b->task->title,
+            'start' => $b->starts_at->toIso8601ZuluString(),
+            'end' => $b->ends_at->toIso8601ZuluString(),
+            'pinned' => $b->pinned,
+            'rank' => $list->rankOf($b->task_id),
+            'dueAt' => $b->task->due_at?->toIso8601ZuluString(),
+        ];
     }
 
     private function present(Event $e, array $o, string $tz): array

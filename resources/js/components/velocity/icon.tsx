@@ -1,9 +1,9 @@
 import { useId } from 'react';
 import {
-    Archive, ArrowRight, ArrowUpNarrowWide, ArrowUpRight, BarChart3, Bell, BookOpen, Briefcase, Calendar, CalendarDays, Check, ChevronDown,
+    Archive, ArrowRight, ArrowUpNarrowWide, ArrowUpRight, BarChart3, Bell, BookOpen, Briefcase, Calendar, CalendarClock, CalendarDays, CalendarPlus, Check, ChevronDown,
     ChevronLeft, ChevronRight, ChevronsUpDown, CircleAlert, Clock, Columns3, CornerDownLeft, File, FileText, Flag, Flame, Folder, Gift,
     GitFork, GraduationCap, Heart, Hourglass, House, Inbox, Info, List, Lock, LucideIcon, Maximize2, Menu, Minus, Monitor, Moon, MoreHorizontal, Paperclip,
-    Pause, Pin, Play, Plus, Repeat, Search, Settings, SlidersHorizontal, SquareCheck, Sun, Target, Timer, User, Users, X, Zap,
+    Pause, Pin, Play, Plus, Repeat, Search, Settings, SlidersHorizontal, SquareCheck, Sun, Target, Timer, User, Users, WandSparkles, X, Zap,
 } from 'lucide-react';
 
 const ICONS = {
@@ -14,7 +14,7 @@ const ICONS = {
     lock: Lock, info: Info, arrowR: ArrowRight, flame: Flame, alert: CircleAlert, cap: GraduationCap, briefcase: Briefcase, heart: Heart,
     gift: Gift, expand: Maximize2, zap: Zap, flag: Flag, person: User, file: File, enter: CornerDownLeft, updown: ChevronsUpDown, menu: Menu,
     list: List, minus: Minus, arrowUpRight: ArrowUpRight, branch: GitFork, pin: Pin, book: BookOpen, archive: Archive, columns: Columns3,
-    monitor: Monitor,
+    monitor: Monitor, wand: WandSparkles, calPlus: CalendarPlus, calClock: CalendarClock,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

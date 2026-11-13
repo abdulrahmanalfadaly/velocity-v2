@@ -9,6 +9,7 @@ use App\Http\Controllers\HabitController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MilestoneController;
+use App\Http\Controllers\PlannerBlockController;
 use App\Http\Controllers\PlannerController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReminderController;
@@ -95,6 +96,13 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('habits/{habit}/check', [HabitController::class, 'check'])->name('habits.check');
         Route::get('planner', [PlannerController::class, 'index'])->name('planner.index');
+        Route::post('planner/plan', [PlannerBlockController::class, 'plan'])->name('planner.plan');
+        Route::post('planner/unplan', [PlannerBlockController::class, 'unplan'])->name('planner.unplan');
+        Route::put('planner/hours', [PlannerBlockController::class, 'hours'])->name('planner.hours');
+        Route::post('planner/blocks', [PlannerBlockController::class, 'store'])->name('blocks.store');
+        Route::patch('planner/blocks/{block}', [PlannerBlockController::class, 'update'])->name('blocks.update');
+        Route::delete('planner/blocks/{block}', [PlannerBlockController::class, 'destroy'])->name('blocks.destroy');
+        Route::post('planner/blocks/{id}/restore', [PlannerBlockController::class, 'restore'])->whereNumber('id')->name('blocks.restore');
         Route::post('events', [EventController::class, 'store'])->name('events.store');
         Route::patch('events/{event}', [EventController::class, 'update'])->name('events.update');
         Route::delete('events/{event}', [EventController::class, 'destroy'])->name('events.destroy');

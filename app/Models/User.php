@@ -16,7 +16,7 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     /** @var list<string> */
-    protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode'];
+    protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode', 'planner_hours'];
 
     /** @var list<string> */
     protected $hidden = ['password', 'remember_token'];
@@ -34,6 +34,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'fyp_mode' => 'boolean',
+            'planner_hours' => 'array',
         ];
     }
 
@@ -61,6 +62,11 @@ class User extends Authenticatable
     public function tasks(): HasMany
     {
         return $this->hasMany(Task::class);
+    }
+
+    public function plannerBlocks(): HasMany
+    {
+        return $this->hasMany(PlannerBlock::class);
     }
 
     public function events(): HasMany

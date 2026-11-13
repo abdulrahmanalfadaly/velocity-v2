@@ -207,9 +207,19 @@ huge screens, tangled timer), never a source of code or design.
       network and writes the link to %LOCALAPPDATA%\Velocity\phone-link.txt;
       phones get the built app (the live server only answers this PC), which the
       launcher rebuilds at start. Windows must treat the Wi-Fi as Private.
-- [ ] Planner: day and week views; "Plan my day / week" books tasks in ranking
-      order before each due time, around events, up to H hours a day; flags
-      what can't fit; drag to move; Home's "Today's plan" card
+- [x] Plan my day / week: books tasks in ranking order (then tasks that start
+      later in the period), each up to its hours of work, only in working hours
+      (per weekday, days off allowed), around events with a 10-minute gap, never
+      in the past, ending before each due time (overdue: as soon as possible),
+      at most H hours a day (the formula's own H), in blocks of 30 min to 2 h
+      with a break after each. Blocks the user placed or moved are pinned and
+      kept; planning again replaces only the planner's own. "Not booked yet" in
+      the side menu (with Book, or drag onto the grid); drag a block to move it
+      (mouse at once, touch after a short hold); click a block to focus on it,
+      open its task or remove it. Booked hours per day in the grid's header.
+      Home's "Today's plan" card. Finished or deleted tasks' blocks stop counting
+      everywhere (`PlannerBlock::active`). Undo for plan, book, move, remove and
+      working hours. `PlanBuilder`, `PlannerBlockController`, `PlannerBlock`
 
 ## Run it
 

@@ -37,6 +37,11 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'patch-goal': { method: 'patch', route: 'goals.update' },
     'habit-count': { method: 'post', route: 'habits.check' },
     'put-weights': { method: 'put', route: 'weights.update' },
+    unplan: { method: 'post', route: 'planner.unplan' },
+    'remove-block': { method: 'delete', route: 'blocks.destroy' },
+    'restore-block': { method: 'post', route: 'blocks.restore' },
+    'patch-block': { method: 'patch', route: 'blocks.update' },
+    'put-hours': { method: 'put', route: 'planner.hours' },
 };
 
 export function runUndo(u: Undo) {
