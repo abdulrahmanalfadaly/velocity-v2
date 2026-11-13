@@ -31,8 +31,13 @@ class SearchController extends Controller
             ->map(fn ($p) => ['kind' => 'project', 'id' => $p->id, 'title' => $p->name, 'sub' => 'Project', 'url' => route('projects.show', $p)]);
         $goals = $user->goals()->whereNull('archived_at')->where('title', 'like', $like)->limit(3)->get()
             ->map(fn ($g) => ['kind' => 'goal', 'id' => $g->id, 'title' => $g->title, 'sub' => 'Goal', 'url' => route('goals.index', ['focus' => 'g'.$g->id])]);
-        $notes = $user->notes()->where('title', 'like', $like)->with('project')->latest('updated_at')->limit(4)->get()
-            ->map(fn ($n) => ['kind' => 'note', 'id' => $n->id, 'title' => $n->title, 'sub' => $n->project?->name ?? 'Note', 'url' => $n->project ? route('projects.show', $n->project) : route('home')]);
+        $notes = $user->notes()->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like))->with(['project', 'event'])
+            ->orderByRaw('case when title like ? then 0 else 1 end', [$like])->latest('updated_at')->limit(5)->get()
+            ->map(fn ($n) => [
+                'kind' => 'note', 'id' => $n->id, 'title' => $n->displayTitle(),
+                'sub' => $n->journal_date ? 'Journal' : ($n->project?->name ?? ($n->event_date ? 'Class notes' : 'Note')),
+                'url' => route('notes.index', ['in' => $n->journal_date ? 'journal' : ($n->project_id ? "p{$n->project_id}" : null), 'note' => $n->id]),
+            ]);
 
         return response()->json(['groups' => array_values(array_filter([
             ['label' => 'Tasks', 'items' => $tasks->values()],

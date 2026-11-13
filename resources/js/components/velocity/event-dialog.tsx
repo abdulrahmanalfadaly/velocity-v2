@@ -32,12 +32,15 @@ export function EventDialog({
     initial,
     eventId,
     occurrenceDate,
+    day,
     onClose,
 }: {
     initial: EventForm;
     eventId?: number;
     /** The week the user clicked on, for "Remove this week". */
     occurrenceDate?: string;
+    /** The day the user clicked on, for its notes. */
+    day?: string;
     onClose: () => void;
 }) {
     const form = useForm({
@@ -76,6 +79,18 @@ export function EventDialog({
     return (
         <Modal title={eventId ? 'Edit event' : 'New event'} onClose={onClose}>
             <form className="vform" onSubmit={submit}>
+                {eventId && day && (
+                    <button type="button" className="ev-notes" onClick={() => router.post(route('notes.event'), { event_id: eventId, date: day })}>
+                        <Icon name="notes" />
+                        <span>
+                            Notes for{' '}
+                            {new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
+                                new Date(`${day}T12:00:00Z`),
+                            )}
+                        </span>
+                        <Icon name="chevR" className="ic-sm" />
+                    </button>
+                )}
                 <TextField
                     id="ev-title"
                     label="Title"

@@ -66,7 +66,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 1 | The report's core: tasks, inbox, areas, projects, goals, statuses; waiting/blocked tasks leave the ranking; formula, explanations, weights, history; Study mode | in progress |
 | 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | done (side-menu feedback still to come) |
 | 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | in progress |
-| 4 | Notes (editor, links to tasks, journal, files, canvas last) | – |
+| 4 | Notes (editor, links to tasks, journal, files, canvas last) | in progress (drawing still to decide) |
 | 5 | Habits (schedules, check-ins, streaks, routines) | – |
 | 6 | People (contacts, dates, follow-ups) | – |
 | 7 | Home, Review charts, global search | – |
@@ -220,6 +220,41 @@ huge screens, tangled timer), never a source of code or design.
       Home's "Today's plan" card. Finished or deleted tasks' blocks stop counting
       everywhere (`PlannerBlock::active`). Undo for plan, book, move, remove and
       working hours. `PlanBuilder`, `PlannerBlockController`, `PlannerBlock`
+
+## Phase 4 checklist
+
+The GPT version's Notes is the scope reference (journal, class notes, making
+tasks from text, files in notes); its version conflicts, recovery copies,
+archive-only notes and seven kinds of links are left out on purpose.
+
+- [x] Notes page: side menu (All notes, Pinned, Journal, Not in a project, each
+      class or event with notes, each project with notes), the list (title,
+      first words, date, project) beside the open note; one column below
+      1100 px wide (list, or the note with Back). Search inside the list.
+- [x] Editor (Tiptap, loaded only on the Notes page): headings, bold, italic,
+      strikethrough, bulleted / numbered lists, checklists, quotes, code,
+      links (Ctrl+click opens), pictures; the usual typing shortcuts. Saves
+      itself 0.8 s after typing stops and when leaving the note (JSON, no page
+      reload; the document is sent as a string so form trimming can't eat its
+      spaces). Last save wins. A note left with nothing in it is thrown away
+      when you leave it (and after a day if the window was closed).
+      `NoteController::save`, `Note::textOf`
+- [x] Links to tasks: "Link task" in a note (chips show the rank; click opens
+      the task), linked notes and "New note" in the task panel. Select words →
+      "Make task": a task in the note's project (or the Inbox), linked, Undo.
+- [x] Class notes: "Notes for <day>" in the Planner's event dialog opens or
+      starts the note for that class on that day ("Data Mining · Thu 19 Nov"),
+      listed under the class in the side menu.
+- [x] Journal: one entry a day in the user's own time zone (unique per day; a
+      deleted entry makes way for a new one), Today, a month with dots on days
+      that have entries, previous / next entry.
+- [x] Files: paste or drop pictures into the text; other files (and Attach)
+      go under Files. Stored privately in storage/app/private/note-files/<user>,
+      owner only; removed with the note or the account. `NoteFileController`
+- [x] Pin, move to a project (Undo), delete (Undo). Ctrl K finds notes by
+      title or words inside and opens them; project pages, the Goals map and
+      quick add (Note tab: a note named with what you typed) open notes too.
+- [ ] Drawing inside a note: ask the user once the rest has been used
 
 ## Run it
 

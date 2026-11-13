@@ -113,7 +113,7 @@ class GoalController extends Controller
                 'done' => $p->tasks->where('status', Task::DONE)->count(),
                 'total' => $p->tasks->whereIn('status', [...Task::OPEN, Task::DONE])->count(),
                 'tasks' => $tasks->map($taskNode)->values(),
-                'notes' => $p->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->title, 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+                'notes' => $p->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
                 'habits' => $p->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
             ];
         };

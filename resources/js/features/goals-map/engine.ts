@@ -88,6 +88,7 @@ interface StepNode extends NodeBase {
 interface NoteNode extends NodeBase {
     type: 'note';
     pid: number;
+    noteId: number;
     when: string | null;
 }
 interface HabitNode extends NodeBase {
@@ -256,7 +257,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     data.goals.forEach((g) => {
         const projects = g.projects.map((p) => {
             const kids: MapNode[] = taskNodes(p.tasks, g.color);
-            p.notes.forEach((nt) => kids.push(make('note', { id: `n${nt.id}`, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id })));
+            p.notes.forEach((nt) =>
+                kids.push(make('note', { id: `n${nt.id}`, noteId: nt.id, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id })),
+            );
             p.habits.forEach((h) =>
                 kids.push(make('habit', { id: `h${h.id}`, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: p.id })),
             );
@@ -969,7 +972,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             const isNote = n.type === 'note';
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
                 <div class="gp-head"><span class="pdot pdot-lg">${ic(isNote ? 'notes' : 'habits')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${isNote ? `Note${n.when ? ` · edited ${clock.date(n.when)}` : ''}` : `Habit · ${n.streak}-day streak · ${n.today ? 'done today' : 'not done yet today'}`}</p></div></div>
-            </div>${pfoot(`<a class="btn btn-secondary btn-lg" href="/projects/${n.pid}">${ic('folder')}Open project</a>`)}`;
+            </div>${pfoot(
+                (n.type === 'note'
+                    ? `<a class="btn btn-primary btn-lg" href="/notes?in=p${n.pid}&amp;note=${n.noteId}">${ic('arrowUpRight')}Open note</a>`
+                    : '') + `<a class="btn btn-secondary btn-lg" href="/projects/${n.pid}">${ic('folder')}Open project</a>`,
+            )}`;
         } else {
             html = `${phead('<span>You</span>')}<div class="panel-body">
                 <div class="gp-head"><span class="avatar avatar-lg">${esc(initials)}</span><div><h2 class="p-title">${esc(data.userName)}</h2><p class="gp-why">${goalCount} goals · ${projectCount} projects · ${totals.total} tasks</p></div></div>

@@ -152,7 +152,7 @@ interface Drag {
 export default function Planner() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
-    const [dialog, setDialog] = useState<null | { initial: EventForm; id?: number; occurrence?: string }>(null);
+    const [dialog, setDialog] = useState<null | { initial: EventForm; id?: number; occurrence?: string; day?: string }>(null);
     const [hoursOpen, setHoursOpen] = useState(false);
     const [menu, setMenu] = useState<null | { bl: PlanBlock; x: number; y: number; s: Spot; e: Spot }>(null);
     const [hidden, setHidden] = useState<CalendarKey[]>(() => {
@@ -335,7 +335,7 @@ export default function Planner() {
         const min = Math.max(0, Math.min(23 * 60, Math.floor((y / HOUR) * 2) * 30));
         setDialog({ initial: blank(day, min) });
     };
-    const openEvent = (ev: Occurrence) => setDialog({ initial: ev.form, id: ev.id, occurrence: ev.repeats ? ev.date : undefined });
+    const openEvent = (ev: Occurrence) => setDialog({ initial: ev.form, id: ev.id, occurrence: ev.repeats ? ev.date : undefined, day: ev.date });
 
     const sideMenu = () => (
         <PlannerMenu
@@ -547,7 +547,13 @@ export default function Planner() {
                 </div>
             </div>
             {dialog && (
-                <EventDialog initial={dialog.initial} eventId={dialog.id} occurrenceDate={dialog.occurrence} onClose={() => setDialog(null)} />
+                <EventDialog
+                    initial={dialog.initial}
+                    eventId={dialog.id}
+                    occurrenceDate={dialog.occurrence}
+                    day={dialog.day}
+                    onClose={() => setDialog(null)}
+                />
             )}
             {hoursOpen && <HoursDialog hours={props.hours} onClose={() => setHoursOpen(false)} />}
             {menu && (

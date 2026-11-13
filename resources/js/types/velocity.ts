@@ -69,6 +69,8 @@ export type TaskDetail = BaseTask &
         events: { type: string; at: string | null }[];
         candidates: { id: number; title: string }[];
         files: TaskFileInfo[];
+        /** Notes linked to the task (Notes › Link task, or New note here). */
+        linkedNotes?: { id: number; title: string }[];
         focused: { seconds: number; sessions: number };
         goal: { id: number; title: string; color: number } | null;
     };

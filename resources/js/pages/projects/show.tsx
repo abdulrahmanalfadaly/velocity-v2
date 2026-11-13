@@ -561,15 +561,22 @@ export default function ProjectShow() {
                                         <Icon name="notes" />
                                         Notes
                                     </h2>
+                                    <button
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={() => router.post(route('notes.store'), { project_id: project.id })}
+                                    >
+                                        <Icon name="plus" />
+                                        New note
+                                    </button>
                                 </div>
                                 <div className="pnotes">
                                     {props.notes.length === 0 && <p className="card-empty">No notes yet.</p>}
                                     {props.notes.map((n) => (
-                                        <div className="pnote" key={n.id}>
+                                        <Link className="pnote" key={n.id} href={`/notes?in=p${project.id}&note=${n.id}`}>
                                             <span className="pnote-fold" />
                                             <b>{n.title}</b>
                                             <span>{n.updatedAt ? `Edited ${clock.date(n.updatedAt)}` : ''}</span>
-                                        </div>
+                                        </Link>
                                     ))}
                                 </div>
                                 <div style={{ height: 12 }} />

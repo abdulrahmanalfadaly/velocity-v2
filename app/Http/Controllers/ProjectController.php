@@ -134,7 +134,7 @@ class ProjectController extends Controller
             'notReady' => $notReady,
             'done' => $done->map(fn ($t) => TaskPresenter::base($t))->values(),
             'habits' => $project->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
-            'notes' => $project->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->title, 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+            'notes' => $project->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
             // The task panel opens right here (?task=id), as on the Tasks pages.
             'selected' => fn () => app(TaskController::class)->detailFor($request),
             'projects' => $user->projects()->whereNull('archived_at')->get(['id', 'name']),

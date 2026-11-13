@@ -90,7 +90,7 @@ class TaskController extends Controller
             return null;
         }
         $user = $request->user();
-        $task = Task::with(['project.goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'events' => fn ($q) => $q->limit(8)])
+        $task = Task::with(['project.goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'events' => fn ($q) => $q->limit(8)])
             ->where('user_id', $user->id)->find($id);
         if (! $task) {
             return null;
@@ -105,6 +105,7 @@ class TaskController extends Controller
             'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
             // Open tasks this one could be set to start after.
             'files' => $task->files->map(fn ($f) => $f->present())->values(),
+            'linkedNotes' => $task->linkedNotes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
             'focused' => ['seconds' => (int) $task->focusSessions()->whereNotNull('ended_at')->sum('seconds'), 'sessions' => $task->focusSessions()->whereNotNull('ended_at')->count()],
             'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
             'goal' => $task->project?->goal ? ['id' => $task->project->goal->id, 'title' => $task->project->goal->title, 'color' => $task->project->goal->color] : null,

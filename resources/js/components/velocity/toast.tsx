@@ -42,6 +42,10 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'restore-block': { method: 'post', route: 'blocks.restore' },
     'patch-block': { method: 'patch', route: 'blocks.update' },
     'put-hours': { method: 'put', route: 'planner.hours' },
+    'restore-note': { method: 'post', route: 'notes.restore' },
+    'patch-note': { method: 'patch', route: 'notes.update' },
+    'link-note-task': { method: 'post', route: 'notes.link' },
+    'restore-note-file': { method: 'post', route: 'note-files.restore' },
 };
 
 export function runUndo(u: Undo) {

@@ -9,6 +9,8 @@ use App\Http\Controllers\HabitController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MilestoneController;
+use App\Http\Controllers\NoteController;
+use App\Http\Controllers\NoteFileController;
 use App\Http\Controllers\PlannerBlockController;
 use App\Http\Controllers\PlannerController;
 use App\Http\Controllers\ProjectController;
@@ -117,6 +119,23 @@ Route::middleware(['auth'])->group(function () {
         Route::get('reminders/due', [ReminderController::class, 'due'])->name('reminders.due');
         Route::post('tasks/{task}/snooze', [ReminderController::class, 'snooze'])->name('tasks.snooze');
         Route::get('search', SearchController::class)->name('search');
+
+        Route::get('notes', [NoteController::class, 'index'])->name('notes.index');
+        Route::post('notes', [NoteController::class, 'store'])->name('notes.store');
+        Route::post('notes/journal', [NoteController::class, 'journal'])->name('notes.journal');
+        Route::post('notes/event', [NoteController::class, 'forEvent'])->name('notes.event');
+        Route::put('notes/{note}/content', [NoteController::class, 'save'])->whereNumber('note')->name('notes.save');
+        Route::delete('notes/{note}/discard', [NoteController::class, 'discard'])->whereNumber('note')->name('notes.discard');
+        Route::patch('notes/{note}', [NoteController::class, 'update'])->whereNumber('note')->name('notes.update');
+        Route::delete('notes/{note}', [NoteController::class, 'destroy'])->whereNumber('note')->name('notes.destroy');
+        Route::post('notes/{id}/restore', [NoteController::class, 'restore'])->whereNumber('id')->name('notes.restore');
+        Route::post('notes/{note}/tasks', [NoteController::class, 'link'])->whereNumber('note')->name('notes.link');
+        Route::delete('notes/{note}/tasks/{task}', [NoteController::class, 'unlink'])->whereNumber('note')->name('notes.unlink');
+        Route::post('notes/{note}/make-task', [NoteController::class, 'makeTask'])->whereNumber('note')->name('notes.make-task');
+        Route::post('notes/{note}/files', [NoteFileController::class, 'store'])->whereNumber('note')->name('note-files.store');
+        Route::get('notes/files/{file}', [NoteFileController::class, 'show'])->whereNumber('file')->name('note-files.show');
+        Route::delete('notes/files/{file}', [NoteFileController::class, 'destroy'])->whereNumber('file')->name('note-files.destroy');
+        Route::post('notes/files/{id}/restore', [NoteFileController::class, 'restore'])->whereNumber('id')->name('note-files.restore');
     });
 });
 

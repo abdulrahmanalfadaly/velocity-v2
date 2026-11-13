@@ -103,6 +103,12 @@ class Task extends Model
         return $this->hasOne(Task::class, 'repeated_from_id');
     }
 
+    /** Notes linked to this task (the task's own short notes are the `notes` column). */
+    public function linkedNotes(): BelongsToMany
+    {
+        return $this->belongsToMany(Note::class)->latest('updated_at');
+    }
+
     public function scopeOpen(Builder $query): Builder
     {
         return $query->whereIn('status', self::OPEN);

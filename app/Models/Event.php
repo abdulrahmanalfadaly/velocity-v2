@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /** A class or event on the Planner. Weekly ones repeat until repeat_until, minus skipped weeks. */
@@ -47,6 +48,12 @@ class Event extends Model
             'repeat_weekly' => $this->repeat_weekly,
             'repeat_until' => $this->repeat_until?->toDateString(),
         ];
+    }
+
+    /** Notes written for this class or event, one per day it happened. */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(Note::class);
     }
 
     public function user(): BelongsTo

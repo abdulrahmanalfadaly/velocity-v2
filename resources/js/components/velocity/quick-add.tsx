@@ -76,7 +76,12 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                     <Icon name="tasks" />
                     Task
                 </button>
-                <button className="qa-tab" role="tab" aria-selected="false" disabled>
+                <button
+                    className="qa-tab"
+                    role="tab"
+                    aria-selected="false"
+                    onClick={() => router.post(route('notes.store'), { project_id: projectId ?? null, title: text.trim().slice(0, 200) || null })}
+                >
                     <Icon name="notes" />
                     Note
                 </button>

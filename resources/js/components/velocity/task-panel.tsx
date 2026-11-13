@@ -413,6 +413,18 @@ export function TaskPanel({
                         rows={3}
                         onBlur={(e) => e.target.value !== (task.notes ?? '') && patch(task.id, { notes: e.target.value || null })}
                     />
+                    <div className="p-linked">
+                        {task.linkedNotes?.map((n) => (
+                            <Link key={n.id} className="p-linked-note" href={`/notes?note=${n.id}`}>
+                                <Icon name="notes" className="ic-sm" />
+                                <span>{n.title}</span>
+                            </Link>
+                        ))}
+                        <button className="note-add" onClick={() => router.post(route('notes.store'), { task_id: task.id })}>
+                            <Icon name="plus" className="ic-xs" />
+                            New note
+                        </button>
+                    </div>
                 </section>
 
                 <section className="p-section">
