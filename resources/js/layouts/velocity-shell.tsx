@@ -21,7 +21,7 @@ const SECTIONS: { key: Section; label: string; icon: string; href?: string; phas
     { key: 'tasks', label: 'Tasks', icon: 'tasks', href: '/tasks' },
     { key: 'planner', label: 'Planner', icon: 'planner', href: '/planner' },
     { key: 'notes', label: 'Notes', icon: 'notes', href: '/notes' },
-    { key: 'habits', label: 'Habits', icon: 'habits', phase: 5 },
+    { key: 'habits', label: 'Habits', icon: 'habits', href: '/habits' },
     { key: 'people', label: 'People', icon: 'people', phase: 6 },
     { key: 'review', label: 'Review', icon: 'review', href: '/history' },
 ];

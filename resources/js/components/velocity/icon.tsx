@@ -4,7 +4,7 @@ import {
     ChevronLeft, ChevronRight, ChevronsUpDown, CircleAlert, Clock, Columns3, CornerDownLeft, File, FileText, Flag, Flame, Folder, Gift,
     GitFork, GraduationCap, Heart, Hourglass, House, Inbox, Info, List, Lock, LucideIcon, Maximize2, Menu, Minus, Monitor, Moon, MoreHorizontal, Paperclip,
     Pause, Pin, Play, Plus, Repeat, Search, Settings, SlidersHorizontal, SquareCheck, Sun, Target, Timer, User, Users, WandSparkles, X, Zap,
-    Bold, Italic, Strikethrough, Heading2, Heading3, ListOrdered, ListTodo, Quote, Code, Link, Unlink, ImagePlus, Trash2, ArrowLeft, NotebookPen, PinOff,
+    ChevronUp, Bold, Italic, Strikethrough, Heading2, Heading3, ListOrdered, ListTodo, Quote, Code, Link, Unlink, ImagePlus, Trash2, ArrowLeft, NotebookPen, PinOff,
 } from 'lucide-react';
 
 const ICONS = {
@@ -17,7 +17,7 @@ const ICONS = {
     list: List, minus: Minus, arrowUpRight: ArrowUpRight, branch: GitFork, pin: Pin, book: BookOpen, archive: Archive, columns: Columns3,
     monitor: Monitor, wand: WandSparkles, calPlus: CalendarPlus, calClock: CalendarClock,
     bold: Bold, italic: Italic, strike: Strikethrough, h2: Heading2, h3: Heading3, listOl: ListOrdered, checklist: ListTodo, quote: Quote,
-    code: Code, link: Link, unlink: Unlink, image: ImagePlus, trash: Trash2, arrowL: ArrowLeft, journal: NotebookPen, pinOff: PinOff,
+    chevU: ChevronUp, code: Code, link: Link, unlink: Unlink, image: ImagePlus, trash: Trash2, arrowL: ArrowLeft, journal: NotebookPen, pinOff: PinOff,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

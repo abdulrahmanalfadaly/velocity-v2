@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Services\HabitStats;
+use App\Services\HabitTimes;
 use App\Services\RankingService;
 use App\Services\TaskPresenter;
 use Illuminate\Http\Request;
@@ -40,6 +41,9 @@ class HomeController extends Controller
             'kind' => 'event', 'key' => "e{$e->id}:{$o['date']}", 'title' => $e->title, 'calendar' => $e->calendar, 'allDay' => $e->all_day, 'location' => $e->location,
             'start' => $o['start']->toIso8601ZuluString(), 'end' => $o['end']->toIso8601ZuluString(),
         ], $e->occurrences($from, $to, $tz)));
+        $habits = $user->habits()->whereNull('archived_at')->with(['entries' => fn ($q) => $q->where('day', '>=', $today->subDays(400)->toDateString()), 'project'])->get()
+            ->map(fn ($h) => HabitStats::present($h, $today));
+        $groups = $habits->pluck('group', 'id');
         $blocks = $user->plannerBlocks()->active()->with('task:id,title,due_at')->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get();
 
         return Inertia::render('home', [
@@ -49,14 +53,21 @@ class HomeController extends Controller
             'dueSoon' => count(array_filter($all, fn ($t) => $t['dueAt'] && $t['days'] > 0 && $t['days'] <= 2)),
             'plan' => [
                 'items' => $events->concat($blocks->map(fn (PlannerBlock $b) => ['kind' => 'block', 'key' => "b{$b->id}"] + PlannerController::block($b, $list)))
+                    ->concat(HabitTimes::between($user, $today, $today->addDay())->reject(fn ($o) => $o['skipped'])->map(fn ($o) => ['kind' => 'habit'] + HabitTimes::present($o)))
                     ->sortBy(fn ($i) => ($i['kind'] === 'event' && $i['allDay'] ? '0' : '1').$i['start'])->values(),
                 'booked' => $blocks->sum(fn (PlannerBlock $b) => $b->minutes()),
                 'limit' => $user->weights()->hours_per_day,
             ],
             // Deadlines in the next seven days, in time order.
             'upcoming' => collect($all)->filter(fn ($t) => $t['dueAt'] && $t['days'] <= 7)->sortBy('dueAt')->take(7)->values(),
-            'habits' => $user->habits()->whereNull('archived_at')->with(['entries' => fn ($q) => $q->where('day', '>=', $today->subDays(400)->toDateString()), 'project'])->get()
-                ->map(fn ($h) => HabitStats::present($h, $today))->filter(fn ($h) => $h['dueToday'])->values(),
+            'habits' => $habits->filter(fn ($h) => $h['dueToday'])->values(),
+            // Routines with something on today: "Morning 2 / 3".
+            'routines' => $user->routines()->with('habits:id')->get()->map(fn ($r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+                'done' => $r->habits->filter(fn ($h) => ($groups[$h->id] ?? null) === 'done')->count(),
+                'of' => $r->habits->filter(fn ($h) => in_array($groups[$h->id] ?? 'off', ['todo', 'done'], true))->count(),
+            ])->filter(fn ($r) => $r['of'] > 0)->values(),
             'attention' => [
                 'overdue' => collect($all)->filter(fn ($t) => $t['days'] !== null && $t['days'] <= 0)->values(),
                 'notReady' => $ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->values(),

@@ -94,6 +94,7 @@ interface NoteNode extends NodeBase {
 interface HabitNode extends NodeBase {
     type: 'habit';
     pid: number;
+    habitId: number;
     streak: number;
     today: boolean;
 }
@@ -261,7 +262,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 kids.push(make('note', { id: `n${nt.id}`, noteId: nt.id, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id })),
             );
             p.habits.forEach((h) =>
-                kids.push(make('habit', { id: `h${h.id}`, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: p.id })),
+                kids.push(
+                    make('habit', { id: `h${h.id}`, habitId: h.id, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: p.id }),
+                ),
             );
             return make('project', { id: `p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
         });
@@ -975,7 +978,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             </div>${pfoot(
                 (n.type === 'note'
                     ? `<a class="btn btn-primary btn-lg" href="/notes?in=p${n.pid}&amp;note=${n.noteId}">${ic('arrowUpRight')}Open note</a>`
-                    : '') + `<a class="btn btn-secondary btn-lg" href="/projects/${n.pid}">${ic('folder')}Open project</a>`,
+                    : `<a class="btn btn-primary btn-lg" href="/habits?habit=${n.habitId}">${ic('arrowUpRight')}Open habit</a>`) +
+                    `<a class="btn btn-secondary btn-lg" href="/projects/${n.pid}">${ic('folder')}Open project</a>`,
             )}`;
         } else {
             html = `${phead('<span>You</span>')}<div class="panel-body">

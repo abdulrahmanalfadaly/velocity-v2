@@ -43,7 +43,7 @@ class UndoTest extends TestCase
             'archive-project' => ['post', 'projects.archive'], 'unarchive-project' => ['post', 'projects.unarchive'],
             'delete-project' => ['delete', 'projects.destroy'], 'patch-project' => ['patch', 'projects.update'],
             'archive-goal' => ['post', 'goals.archive'], 'unarchive-goal' => ['post', 'goals.unarchive'], 'delete-goal' => ['delete', 'goals.destroy'], 'patch-goal' => ['patch', 'goals.update'],
-            'habit-count' => ['post', 'habits.check'], 'put-weights' => ['put', 'weights.update'],
+            'habit-count' => ['post', 'habits.check'], 'put-habit-day' => ['put', 'habits.day'], 'put-weights' => ['put', 'weights.update'],
         ];
         [$method, $route] = $routes[$undo['action']];
         $this->{$method}(route($route, $undo['id']), $undo['data'] ?? [])->assertSessionHasNoErrors();

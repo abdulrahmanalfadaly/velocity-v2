@@ -201,6 +201,13 @@ class PlanBuilder
                 $busy[] = [$b->starts_at, $b->ends_at->addMinutes(self::GAP)];
             }
         }
+        // Habits with a set time keep it, unless already done or skipped that day.
+        $tz = $user->timezone;
+        foreach (HabitTimes::between($user, $start->timezone($tz), $end->timezone($tz)) as $h) {
+            if (! $h['done'] && ! $h['skipped']) {
+                $busy[] = [$h['start']->subMinutes(self::GAP), $h['end']->addMinutes(self::GAP)];
+            }
+        }
 
         return $busy;
     }

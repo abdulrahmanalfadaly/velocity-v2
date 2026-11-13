@@ -21,9 +21,11 @@ use Illuminate\Database\Seeder;
 class DemoSeeder extends Seeder
 {
     public const EMAIL = 'aina@velocity.test';
+
     public const PASSWORD = 'velocity-demo';
 
     private CarbonImmutable $today;
+
     private User $user;
 
     public function run(Clock $clock): void
@@ -154,11 +156,14 @@ class DemoSeeder extends Seeder
 
         // Habits, some inside projects, with their streaks.
         $this->habit('Write 45 min a day', $p['fyp'], '45 min', null, 1, 9, true);
-        $this->habit('Morning revision', $p['dm'], '25 min', null, 1, 12, true);
+        $revision = $this->habit('Morning revision', $p['dm'], '25 min', null, 1, 12, true);
         $this->habit('Read 20 pages', $p['home'], 'Before bed', null, 1, 2, false);
-        $this->habit('Gym', $p['fitness'], '45 min', [1, 3, 5], 1, 4, false);
-        $water = $this->habit('Drink water', $p['fitness'], '8 glasses', null, 8, 6, false);
+        $gym = $this->habit('Gym', $p['fitness'], null, [1, 3, 5], 1, 4, false);
+        $gym->update(['at_time' => '18:00', 'minutes' => 45]); // on the Planner, kept free by "Plan my day"
+        $water = $this->habit('Drink water', $p['fitness'], null, null, 8, 6, false);
+        $water->update(['unit' => 'glasses']);
         $water->entries()->create(['day' => $this->today->toDateString(), 'count' => 3]);
+        $this->user->routines()->create(['name' => 'Morning'])->habits()->sync([$water->id => ['position' => 0], $revision->id => ['position' => 1]]);
     }
 
     private function at(int $days, string $time): CarbonImmutable
@@ -183,7 +188,7 @@ class DemoSeeder extends Seeder
         $task->events()->create(['user_id' => $this->user->id, 'type' => 'completed', 'snapshot' => ['score' => $score], 'created_at' => $doneAt]);
     }
 
-    private function habit(string $name, Project $project, string $detail, ?array $days, int $target, int $streak, bool $doneToday): Habit
+    private function habit(string $name, Project $project, ?string $detail, ?array $days, int $target, int $streak, bool $doneToday): Habit
     {
         $habit = $this->user->habits()->create(['project_id' => $project->id, 'name' => $name, 'detail' => $detail, 'days' => $days, 'target' => $target]);
         $day = $doneToday ? $this->today : $this->today->subDay();

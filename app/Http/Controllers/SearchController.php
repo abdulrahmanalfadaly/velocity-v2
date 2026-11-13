@@ -39,11 +39,15 @@ class SearchController extends Controller
                 'url' => route('notes.index', ['in' => $n->journal_date ? 'journal' : ($n->project_id ? "p{$n->project_id}" : null), 'note' => $n->id]),
             ]);
 
+        $habits = $user->habits()->whereNull('archived_at')->where('name', 'like', $like)->with('project')->orderBy('name')->limit(4)->get()
+            ->map(fn ($h) => ['kind' => 'habit', 'id' => $h->id, 'title' => $h->name, 'sub' => $h->project?->name ?? $h->scheduleLabel(), 'url' => route('habits.index', ['habit' => $h->id])]);
+
         return response()->json(['groups' => array_values(array_filter([
             ['label' => 'Tasks', 'items' => $tasks->values()],
             ['label' => 'Projects', 'items' => $projects->values()],
             ['label' => 'Goals', 'items' => $goals->values()],
             ['label' => 'Notes', 'items' => $notes->values()],
+            ['label' => 'Habits', 'items' => $habits->values()],
         ], fn ($g) => count($g['items']) > 0))]);
     }
 }

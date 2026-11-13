@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\PlannerBlock;
 use App\Models\Task;
+use App\Services\HabitTimes;
 use App\Services\PlanBuilder;
 use App\Services\RankedList;
 use App\Services\RankingService;
@@ -56,6 +57,8 @@ class PlannerController extends Controller
             'blocks' => $user->plannerBlocks()->active()->with('task:id,title,due_at')
                 ->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get()
                 ->map(fn (PlannerBlock $b) => self::block($b, $list)),
+            'habitTimes' => HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
+                ->map(fn ($o) => HabitTimes::present($o))->values(),
             'unbooked' => $this->builder->unbooked($user, $days->all(), $list),
             'hours' => PlanBuilder::hours($user),
             'dayLimit' => $user->weights()->hours_per_day,

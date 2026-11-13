@@ -3,14 +3,14 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 
 interface Item {
-    kind: 'task' | 'project' | 'goal' | 'note';
+    kind: 'task' | 'project' | 'goal' | 'note' | 'habit';
     id: number;
     title: string;
     sub: string;
     url: string;
 }
 
-const KIND_ICON = { task: 'tasks', project: 'folder', goal: 'target', note: 'notes' } as const;
+const KIND_ICON = { task: 'tasks', project: 'folder', goal: 'target', note: 'notes', habit: 'habits' } as const;
 
 /** Ctrl K: find tasks, projects, goals and notes. Arrow keys move, Enter opens. */
 export function SearchPalette({ onClose }: { onClose: () => void }) {
@@ -49,7 +49,9 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
     };
     const mark = (title: string) => {
         const i = title.toLowerCase().indexOf(q.trim().toLowerCase());
-        return i < 0 ? title : (
+        return i < 0 ? (
+            title
+        ) : (
             <>
                 {title.slice(0, i)}
                 <mark>{title.slice(i, i + q.trim().length)}</mark>
@@ -67,7 +69,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
                     ref={input}
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search tasks, projects, goals and notes"
+                    placeholder="Search tasks, projects, goals, notes and habits"
                     aria-label="Search everything"
                     onKeyDown={(e) => {
                         if (e.key === 'ArrowDown') {

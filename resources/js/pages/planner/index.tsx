@@ -1,4 +1,5 @@
 import { CALENDARS, type CalendarKey, EventDialog, type EventForm } from '@/components/velocity/event-dialog';
+import { DayEditor } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { BlockMenu, type Hours, HoursDialog, type PlanBlock } from '@/components/velocity/planner-parts';
 import VelocityShell from '@/layouts/velocity-shell';
@@ -41,6 +42,21 @@ interface Props extends VelocityShared {
     busy: string[];
     calendars: Record<CalendarKey, number>;
     dueTasks: { id: number; title: string; dueAt: string }[];
+    habitTimes: PlanHabit[];
+}
+
+/** A habit with a set time, on a day it is due. */
+interface PlanHabit {
+    id: number;
+    key: string;
+    date: string;
+    title: string;
+    start: string;
+    end: string;
+    done: boolean;
+    skipped: boolean;
+    count: number;
+    target: number;
 }
 
 const HOUR = 48; // px for one hour in the grid
@@ -78,7 +94,11 @@ const lengthOf = (b: PlanBlock) => Math.round((Date.parse(b.end) - Date.parse(b.
 /** Minutes from one spot to a later one. */
 const between = (a: Spot, b: Spot) => Math.round((Date.parse(b.date) - Date.parse(a.date)) / 60000) + b.min - a.min;
 
-type Item = { key: string; s: Spot; e: Spot } & ({ kind: 'event'; ev: Occurrence } | { kind: 'block'; bl: PlanBlock });
+type Item = { key: string; s: Spot; e: Spot } & (
+    | { kind: 'event'; ev: Occurrence }
+    | { kind: 'block'; bl: PlanBlock }
+    | { kind: 'habit'; hb: PlanHabit }
+);
 interface Piece {
     it: Item;
     top: number;
@@ -154,6 +174,7 @@ export default function Planner() {
     const clock = Clock.from(props.clock);
     const [dialog, setDialog] = useState<null | { initial: EventForm; id?: number; occurrence?: string; day?: string }>(null);
     const [hoursOpen, setHoursOpen] = useState(false);
+    const [habitSlot, setHabitSlot] = useState<null | { hb: PlanHabit; x: number; y: number }>(null);
     const [menu, setMenu] = useState<null | { bl: PlanBlock; x: number; y: number; s: Spot; e: Spot }>(null);
     const [hidden, setHidden] = useState<CalendarKey[]>(() => {
         try {
@@ -214,8 +235,15 @@ export default function Planner() {
                 ? { key: `b${bl.id}`, kind: 'block', bl, s: moved, e: later(moved, lengthOf(bl)) }
                 : { key: `b${bl.id}`, kind: 'block', bl, s: local(clock, bl.start), e: local(clock, bl.end) };
         });
-        return [...evs, ...bls, ...mine.added];
-    }, [props.events, props.blocks, hidden, mine]); // eslint-disable-line react-hooks/exhaustive-deps
+        const hbs: Item[] = (props.habitTimes ?? []).map((hb) => ({
+            key: hb.key,
+            kind: 'habit',
+            hb,
+            s: local(clock, hb.start),
+            e: local(clock, hb.end),
+        }));
+        return [...evs, ...hbs, ...bls, ...mine.added];
+    }, [props.events, props.blocks, props.habitTimes, hidden, mine]); // eslint-disable-line react-hooks/exhaustive-deps
     const pieces = useMemo(() => Object.fromEntries(props.days.map((d) => [d, layoutDay(items, d)])), [items, props.days]);
     // Time booked for tasks on each day (by the day it starts).
     const load = useMemo(() => {
@@ -488,6 +516,30 @@ export default function Planner() {
                                                 </button>
                                             );
                                         }
+                                        if (p.it.kind === 'habit') {
+                                            const hb = p.it.hb;
+                                            return (
+                                                <button
+                                                    key={p.it.key}
+                                                    className={`pev is-habit${hb.done ? ' is-done' : ''}${short ? ' is-short' : ''}`}
+                                                    style={style}
+                                                    onClick={(ev) => {
+                                                        const r = ev.currentTarget.getBoundingClientRect();
+                                                        setHabitSlot({ hb, x: r.left, y: r.bottom + 4 });
+                                                    }}
+                                                    aria-label={`Habit: ${hb.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}${hb.done ? ', done' : ''}`}
+                                                >
+                                                    <span className="pev-title">
+                                                        <Icon name={hb.done ? 'check' : 'habits'} className="ic-xs" />
+                                                        {hb.title}
+                                                    </span>
+                                                    <span className="pev-sub">
+                                                        {clock.time(hb.start)}–{clock.time(hb.end)}
+                                                        {hb.target > 1 ? ` · ${hb.count} of ${hb.target}` : ''}
+                                                    </span>
+                                                </button>
+                                            );
+                                        }
                                         const ev = p.it.ev;
                                         return (
                                             <button
@@ -556,6 +608,21 @@ export default function Planner() {
                 />
             )}
             {hoursOpen && <HoursDialog hours={props.hours} onClose={() => setHoursOpen(false)} />}
+            {habitSlot && (
+                <DayEditor
+                    habit={{ id: habitSlot.hb.id, name: habitSlot.hb.title, target: habitSlot.hb.target, unit: null }}
+                    day={{
+                        date: habitSlot.hb.date,
+                        state: habitSlot.hb.done ? 'done' : habitSlot.hb.count > 0 ? 'partial' : habitSlot.hb.date > props.today ? 'future' : 'todo',
+                        count: habitSlot.hb.count,
+                    }}
+                    x={habitSlot.x}
+                    y={habitSlot.y}
+                    clock={clock}
+                    openHref={`/habits?habit=${habitSlot.hb.id}`}
+                    onClose={() => setHabitSlot(null)}
+                />
+            )}
             {menu && (
                 <BlockMenu
                     block={menu.bl}

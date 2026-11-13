@@ -1,5 +1,6 @@
 import { StartFocus } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
+import { HabitDialog } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Check, HabitButton, Ring } from '@/components/velocity/ui';
@@ -89,6 +90,7 @@ export default function ProjectShow() {
     const [open, setOpen] = useState<Record<number, boolean>>({ [props.tasks[0]?.id ?? 0]: true });
     const [text, setText] = useState('');
     const [editing, setEditing] = useState(false);
+    const [newHabit, setNewHabit] = useState(false);
     const [milestone, setMilestone] = useState<{ title: string; due: string } | null>(null);
     const select = (id: number | null) =>
         router.get(`/projects/${project.id}`, id ? { task: id } : {}, { preserveState: true, preserveScroll: true, only: ['selected'] });
@@ -527,6 +529,10 @@ export default function ProjectShow() {
                                         <Icon name="habits" />
                                         Habits for this project
                                     </h2>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => setNewHabit(true)}>
+                                        <Icon name="plus" />
+                                        New habit
+                                    </button>
                                 </div>
                                 <div style={{ paddingBottom: 6 }}>
                                     {props.habits.length === 0 && (
@@ -585,6 +591,7 @@ export default function ProjectShow() {
                     </div>
                 </div>
             </div>
+            {newHabit && <HabitDialog initial={{ project_id: project.id }} projects={props.projects} onClose={() => setNewHabit(false)} />}
             {editing && (
                 <ProjectDialog
                     project={{

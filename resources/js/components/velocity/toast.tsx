@@ -46,6 +46,16 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'patch-note': { method: 'patch', route: 'notes.update' },
     'link-note-task': { method: 'post', route: 'notes.link' },
     'restore-note-file': { method: 'post', route: 'note-files.restore' },
+    'put-habit-day': { method: 'put', route: 'habits.day' },
+    'unskip-habit': { method: 'post', route: 'habits.unskip' },
+    'delete-habit': { method: 'delete', route: 'habits.destroy' },
+    'restore-habit': { method: 'post', route: 'habits.restore' },
+    'patch-habit': { method: 'patch', route: 'habits.update' },
+    'archive-habit': { method: 'post', route: 'habits.archive' },
+    'unarchive-habit': { method: 'post', route: 'habits.unarchive' },
+    'delete-routine': { method: 'delete', route: 'routines.destroy' },
+    'restore-routine': { method: 'post', route: 'routines.restore' },
+    'patch-routine': { method: 'patch', route: 'routines.update' },
 };
 
 export function runUndo(u: Undo) {

@@ -1,4 +1,5 @@
 import { StartFocus } from '@/components/velocity/focus';
+import { Streak } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import type { PlanBlock } from '@/components/velocity/planner-parts';
 import { HabitButton } from '@/components/velocity/ui';
@@ -15,6 +16,7 @@ interface Props extends VelocityShared {
     upcoming: RankedTask[];
     plan: { items: PlanItem[]; booked: number; limit: number };
     habits: HabitToday[];
+    routines: { id: number; name: string; done: number; of: number }[];
     attention: {
         overdue: RankedTask[];
         notReady: NotReadyTask[];
@@ -34,7 +36,8 @@ type PlanItem =
           start: string;
           end: string;
       }
-    | ({ kind: 'block'; key: string } & PlanBlock);
+    | ({ kind: 'block'; key: string } & PlanBlock)
+    | { kind: 'habit'; key: string; id: number; title: string; start: string; end: string; done: boolean; count: number; target: number };
 
 export default function Home() {
     const { props } = usePage<Props>();
@@ -70,7 +73,7 @@ export default function Home() {
                         <Upcoming tasks={props.upcoming} clock={clock} />
                     </div>
                     <div className="col">
-                        {props.habits.length > 0 && <Habits habits={props.habits} />}
+                        {props.habits.length > 0 && <Habits habits={props.habits} routines={props.routines} />}
                         <Attention attention={props.attention} clock={clock} />
                         <Week week={props.week} clock={clock} />
                     </div>
@@ -192,7 +195,10 @@ function TodayPlan({ plan, clock, hasTasks }: { plan: Props['plan']; clock: Cloc
         const past = timed && Date.parse(i.end) <= now;
         const minutes = Math.round((Date.parse(i.end) - Date.parse(i.start)) / 60000);
         return (
-            <li key={i.key} className={`tl-item${i.kind === 'block' ? ' is-task' : ''}${current ? ' is-now' : ''}${past ? ' is-past' : ''}`}>
+            <li
+                key={i.key}
+                className={`tl-item${i.kind === 'block' ? ' is-task' : ''}${current ? ' is-now' : ''}${past || (i.kind === 'habit' && i.done) ? ' is-past' : ''}`}
+            >
                 <span className="tl-time">{timed ? clock.time(i.start) : 'All day'}</span>
                 <span className="tl-rail">
                     <span className="tl-dot" />
@@ -200,7 +206,13 @@ function TodayPlan({ plan, clock, hasTasks }: { plan: Props['plan']; clock: Cloc
                 <Link className="tl-block" href={href}>
                     <div className="tl-title">{i.title}</div>
                     <div className="tl-sub">
-                        {i.kind === 'block' ? (
+                        {i.kind === 'habit' ? (
+                            <>
+                                <Icon name={i.done ? 'check' : 'habits'} className="ic-xs" />
+                                {clock.time(i.start)}–{clock.time(i.end)}
+                                {i.target > 1 ? ` · ${i.count} of ${i.target}` : i.done ? ' · done' : ''}
+                            </>
+                        ) : i.kind === 'block' ? (
                             <>
                                 {i.rank && (
                                     <>
@@ -301,8 +313,8 @@ function Upcoming({ tasks, clock }: { tasks: RankedTask[]; clock: Clock }) {
     );
 }
 
-function Habits({ habits }: { habits: HabitToday[] }) {
-    const done = habits.filter((h) => h.doneToday).length;
+function Habits({ habits, routines }: { habits: HabitToday[]; routines: Props['routines'] }) {
+    const done = habits.filter((h) => h.group === 'done').length;
     return (
         <section className="card" aria-labelledby="habits-title">
             <div className="card-head">
@@ -314,6 +326,19 @@ function Habits({ habits }: { habits: HabitToday[] }) {
                     {done} of {habits.length} done
                 </span>
             </div>
+            {routines.length > 0 && (
+                <div className="home-routines">
+                    {routines.map((r) => (
+                        <Link key={r.id} className={`p-linked-note${r.done === r.of ? ' is-done' : ''}`} href={`/habits?view=r${r.id}`}>
+                            <Icon name={r.done === r.of ? 'check' : 'list'} className="ic-sm" />
+                            <span>{r.name}</span>
+                            <b>
+                                {r.done} / {r.of}
+                            </b>
+                        </Link>
+                    ))}
+                </div>
+            )}
             <div style={{ paddingBottom: 8 }}>
                 {habits.map((h) => (
                     <div className="habit" key={h.id}>
@@ -321,16 +346,23 @@ function Habits({ habits }: { habits: HabitToday[] }) {
                         <div>
                             <div className={`habit-name${h.doneToday ? ' is-done' : ''}`}>{h.name}</div>
                             <div className="habit-detail">
-                                {h.target > 1 ? `${h.today} of ${h.target}` : h.detail}
+                                {h.week
+                                    ? `${h.week.done} of ${h.week.need} this week`
+                                    : h.target > 1
+                                      ? `${h.today} of ${h.target}${h.unit ? ` ${h.unit}` : ''}`
+                                      : h.detail}
                                 {h.project ? ` · ${h.project.name}` : ''}
                             </div>
                         </div>
-                        <span className="streak" title={`${h.streak}-day streak`}>
-                            <Icon name="flame" />
-                            {h.streak}
-                        </span>
+                        <Streak habit={h} />
                     </div>
                 ))}
+            </div>
+            <div className="card-foot">
+                <Link className="card-link" href="/habits">
+                    Open Habits
+                    <Icon name="arrowR" className="ic-xs" />
+                </Link>
             </div>
         </section>
     );

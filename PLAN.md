@@ -67,7 +67,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | done (side-menu feedback still to come) |
 | 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | in progress |
 | 4 | Notes (editor, links to tasks, journal, files, canvas last) | in progress (drawing still to decide) |
-| 5 | Habits (schedules, check-ins, streaks, routines) | – |
+| 5 | Habits (schedules, check-ins, streaks, routines) | done |
 | 6 | People (contacts, dates, follow-ups) | – |
 | 7 | Home, Review charts, global search | – |
 | 8 | API for Mark (personal tokens with scopes) + GitHub | – |
@@ -255,6 +255,38 @@ archive-only notes and seven kinds of links are left out on purpose.
       title or words inside and opens them; project pages, the Goals map and
       quick add (Note tab: a note named with what you typed) open notes too.
 - [ ] Drawing inside a note: ask the user once the rest has been used
+
+## Phase 5 checklist
+
+The GPT version's Habits is the scope reference (routines, fixing past days,
+excused days, habit times on the Planner); its five habit types with credit
+maths, seven schedule kinds, dated schedule versions, extra statuses, notes on
+every check-in and three Planner modes are left out on purpose.
+
+- [x] Habits page with its own side menu (Today, This week, All habits, each
+      routine with today's progress, Archived). Today groups To do / Done /
+      Skipped / Not today; each row has the tick, progress ("3 of 8 glasses",
+      "2 of 3 this week"), the last 7 days and the streak.
+- [x] Schedules: every day, chosen weekdays, or N times a week on any days.
+      Counted habits have a target and a unit. New / Edit habit dialog; also
+      from a project's Habits card. Archive and delete with Undo.
+- [x] This week: every habit's seven days (earlier weeks too); click any day to
+      set it exactly (done / not done / how many / skipped). Skip today, or
+      every due day until a date (a holiday). Skipped days neither break the
+      streak nor count as done.
+- [x] Streaks and figures: due days in a row (today never breaks it while it
+      is still going; part of a target doesn't count), weeks in a row for
+      weekly habits (skipped days lower a week's need when fewer days are left
+      than it asks for; the first week is never held against it), best streak,
+      done in the last 30 days (8 weeks), times done, and 16 weeks of days in
+      the habit's panel. Counted in the user's own days. `HabitStats`
+- [x] Routines: a name and habits in order (drag, or Up / Down); a routine
+      page with numbered steps; "Morning 2 / 3" on Home. `RoutineController`
+- [x] Planner times: a habit can have a time and length ("Gym 18:00, 45 min");
+      it shows on the Planner and in Home's Today's plan on its days (tick or
+      skip it there), and "Plan my day" books around it unless it is done or
+      skipped. `HabitTimes`
+- [x] Ctrl K finds habits; the Goals map opens them; Undo for every change.
 
 ## Run it
 

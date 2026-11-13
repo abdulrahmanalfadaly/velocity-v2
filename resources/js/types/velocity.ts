@@ -97,11 +97,32 @@ export interface HabitToday {
     name: string;
     detail: string | null;
     target: number;
+    unit: string | null;
+    /** Chosen weekdays (1 = Monday; empty = every day), or a number of times a week on any days. */
+    schedule: { days: number[]; perWeek: number | null };
+    /** "Every day", "Mon, Wed, Fri", "3 times a week" */
+    label: string;
     today: number;
     doneToday: boolean;
+    skippedToday: boolean;
     dueToday: boolean;
+    /** Weekly habits: runs so far this week, and how many the week asks for. */
+    week: { done: number; need: number } | null;
+    group: 'todo' | 'done' | 'skipped' | 'off';
     streak: number;
+    streakUnit: 'day' | 'week';
+    time: string | null;
+    minutes: number | null;
     project: { id: number; name: string } | null;
+    archived: boolean;
+}
+
+export type HabitDayState = 'done' | 'partial' | 'skipped' | 'missed' | 'todo' | 'open' | 'off' | 'future' | 'before';
+
+export interface HabitDay {
+    date: string;
+    state: HabitDayState;
+    count: number;
 }
 
 export interface NavProject {
