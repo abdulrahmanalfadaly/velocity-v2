@@ -84,6 +84,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
     const touched = useRef<Set<'date' | 'time' | 'calendar' | 'weekly'>>(new Set());
     const [who, setWho] = useState('');
     const [errors, setErrors] = useState<Errors>({});
+    const [overlap, setOverlap] = useState('');
     const [saving, setSaving] = useState(false);
     const input = useRef<HTMLInputElement>(null);
 
@@ -127,6 +128,26 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
             ctl.abort();
         };
     }, [mode, text]);
+
+    // Event: what the chosen time overlaps on the Planner (a warning only).
+    useEffect(() => {
+        if (mode !== 'event' || ev.all_day || !ev.start_time || !ev.end_time) {
+            setOverlap('');
+            return;
+        }
+        const ctl = new AbortController();
+        const timer = setTimeout(
+            () =>
+                postJson<{ note: string }>('events.overlaps', { date: ev.date, start_time: ev.start_time, end_time: ev.end_time }, ctl.signal).then(
+                    (d) => d && setOverlap(d.note),
+                ),
+            250,
+        );
+        return () => {
+            clearTimeout(timer);
+            ctl.abort();
+        };
+    }, [mode, ev.date, ev.start_time, ev.end_time, ev.all_day]);
 
     const setEvField = (key: 'date' | 'time' | 'calendar' | 'weekly', patch: Partial<EventFields>) => {
         touched.current.add(key);
@@ -341,6 +362,12 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                             Every week
                         </label>
                     </div>
+                    {overlap && (
+                        <p className="qa-note">
+                            <Icon name="alert" className="ic-sm" />
+                            {overlap.charAt(0).toUpperCase() + overlap.slice(1)}
+                        </p>
+                    )}
                 </div>
             )}
 

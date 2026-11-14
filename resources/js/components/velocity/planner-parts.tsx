@@ -99,6 +99,9 @@ export function BlockMenu({
     y,
     minutes,
     when,
+    date,
+    startMin,
+    endMin,
     onClose,
 }: {
     block: PlanBlock;
@@ -106,8 +109,20 @@ export function BlockMenu({
     y: number;
     minutes: number;
     when: string;
+    date: string;
+    startMin: number;
+    endMin: number;
     onClose: () => void;
 }) {
+    const hm = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const mins = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+    // Exact times: a new start keeps the end; a new end changes the length.
+    const setTimes = (s: number, e: number) => {
+        const length = e > s ? e - s : e + 1440 - s;
+        if (length < 5 || length > 720) return;
+        router.patch(route('blocks.update', block.id), { date, start: hm(s), minutes: length }, keep);
+        onClose();
+    };
     const { props } = usePage<VelocityShared>();
     const box = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -136,6 +151,25 @@ export function BlockMenu({
             <div className="bmenu-head">
                 <b>{block.title}</b>
                 <span>{when}</span>
+            </div>
+            <div className="bmenu-times">
+                <DatePick
+                    mode="time"
+                    className="prop-input"
+                    label="Starts"
+                    value={hm(startMin)}
+                    clearable={false}
+                    onChange={(v) => v && setTimes(mins(v), endMin)}
+                />
+                <span aria-hidden="true">–</span>
+                <DatePick
+                    mode="time"
+                    className="prop-input"
+                    label="Ends"
+                    value={hm(endMin)}
+                    clearable={false}
+                    onChange={(v) => v && setTimes(startMin, mins(v))}
+                />
             </div>
             {!focusing && (
                 <button

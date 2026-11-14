@@ -61,11 +61,11 @@ list only covers what's missing or partly there.
 
 - [ ] Month view. **Add** (year view: **Low**)
 - [ ] Blocks for a whole project, or "reserved" time. **Add**
-- [ ] ★5 Drag to resize a block; type exact times. **Add**
-- [ ] ★5 A warning when two things overlap. **Add**
+- [x] ★5 Drag to resize a block; type exact times. **Add**
+- [x] ★5 A warning when two things overlap. **Add**
 - [ ] A warning before moving a locked block. **Add**
-- [ ] ★5 Settings: gap between blocks, default length, day start and end. **Add** (time bands: with them)
-- [ ] ★5 A free-time panel, with copy. **Add**
+- [x] ★5 Settings: gap between blocks, default length, day start and end. **Add** (time bands: with them)
+- [x] ★5 A free-time panel, with copy. **Add**
 - [ ] Markers for project due dates, milestones, goal targets, with show/hide. **Partly** (task due flags exist)
 - [ ] Habit markers, "Show habits" / "Show people" switches. **Add**
 - [ ] Advice when a booked task becomes blocked or waiting. **Add**

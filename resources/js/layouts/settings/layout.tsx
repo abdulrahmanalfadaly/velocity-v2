@@ -10,6 +10,7 @@ const PAGES = [
 const PERSONAL = [
     { title: 'Tasks', url: '/settings/tasks' },
     { title: 'Focus', url: '/settings/focus' },
+    { title: 'Planner', url: '/settings/planner' },
     { title: 'Integrations', url: '/settings/integrations' },
 ];
 

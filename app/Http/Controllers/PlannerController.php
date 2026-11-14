@@ -64,6 +64,7 @@ class PlannerController extends Controller
             'followUps' => $user->tasks()->open()->whereDate('follow_up_on', '>=', $first->toDateString())->whereDate('follow_up_on', '<=', $first->addDays($count - 1)->toDateString())
                 ->get(['id', 'title', 'follow_up_on'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'date' => $t->follow_up_on->toDateString()])->values(),
             'unbooked' => $this->builder->unbooked($user, $days->all(), $list),
+            'free' => $this->builder->free($user, $days->all()),
             'hours' => PlanBuilder::hours($user),
             'dayLimit' => $user->weights()->hours_per_day,
             'busy' => $busy,

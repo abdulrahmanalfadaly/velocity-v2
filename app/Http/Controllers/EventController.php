@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\User;
+use App\Services\PlannerOverlaps;
 use App\Services\QuickAddParser;
 use App\Services\RankingService;
 use Carbon\CarbonImmutable;
@@ -21,7 +22,29 @@ class EventController extends Controller
         $user = $request->user();
         $event = $user->events()->create($this->fields($request, $user));
 
-        return back()->with('toast', "Added “{$event->title}”")->with('undo', $this->undo('delete-event', $event->id));
+        return back()->with('toast', "Added “{$event->title}”".$this->overlaps($user, $event))->with('undo', $this->undo('delete-event', $event->id));
+    }
+
+    /** Quick add's Event tab: what the chosen day and times overlap ("Overlaps Data Mining lecture …"). */
+    public function overlapsAt(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $d = $request->validate(['date' => ['required', 'date_format:Y-m-d'], 'start_time' => ['required', 'date_format:H:i'], 'end_time' => ['required', 'date_format:H:i']]);
+        $start = CarbonImmutable::parse("{$d['date']} {$d['start_time']}", $user->timezone);
+        $end = CarbonImmutable::parse("{$d['date']} {$d['end_time']}", $user->timezone);
+        $end = $end <= $start ? $end->addDay() : $end;
+
+        return response()->json(['note' => ltrim(PlannerOverlaps::note($user, PlannerOverlaps::find($user, $start, $end)), ' ·')]);
+    }
+
+    /** " · overlaps …" for a timed event's (first) time; all-day events take no time. */
+    private function overlaps(User $user, Event $event): string
+    {
+        if ($event->all_day) {
+            return '';
+        }
+
+        return PlannerOverlaps::note($user, PlannerOverlaps::find($user, CarbonImmutable::instance($event->starts_at), CarbonImmutable::instance($event->ends_at), null, $event->id));
     }
 
     /** Quick add's Event tab: what a typed line means ("Dentist tomorrow 3-4pm #personal"), before it is saved. */
@@ -39,7 +62,7 @@ class EventController extends Controller
         $before = $event->formValues($user->timezone);
         $event->update($this->fields($request, $user));
 
-        return back()->with('toast', 'Event saved')->with('undo', $this->undo('patch-event', $event->id, $before));
+        return back()->with('toast', 'Event saved'.$this->overlaps($user, $event))->with('undo', $this->undo('patch-event', $event->id, $before));
     }
 
     /** Remove the whole event, or (for a weekly one) only the week of `date`. */

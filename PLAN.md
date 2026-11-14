@@ -461,7 +461,17 @@ leave Up next; only finished or cancelled tasks can be archived.
       the day and by weekday (sessions spread over the hours they ran), every
       session with its intention and note (editable; remove with Undo).
       `FocusActions::state`, `FocusSettings`, `ReviewService::focus`
-- [ ] ★5 Planner: resize and exact times, overlap warning, settings, free time
+- [x] ★5 Planner: drag a block's bottom edge to change its length (15-minute
+      steps), or type its start and end in the block's menu ("Resized" /
+      "Changed", Undo). Overlaps are a warning only: a booked, moved or resized
+      block, a new or changed event, and quick add's Event tab say "overlaps
+      Data Mining lecture (9:00–11:00 am)", and the grid marks such a block
+      with a dashed outline. Settings → Planner: gap around blocks and events
+      (0–60, was a fixed 10), shortest and longest block (30 / 120); the daily
+      limit stays the formula's H. Free time in the side menu: each day shown,
+      working hours from now on around events, habit times and blocks (with
+      the gap), the total, and "Copy free time". `PlannerOverlaps`,
+      `PlannerSettings`, `PlanBuilder::free`
 - [ ] ★6 Habits: minutes / limit / avoid, monthly and every-N-days, pause, check-in notes
 - [ ] ★7 Repeats: several weekdays, until, skip one, moving one doesn't move the rest
 - [ ] ★8 Notes: tables, links to notes / goals / habits, linked from

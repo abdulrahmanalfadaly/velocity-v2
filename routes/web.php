@@ -157,6 +157,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('planner/blocks/{id}/restore', [PlannerBlockController::class, 'restore'])->whereNumber('id')->name('blocks.restore');
         Route::post('events', [EventController::class, 'store'])->name('events.store');
         Route::post('events/preview', [EventController::class, 'preview'])->name('events.preview');
+        Route::post('events/overlaps', [EventController::class, 'overlapsAt'])->name('events.overlaps');
         Route::patch('events/{event}', [EventController::class, 'update'])->name('events.update');
         Route::delete('events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
         Route::post('events/{id}/restore', [EventController::class, 'restore'])->whereNumber('id')->name('events.restore');

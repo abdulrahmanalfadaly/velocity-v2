@@ -707,6 +707,19 @@ select.input { padding-right: 8px; }
 .qa-times .input { width: 112px; }
 .qa-date { min-width: 160px; }
 .qa-error { margin: 0; padding: 0 18px 12px; }
+.qa-note { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--text-2); }
+/* Planner: a block that shares its time with something (a warning, never red: red is for overdue). */
+.pblock.is-clash { outline: 2px dashed var(--violet); outline-offset: -2px; }
+.pblock-clash { margin-right: 3px; vertical-align: -1px; }
+.pblock-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; touch-action: none; }
+.pblock-resize::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 22px; height: 3px; margin-left: -11px; border-radius: 2px; background: currentColor; opacity: 0; transition: opacity .15s; }
+.pblock:hover .pblock-resize::after { opacity: .35; }
+.bmenu-times { display: flex; align-items: center; gap: 6px; padding: 4px 10px 8px; }
+.bmenu-times .prop-input { width: 100px; }
+.free-list { list-style: none; margin: 0 0 4px; padding: 0 10px; display: grid; gap: 6px; font-size: 12.5px; }
+.free-list li { display: grid; gap: 1px; }
+.free-list b { font-weight: 650; color: var(--text); }
+.free-list span { color: var(--text-2); }
 /* A cancelled task: a quiet "ban" mark in place of the tick (click to reopen). */
 .p-cancel-mark { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border: 1.5px solid var(--line-strong, var(--line)); border-radius: 50%; background: var(--surface-2); color: var(--text-3); padding: 0; cursor: pointer; }
 .p-cancel-mark .ic { width: 15px; height: 15px; }

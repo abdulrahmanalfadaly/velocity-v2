@@ -45,6 +45,7 @@ interface Props extends VelocityShared {
     habitTimes: PlanHabit[];
     personDates: { key: string; date: string; title: string; kind: 'birthday' | 'anniversary' | 'other'; personId: number }[];
     followUps: { id: number; title: string; date: string }[];
+    free: { date: string; slots: { start: string; end: string }[]; minutes: number }[];
 }
 
 /** A habit with a set time, on a day it is due. */
@@ -157,9 +158,10 @@ const blank = (date: string, start = 9 * 60): EventForm => ({
     repeat_until: null,
 });
 
-/** A block being dragged: one already on the grid (move) or a task from "Not booked yet" (new). */
+/** A block being dragged: one already on the grid (move), its bottom edge (resize), or a task from "Not booked yet" (new). */
 interface Drag {
-    kind: 'move' | 'new';
+    kind: 'move' | 'new' | 'resize';
+    length?: number; // resize: the length it had
     blockId?: number;
     taskId: number;
     title: string;
@@ -222,12 +224,16 @@ export default function Planner() {
     }, []);
 
     // Moves and drops show at once; the server's answer replaces them (a new `blocks` list).
-    const [pending, setPending] = useState<{ base: PlanBlock[]; moves: Record<number, Spot>; added: Item[] }>({
+    const [pending, setPending] = useState<{ base: PlanBlock[]; moves: Record<number, Spot>; sizes: Record<number, number>; added: Item[] }>({
         base: props.blocks,
         moves: {},
+        sizes: {},
         added: [],
     });
-    const mine = useMemo(() => (pending.base === props.blocks ? pending : { base: props.blocks, moves: {}, added: [] }), [pending, props.blocks]);
+    const mine = useMemo(
+        () => (pending.base === props.blocks ? pending : { base: props.blocks, moves: {}, sizes: {}, added: [] }),
+        [pending, props.blocks],
+    );
 
     const items = useMemo<Item[]>(() => {
         const evs: Item[] = events
@@ -235,9 +241,9 @@ export default function Planner() {
             .map((ev) => ({ key: ev.key, kind: 'event', ev, s: local(clock, ev.start), e: local(clock, ev.end) }));
         const bls: Item[] = props.blocks.map((bl) => {
             const moved = mine.moves[bl.id];
-            return moved
-                ? { key: `b${bl.id}`, kind: 'block', bl, s: moved, e: later(moved, lengthOf(bl)) }
-                : { key: `b${bl.id}`, kind: 'block', bl, s: local(clock, bl.start), e: local(clock, bl.end) };
+            const size = mine.sizes[bl.id];
+            const s = moved ?? local(clock, bl.start);
+            return { key: `b${bl.id}`, kind: 'block', bl, s, e: moved || size ? later(s, size ?? lengthOf(bl)) : local(clock, bl.end) };
         });
         const hbs: Item[] = (props.habitTimes ?? []).map((hb) => ({
             key: hb.key,
@@ -249,6 +255,16 @@ export default function Planner() {
         return [...evs, ...hbs, ...bls, ...mine.added];
     }, [props.events, props.blocks, props.habitTimes, hidden, mine]); // eslint-disable-line react-hooks/exhaustive-deps
     const pieces = useMemo(() => Object.fromEntries(props.days.map((d) => [d, layoutDay(items, d)])), [items, props.days]);
+    // Blocks that share their time with something shown (an event, a habit time, another block): marked, never moved.
+    const clashes = useMemo(() => {
+        const abs = (sp: Spot) => Date.parse(`${sp.date}T00:00:00Z`) / 60000 + sp.min;
+        const out = new Set<number>();
+        items.forEach((b) => {
+            if (b.kind !== 'block') return;
+            if (items.some((o) => o !== b && !(o.kind === 'habit' && o.hb.done) && abs(o.s) < abs(b.e) && abs(o.e) > abs(b.s))) out.add(b.bl.id);
+        });
+        return out;
+    }, [items]);
     // Time booked for tasks on each day (by the day it starts).
     const load = useMemo(() => {
         const out: Record<string, number> = {};
@@ -273,6 +289,15 @@ export default function Planner() {
         }
         return null;
     };
+    // Resizing: the new length, from where the bottom edge is (at least 15 minutes, not past midnight).
+    const sizeAt = (y: number, d: Drag): number => {
+        const r = d.from && cols.current[d.from.date]?.getBoundingClientRect();
+        if (!r || !d.from) return d.minutes;
+        const endMin = Math.round((((y - r.top) / HOUR) * 60) / SNAP) * SNAP;
+        return Math.max(SNAP, Math.min(1440 - d.from.min, endMin - d.from.min));
+    };
+    const place = (d: Drag, x: number, y: number): Drag =>
+        d.kind === 'resize' ? { ...d, minutes: sizeAt(y, d), to: d.from ?? null } : { ...d, to: spotAt(x, y, d) };
 
     const begin = (e: ReactPointerEvent, base: Omit<Drag, 'to'>) => {
         if (e.button !== 0) return;
@@ -282,7 +307,7 @@ export default function Planner() {
         const stopScroll = (ev: TouchEvent) => ev.preventDefault();
         const activate = (x: number, y: number) => {
             active = true;
-            current = { ...current, to: spotAt(x, y, current) };
+            current = place(current, x, y);
             setDrag(current);
             window.addEventListener('touchmove', stopScroll, { passive: false });
             if (e.pointerType === 'touch') navigator.vibrate?.(8);
@@ -302,7 +327,7 @@ export default function Planner() {
             const box = scroller.current?.getBoundingClientRect();
             if (box && ev.clientY > box.bottom - 30) scroller.current?.scrollBy({ top: 12 });
             if (box && ev.clientY < box.top + 30) scroller.current?.scrollBy({ top: -12 });
-            current = { ...current, to: spotAt(ev.clientX, ev.clientY, current) };
+            current = place(current, ev.clientX, ev.clientY);
             setDrag(current);
         };
         const onUp = () => {
@@ -327,6 +352,12 @@ export default function Planner() {
     };
 
     const drop = (d: Drag) => {
+        if (d.kind === 'resize') {
+            if (!d.blockId || !d.from || d.minutes === d.length) return;
+            setPending({ ...mine, sizes: { ...mine.sizes, [d.blockId]: d.minutes } });
+            router.patch(route('blocks.update', d.blockId), { date: d.from.date, start: hhmm(d.from.min), minutes: d.minutes }, keep);
+            return;
+        }
         const to = d.to;
         if (!to || (d.from && d.from.date === to.date && d.from.min === to.min)) return;
         const data = { date: to.date, start: hhmm(to.min) };
@@ -344,6 +375,11 @@ export default function Planner() {
         const top = e.currentTarget.getBoundingClientRect().top;
         const grab = Math.round(((e.clientY - top) / HOUR) * 60);
         begin(e, { kind: 'move', blockId: bl.id, taskId: bl.taskId, title: bl.title, rank: bl.rank, minutes: lengthOf(bl), grab, from: s });
+    };
+    const grabResize = (e: ReactPointerEvent<HTMLElement>, bl: PlanBlock, s: Spot) => {
+        e.stopPropagation();
+        const length = lengthOf(bl);
+        begin(e, { kind: 'resize', blockId: bl.id, taskId: bl.taskId, title: bl.title, rank: bl.rank, minutes: length, length, grab: 0, from: s });
     };
     const grabUnbooked = (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => {
         if ((e.target as HTMLElement).closest('button')) return;
@@ -526,13 +562,13 @@ export default function Planner() {
                                             return (
                                                 <button
                                                     key={p.it.key}
-                                                    className={`pblock${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}`}
+                                                    className={`pblock${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}`}
                                                     style={style}
                                                     onPointerDown={(ev) => bl.id > 0 && grabBlock(ev, bl, s)}
                                                     onClick={(ev) => openBlock(ev, bl, s, e)}
                                                     onContextMenu={(ev) => ev.preventDefault()}
-                                                    title={bl.title}
-                                                    aria-label={`${bl.title}, ${when}`}
+                                                    title={clashes.has(bl.id) ? `${bl.title} · overlaps something` : bl.title}
+                                                    aria-label={`${bl.title}, ${when}${clashes.has(bl.id) ? ', overlaps something' : ''}`}
                                                     aria-haspopup="menu"
                                                 >
                                                     <span className="pblock-title">
@@ -540,7 +576,18 @@ export default function Planner() {
                                                         {bl.title}
                                                         {bl.pinned && <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />}
                                                     </span>
-                                                    <span className="pblock-sub">{when}</span>
+                                                    <span className="pblock-sub">
+                                                        {clashes.has(bl.id) && <Icon name="alert" className="ic-xs pblock-clash" />}
+                                                        {when}
+                                                    </span>
+                                                    {bl.id > 0 && (
+                                                        <span
+                                                            className="pblock-resize"
+                                                            aria-hidden="true"
+                                                            title="Drag to change the length"
+                                                            onPointerDown={(ev) => grabResize(ev, bl, s)}
+                                                        />
+                                                    )}
                                                 </button>
                                             );
                                         }
@@ -664,6 +711,9 @@ export default function Planner() {
                     y={menu.y}
                     minutes={lengthOf(menu.bl)}
                     when={`${clock.weekday(at(menu.s.date))} ${minLabel(menu.s.min)}–${minLabel(menu.e.min)}`}
+                    date={menu.s.date}
+                    startMin={menu.s.min}
+                    endMin={menu.e.min}
                     onClose={() => setMenu(null)}
                 />
             )}
@@ -672,6 +722,49 @@ export default function Planner() {
 }
 
 /** The Planner's side menu: New event, a month calendar, Day / Week, calendars, working hours and what is not booked yet. */
+/** Free time in working hours for the days shown (around events, habit times and booked blocks), and Copy to send it to someone. */
+function FreeTime({ free, clock }: { free: Props['free']; clock: Clock }) {
+    const [copied, setCopied] = useState(false);
+    const total = free.reduce((n, d) => n + d.minutes, 0);
+    const dayName = (d: string) => clock.date(at(d), { weekday: 'short', day: 'numeric', month: 'short' });
+    const slots = (d: Props['free'][number]) => d.slots.map((s) => `${clock.time(s.start)} – ${clock.time(s.end)}`).join(', ');
+    const copy = async () => {
+        const text = free.map((d) => `${dayName(d.date)}: ${d.slots.length ? slots(d) : 'no free time'}`).join('\n');
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            const box = document.createElement('textarea');
+            box.value = text;
+            document.body.appendChild(box);
+            box.select();
+            document.execCommand('copy');
+            box.remove();
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+    return (
+        <>
+            <div className="nav-label">
+                Free time
+                <span className="count">{total ? fmtHours(total / 60) : ''}</span>
+            </div>
+            <ul className="free-list">
+                {free.map((d) => (
+                    <li key={d.date}>
+                        <b>{dayName(d.date)}</b>
+                        <span>{d.slots.length ? slots(d) : 'None'}</span>
+                    </li>
+                ))}
+            </ul>
+            <button className="nav-item" onClick={copy}>
+                <Icon name="copy" />
+                <span className="label">{copied ? 'Copied' : 'Copy free time'}</span>
+            </button>
+        </>
+    );
+}
+
 function PlannerMenu({
     props,
     clock,
@@ -767,6 +860,7 @@ function PlannerMenu({
                     <Icon name="calClock" />
                     <span className="label">Working hours</span>
                 </button>
+                <FreeTime free={props.free ?? []} clock={clock} />
                 {props.unbooked.length > 0 && (
                     <>
                         <div className="nav-label">

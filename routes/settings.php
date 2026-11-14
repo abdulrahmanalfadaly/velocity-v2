@@ -4,6 +4,7 @@ use App\Http\Controllers\Settings\FocusSettingsController;
 use App\Http\Controllers\Settings\IntegrationController;
 use App\Http\Controllers\Settings\ModeController;
 use App\Http\Controllers\Settings\PasswordController;
+use App\Http\Controllers\Settings\PlannerSettingsController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TaskSettingsController;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +31,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('personal')->group(function () {
         Route::get('settings/tasks', [TaskSettingsController::class, 'edit'])->name('task-settings.edit');
         Route::get('settings/focus', [FocusSettingsController::class, 'edit'])->name('focus-settings.edit');
+        Route::get('settings/planner', [PlannerSettingsController::class, 'edit'])->name('planner-settings.edit');
+        Route::put('settings/planner', [PlannerSettingsController::class, 'update'])->name('planner-settings.update');
         Route::put('settings/focus', [FocusSettingsController::class, 'update'])->name('focus-settings.update');
         Route::patch('settings/tasks', [TaskSettingsController::class, 'update'])->name('task-settings.update');
         Route::get('settings/integrations', [IntegrationController::class, 'edit'])->name('integrations.edit');

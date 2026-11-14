@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Event;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\PlannerSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -65,6 +66,7 @@ class PlanBuilder
             $perDay[$d] = ($perDay[$d] ?? 0) + $b->minutes();
         }
         $limit = (int) round($user->weights()->hours_per_day * 60);
+        $set = PlannerSettings::of($user);
         $free = $this->freeTime($user, $days, $this->busy($user, $blocks, $start, $end), $now, $tz);
 
         $added = [];
@@ -84,7 +86,7 @@ class PlanBuilder
             foreach ($days as $day) {
                 while ($need > 0) {
                     $room = $limit - ($perDay[$day] ?? 0);
-                    $slot = $room >= min(self::MIN_BLOCK, $need) ? $this->slot($free[$day], $need, $room, $availableFrom, $deadline) : null;
+                    $slot = $room >= min($set['shortest'], $need) ? $this->slot($free[$day], $need, $room, $availableFrom, $deadline, $set) : null;
                     if (! $slot) {
                         break;
                     }
@@ -93,7 +95,7 @@ class PlanBuilder
                     $added[] = $user->plannerBlocks()->create(['task_id' => $task->id, 'starts_at' => $s->utc(), 'ends_at' => $bEnd->utc(), 'pinned' => false])->id;
                     [$fs, $fe] = $free[$day][$i];
                     // What is left of that free stretch: before the block, and after it plus a short break.
-                    $rest = array_values(array_filter([[$fs, $s], [self::up($bEnd->addMinutes(self::GAP)), $fe]], fn ($r) => $r[1] > $r[0]));
+                    $rest = array_values(array_filter([[$fs, $s], [self::up($bEnd->addMinutes($set['gap'])), $fe]], fn ($r) => $r[1] > $r[0]));
                     array_splice($free[$day], $i, 1, $rest);
                     $need -= $take;
                     $minutes += $take;
@@ -153,15 +155,15 @@ class PlanBuilder
     }
 
     /** The first stretch in a day where a block fits: [index, start, minutes] or null. */
-    private function slot(array $stretches, int $need, int $room, ?CarbonImmutable $from, ?CarbonImmutable $deadline): ?array
+    private function slot(array $stretches, int $need, int $room, ?CarbonImmutable $from, ?CarbonImmutable $deadline, array $set): ?array
     {
         foreach ($stretches as $i => [$fs, $fe]) {
             $s = $from ? self::up($fs->max($from)) : $fs;
             $e = $deadline ? $fe->min($deadline) : $fe;
             $len = intdiv(max(0, $e->getTimestamp() - $s->getTimestamp()), 60);
-            $take = min($need, $len, self::MAX_BLOCK, $room);
-            // A block is at least 30 minutes, unless less than that is all that is left to do.
-            if ($take > 0 && $take >= min(self::MIN_BLOCK, $need)) {
+            $take = min($need, $len, $set['longest'], $room);
+            // A block is at least the shortest length (30 minutes), unless less than that is all that is left to do.
+            if ($take > 0 && $take >= min($set['shortest'], $need)) {
                 return [$i, $s, $take];
             }
         }
@@ -189,27 +191,48 @@ class PlanBuilder
      */
     private function busy(User $user, Collection $blocks, CarbonImmutable $start, CarbonImmutable $end): array
     {
+        $gap = PlannerSettings::of($user)['gap'];
         $busy = [];
         foreach ($user->events()->where('all_day', false)->get() as $e) {
             /** @var Event $e */
             foreach ($e->occurrences($start->utc(), $end->utc(), $user->timezone) as $o) {
-                $busy[] = [$o['start']->subMinutes(self::GAP), $o['end']->addMinutes(self::GAP)];
+                $busy[] = [$o['start']->subMinutes($gap), $o['end']->addMinutes($gap)];
             }
         }
         foreach ($blocks as $b) {
             if ($b->ends_at > $start && $b->starts_at < $end) {
-                $busy[] = [$b->starts_at, $b->ends_at->addMinutes(self::GAP)];
+                $busy[] = [$b->starts_at, $b->ends_at->addMinutes($gap)];
             }
         }
         // Habits with a set time keep it, unless already done or skipped that day.
         $tz = $user->timezone;
         foreach (HabitTimes::between($user, $start->timezone($tz), $end->timezone($tz)) as $h) {
             if (! $h['done'] && ! $h['skipped']) {
-                $busy[] = [$h['start']->subMinutes(self::GAP), $h['end']->addMinutes(self::GAP)];
+                $busy[] = [$h['start']->subMinutes($gap), $h['end']->addMinutes($gap)];
             }
         }
 
         return $busy;
+    }
+
+    /**
+     * The Planner's "Free time": each day's free stretches in working hours from now
+     * on, around classes, events, habit times and every booked block (with the gap).
+     *
+     * @param  list<string>  $days
+     * @return list<array{date: string, slots: list<array{start: string, end: string}>, minutes: int}>
+     */
+    public function free(User $user, array $days): array
+    {
+        [$start, $end] = self::period($days, $user->timezone);
+        $blocks = $user->plannerBlocks()->active()->get();
+        $free = $this->freeTime($user, $days, $this->busy($user, $blocks, $start, $end), $this->ranking->now(), $user->timezone);
+
+        return array_map(fn ($day) => [
+            'date' => $day,
+            'slots' => array_map(fn ($r) => ['start' => $r[0]->utc()->toIso8601ZuluString(), 'end' => $r[1]->utc()->toIso8601ZuluString()], $free[$day]),
+            'minutes' => array_sum(array_map(fn ($r) => intdiv($r[1]->getTimestamp() - $r[0]->getTimestamp(), 60), $free[$day])),
+        ], $days);
     }
 
     /**

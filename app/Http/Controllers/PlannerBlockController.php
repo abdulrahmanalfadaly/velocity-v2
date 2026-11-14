@@ -6,6 +6,7 @@ use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\PlanBuilder;
+use App\Services\PlannerOverlaps;
 use App\Support\Clock;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -70,7 +71,7 @@ class PlannerBlockController extends Controller
         $task = $user->tasks()->whereIn('status', Task::OPEN)->findOrFail($request->validate(['task_id' => ['required', 'integer']])['task_id']);
         $block = $user->plannerBlocks()->create(['task_id' => $task->id, ...$this->times($request, $user), 'pinned' => true]);
 
-        return back()->with('toast', "Booked “{$task->title}”")->with('undo', $this->undo('remove-block', $block->id));
+        return back()->with('toast', "Booked “{$task->title}”".$this->overlaps($user, $block))->with('undo', $this->undo('remove-block', $block->id));
     }
 
     /** Moved (or resized) by the user: it stays where they put it. */
@@ -82,8 +83,11 @@ class PlannerBlockController extends Controller
         $before = ['date' => $local->toDateString(), 'start' => $local->format('H:i'), 'minutes' => $block->minutes(), 'pinned' => $block->pinned];
         $pinned = $request->validate(['pinned' => ['nullable', 'boolean']])['pinned'] ?? true;
         $block->update([...$this->times($request, $user, $block->minutes()), 'pinned' => $pinned]);
+        $local = $block->starts_at->timezone($user->timezone);
+        $resized = $local->toDateString() === $before['date'] && $local->format('H:i') === $before['start'] && $block->minutes() !== $before['minutes'];
+        $verb = $resized ? 'Resized' : ($block->minutes() !== $before['minutes'] ? 'Changed' : 'Moved');
 
-        return back()->with('toast', "Moved “{$block->title()}”")->with('undo', $this->undo('patch-block', $block->id, $before));
+        return back()->with('toast', "{$verb} “{$block->title()}”".$this->overlaps($user, $block))->with('undo', $this->undo('patch-block', $block->id, $before));
     }
 
     public function destroy(Request $request, PlannerBlock $block): RedirectResponse
@@ -125,6 +129,12 @@ class PlannerBlockController extends Controller
         $user->update(['planner_hours' => $hours]);
 
         return back()->with('toast', 'Working hours saved')->with('undo', $this->undo('put-hours', 0, ['hours' => $before]));
+    }
+
+    /** " · overlaps …" when the block now shares its time with something else (a warning only). */
+    private function overlaps(User $user, PlannerBlock $block): string
+    {
+        return PlannerOverlaps::note($user, PlannerOverlaps::find($user, CarbonImmutable::instance($block->starts_at), CarbonImmutable::instance($block->ends_at), $block->id));
     }
 
     /** "date" + "start" (local) and "minutes" → the stored start and end. */
