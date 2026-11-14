@@ -1,3 +1,4 @@
+import { DatePick } from '@/components/velocity/date-pick';
 import { Field, TextField } from '@/components/velocity/field';
 import { Modal } from '@/components/velocity/forms';
 import { Icon } from '@/components/velocity/icon';
@@ -263,14 +264,9 @@ function UseDialog({ template, projects, onClose }: { template: Template; projec
                     {template.steps.length > 0 && ` · ${template.steps.length} steps`}
                 </p>
                 <div className="vform-row">
-                    <TextField
-                        id="u-due"
-                        label="Due"
-                        type="datetime-local"
-                        value={data.due_at}
-                        onValue={(v) => setData('due_at', v)}
-                        error={errors.due_at}
-                    />
+                    <Field id="u-due" label="Due" error={errors.due_at}>
+                        <DatePick id="u-due" mode="datetime" value={data.due_at} onChange={(v) => setData('due_at', v)} placeholder="No due date" />
+                    </Field>
                     <Field id="u-project" label="Project" error={errors.project_id}>
                         <Select
                             id="u-project"

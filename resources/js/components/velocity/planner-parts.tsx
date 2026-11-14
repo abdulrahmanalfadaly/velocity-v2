@@ -2,6 +2,7 @@ import { fmtHours } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { DatePick } from './date-pick';
 import { Modal } from './forms';
 import { Icon } from './icon';
 
@@ -51,22 +52,20 @@ export function HoursDialog({ hours, onClose }: { hours: Hours; onClose: () => v
                                 </label>
                                 {r.on ? (
                                     <span className="hours-times">
-                                        <input
-                                            className="input"
-                                            type="time"
+                                        <DatePick
+                                            mode="time"
                                             value={r.start}
-                                            onChange={(e) => set(i, { start: e.target.value })}
-                                            aria-label={`${DAYS[i]} from`}
-                                            required
+                                            onChange={(v) => set(i, { start: v })}
+                                            label={`${DAYS[i]} from`}
+                                            clearable={false}
                                         />
                                         <span aria-hidden="true">–</span>
-                                        <input
-                                            className="input"
-                                            type="time"
+                                        <DatePick
+                                            mode="time"
                                             value={r.end}
-                                            onChange={(e) => set(i, { end: e.target.value })}
-                                            aria-label={`${DAYS[i]} to`}
-                                            required
+                                            onChange={(v) => set(i, { end: v })}
+                                            label={`${DAYS[i]} to`}
+                                            clearable={false}
                                         />
                                     </span>
                                 ) : (
@@ -112,7 +111,10 @@ export function BlockMenu({
     const { props } = usePage<VelocityShared>();
     const box = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        const onDown = (e: PointerEvent) => !box.current?.contains(e.target as Node) && onClose();
+        const onDown = (e: PointerEvent) => {
+            const t = e.target as Element;
+            if (!box.current?.contains(t) && !t.closest?.('.dp-pop, .sel-pop')) onClose();
+        };
         const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
         document.addEventListener('pointerdown', onDown, true);
         document.addEventListener('keydown', onKey);

@@ -16,7 +16,27 @@ export interface Bar {
  * The biggest value is written above its bar; the rest show on hover. The same
  * numbers are in a table underneath for anyone who wants them as text.
  */
-export function BarChart({ bars, label, height = 120, table }: { bars: Bar[]; label: string; height?: number; table: [string, string] }) {
+export function BarChart({
+    bars,
+    label,
+    height = 120,
+    table,
+    empty,
+}: {
+    bars: Bar[];
+    label: string;
+    height?: number;
+    table: [string, string];
+    /** Said instead of an empty chart ("No focus this week"). */
+    empty?: string;
+}) {
+    if (empty && bars.every((b) => b.value === 0)) {
+        return (
+            <p className="vc-empty" style={{ minHeight: height } as CSSProperties}>
+                {empty}
+            </p>
+        );
+    }
     const max = Math.max(1, ...bars.map((b) => b.value));
     const top = bars.reduce((a, b) => (b.value > a.value ? b : a), bars[0]);
     const dense = bars.length > 14;

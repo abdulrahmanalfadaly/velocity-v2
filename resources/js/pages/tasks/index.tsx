@@ -1,3 +1,4 @@
+import { DatePick } from '@/components/velocity/date-pick';
 import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
@@ -503,13 +504,13 @@ export default function TasksIndex() {
                             ...props.projects.map((p) => ({ value: String(p.id), label: p.name })),
                         ]}
                     />
-                    <input
-                        type="datetime-local"
+                    <DatePick
+                        mode="datetime"
                         className="prop-input"
-                        aria-label="Due date for the selected tasks"
+                        label="Due date for the selected tasks"
+                        placeholder="Due…"
                         value={bulkDue}
-                        disabled={!picked.length}
-                        onChange={(e) => setBulkDue(e.target.value)}
+                        onChange={setBulkDue}
                     />
                     <button
                         className="btn btn-secondary btn-sm"

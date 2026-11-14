@@ -14,6 +14,7 @@ export function MonthCalendar({
     clock,
     onMonth,
     onPick,
+    disabled,
 }: {
     /** "2026-11" */
     month: string;
@@ -23,6 +24,8 @@ export function MonthCalendar({
     clock: Clock;
     onMonth: (month: string) => void;
     onPick: (date: string) => void;
+    /** Days that can't be picked (before or after an allowed range). */
+    disabled?: (date: string) => boolean;
 }) {
     const first = `${month}-01`;
     const lead = (at(first).getUTCDay() + 6) % 7; // Monday first
@@ -34,10 +37,10 @@ export function MonthCalendar({
             <div className="mcal-head">
                 <b>{name}</b>
                 <span>
-                    <button className="icon-btn" aria-label="Previous month" onClick={() => onMonth(shiftDay(first, -1).slice(0, 7))}>
+                    <button type="button" className="icon-btn" aria-label="Previous month" onClick={() => onMonth(shiftDay(first, -1).slice(0, 7))}>
                         <Icon name="chevL" className="ic-sm" />
                     </button>
-                    <button className="icon-btn" aria-label="Next month" onClick={() => onMonth(shiftDay(first, 32).slice(0, 7))}>
+                    <button type="button" className="icon-btn" aria-label="Next month" onClick={() => onMonth(shiftDay(first, 32).slice(0, 7))}>
                         <Icon name="chevR" className="ic-sm" />
                     </button>
                 </span>
@@ -51,7 +54,9 @@ export function MonthCalendar({
                 {cells.map((d) => (
                     <button
                         key={d}
+                        type="button"
                         className={`mcal-day${d.slice(0, 7) !== month ? ' is-out' : ''}${d === today ? ' is-today' : ''}${marked.has(d) ? ' has-due' : ''}${shown.has(d) ? ' is-shown' : ''}`}
+                        disabled={disabled?.(d)}
                         onClick={() => onPick(d)}
                         aria-label={clock.date(at(d), { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}
                         aria-current={shown.has(d) ? 'date' : undefined}

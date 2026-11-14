@@ -18,6 +18,39 @@ export function fmtHours(h: number): string {
     const min = Math.round((h - whole) * 60);
     return min ? `${whole} h ${min} min` : `${whole} h`;
 }
+/** Titles that go with the name after them ("Dr. Lim", "Puan Aminah"), never alone. */
+const TITLES = new Set([
+    'dr',
+    'prof',
+    'professor',
+    'mr',
+    'mrs',
+    'ms',
+    'miss',
+    'mx',
+    'sir',
+    'madam',
+    'puan',
+    'encik',
+    'cik',
+    'tuan',
+    'en',
+    'pn',
+    'dato',
+    "dato'",
+    'datuk',
+    'datin',
+    'haji',
+    'hajah',
+    'ustaz',
+    'ustazah',
+]);
+/** How to call someone in a sentence: "Daniel" for Daniel Tan, "Dr. Lim" for Dr. Lim Wei. */
+export function firstName(name: string): string {
+    const words = name.trim().split(/\s+/);
+    return words.length > 1 && TITLES.has(words[0].toLowerCase().replace(/\.$/, '')) ? `${words[0]} ${words[1]}` : words[0];
+}
+
 /** "18:00" → "6:00 pm": clock times always read the same way across Velocity. */
 export const hm12 = (hhmm: string) => {
     const [h, m] = hhmm.split(':').map(Number);

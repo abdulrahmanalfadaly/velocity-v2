@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Habit;
+use App\Models\Note;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
@@ -145,13 +146,60 @@ class DemoSeeder extends Seeder
             }
         }
 
-        // Notes inside projects.
+        // Notes inside projects, with something in them.
         foreach ([
-            ['fyp', 'Chapter 4 outline', 1], ['fyp', 'Supervisor meeting notes', 4], ['swt', 'Testing techniques cheat sheet', 7],
-            ['dm', 'Lecture 7 – Clustering', 3], ['intern', 'Interview prep', 2], ['bakery', 'Brand ideas for the bakery', 5],
-        ] as [$proj, $title, $daysAgo]) {
-            $note = $user->notes()->create(['project_id' => $p[$proj]->id, 'title' => $title, 'body' => '']);
+            ['fyp', 'Chapter 4 outline', 1, [
+                ['h', 'Chapter 4 – Implementation'],
+                ['ul', ['4.1 System architecture (Laravel, React, MySQL)', '4.2 The ranking engine: weighted sum with AHP weights', '4.3 Explaining the order: contrastive sentences', '4.4 Screens and how they work together']],
+                ['todo', [[true, 'Engine section'], [true, 'Explanations section'], [false, 'Weights section'], [false, 'Screenshots and captions']]],
+            ]],
+            ['fyp', 'Supervisor meeting notes', 4, [
+                ['p', 'Met Dr. Lim after the Chapter 3 draft.'],
+                ['ul', ['Tighten the related-work comparison table', 'Add the AHP consistency ratio to the method chapter', 'Pilot the survey with five friends before sending it out']],
+                ['p', 'Next meeting: once the Chapter 4 draft is done.'],
+            ]],
+            ['swt', 'Testing techniques cheat sheet', 7, [
+                ['h', 'Black box'],
+                ['ul', ['Equivalence partitioning: one value from each class', 'Boundary values: min, min + 1, max − 1, max', 'Decision tables for rules with several conditions']],
+                ['h', 'White box'],
+                ['ul', ['Statement and branch coverage', 'Cyclomatic complexity = edges − nodes + 2']],
+            ]],
+            ['dm', 'Lecture 7 – Clustering', 3, [
+                ['p', 'k-means: pick k, give each point to the nearest centre, move the centres, repeat until nothing moves.'],
+                ['ul', ['The elbow method helps choose k', 'Sensitive to outliers, so scale the features first', 'DBSCAN finds clusters of any shape; it needs eps and minPts']],
+                ['p', 'Quiz 3 covers lectures 5 to 7.'],
+            ]],
+            ['intern', 'Interview prep', 2, [
+                ['ul', ['A project I am proud of: Velocity', 'A bug I found and how I fixed it', 'Why this company, in two sentences']],
+                ['todo', [[false, 'Read the job description again'], [false, 'Prepare two questions to ask them']]],
+            ]],
+            ['bakery', 'Brand ideas for the bakery', 5, [
+                ['p', 'Warm, home-made, local.'],
+                ['ul', ['Colours: cream and dark brown', 'Logo: a rolling pin that makes a smile', 'Menu sections: Pagi Bakes, Kuih Corner, Cakes to order']],
+                ['p', 'Ask Pak Ali which photos of the shop we can use.'],
+            ]],
+        ] as [$proj, $title, $daysAgo, $parts]) {
+            $doc = $this->doc($parts);
+            $note = $user->notes()->create([
+                'project_id' => $p[$proj]->id, 'title' => $title,
+                'body' => json_encode($doc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'body_text' => Note::textOf($doc),
+            ]);
             $note->forceFill(['updated_at' => $now->subDays($daysAgo)->utc(), 'created_at' => $now->subDays($daysAgo + 3)->utc()])->save();
+        }
+
+        // Weekly classes and a work stand-up, from the week before this one.
+        $monday = $now->startOfWeek(CarbonImmutable::MONDAY)->subWeek();
+        foreach ([
+            ['Data Mining lecture', 'class', 0, '09:00', '11:00', 'Lab 3'],
+            ['Data Mining lecture', 'class', 2, '09:00', '11:00', 'Lab 3'],
+            ['Software Testing tutorial', 'class', 1, '14:00', '16:00', 'Room B2-04'],
+            ['Internship stand-up', 'work', 3, '10:00', '10:30', 'Online'],
+        ] as [$title, $calendar, $day, $from, $to, $where]) {
+            $date = $monday->addDays($day)->toDateString();
+            $user->events()->create([
+                'title' => $title, 'calendar' => $calendar, 'location' => $where, 'all_day' => false, 'repeat_weekly' => true,
+                'starts_at' => CarbonImmutable::parse("{$date} {$from}", $tz)->utc(), 'ends_at' => CarbonImmutable::parse("{$date} {$to}", $tz)->utc(),
+            ]);
         }
 
         // Habits, some inside projects, with their streaks.
@@ -182,6 +230,20 @@ class DemoSeeder extends Seeder
         $soon = $this->today->addDays(4);
         $sara->dates()->create(['kind' => 'birthday', 'month' => $soon->month, 'day' => $soon->day, 'year' => $soon->year - 19, 'remind_days' => 1]);
         $sara->catchUps()->create(['on' => $this->today->subDays(3)->toDateString(), 'kind' => 'call']);
+    }
+
+    /** A note's document from simple parts: ['h', text], ['p', text], ['ul', [items]], ['todo', [[done, text], ...]]. */
+    private function doc(array $parts): array
+    {
+        $text = fn (string $t) => [['type' => 'text', 'text' => $t]];
+        $para = fn (string $t) => ['type' => 'paragraph', 'content' => $text($t)];
+
+        return ['type' => 'doc', 'content' => array_map(fn (array $b) => match ($b[0]) {
+            'h' => ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => $text($b[1])],
+            'p' => $para($b[1]),
+            'ul' => ['type' => 'bulletList', 'content' => array_map(fn ($i) => ['type' => 'listItem', 'content' => [$para($i)]], $b[1])],
+            'todo' => ['type' => 'taskList', 'content' => array_map(fn ($i) => ['type' => 'taskItem', 'attrs' => ['checked' => $i[0]], 'content' => [$para($i[1])]], $b[1])],
+        }, $parts)];
     }
 
     private function at(int $days, string $time): CarbonImmutable

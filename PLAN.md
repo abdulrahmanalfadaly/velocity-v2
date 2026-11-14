@@ -58,6 +58,8 @@ the same tasks and the same report formula, so the order is always the same.
    follow the computer's own setting.
 6. One dropdown everywhere: Velocity's own (`components/velocity/select.tsx`),
    never the browser's plain one; a search box when the list is long (15 Nov).
+   The same for dates and times (`components/velocity/date-pick.tsx`):
+   "Tue 17 Nov, 11:59 pm" or "None", a small calendar and a typed time.
 7. Saving stays as it is: dialogs with Add/Save where fields only make sense
    together (an event's day and times, a habit's schedule), autosave for single
    fields (15 Nov).

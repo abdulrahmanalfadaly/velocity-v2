@@ -2,6 +2,7 @@ import { type Clock, hm12 } from '@/lib/velocity';
 import type { HabitDay, HabitToday } from '@/types/velocity';
 import { Link, router, useForm } from '@inertiajs/react';
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
 import { Icon } from './icon';
@@ -134,7 +135,10 @@ export function Pop({
 }) {
     const box = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        const onDown = (e: PointerEvent) => !box.current?.contains(e.target as Node) && onClose();
+        const onDown = (e: PointerEvent) => {
+            const t = e.target as Element;
+            if (!box.current?.contains(t) && !t.closest?.('.dp-pop, .sel-pop')) onClose();
+        };
         const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
         document.addEventListener('pointerdown', onDown, true);
         document.addEventListener('keydown', onKey);
@@ -308,10 +312,10 @@ export function HabitMenu({
                     if (until) done(() => router.post(route('habits.skip', habit.id), { until }, keep))();
                 }}
             >
-                <label>
+                <span className="hb-until-field">
                     <span>Skip until</span>
-                    <input className="input" type="date" min={today} max={max} value={until} onChange={(e) => setUntil(e.target.value)} />
-                </label>
+                    <DatePick label="Skip until" min={today} max={max} value={until} onChange={setUntil} clearable={false} placeholder="Pick a day" />
+                </span>
                 <button type="submit" className="btn btn-secondary btn-sm" disabled={!until}>
                     Skip
                 </button>
@@ -452,12 +456,12 @@ export function HabitDialog({
                 {data.schedule !== 'weekly' && (
                     <div className="vform-row">
                         <Field id="h-time" label="Time on the Planner" error={errors.at_time}>
-                            <input
+                            <DatePick
                                 id="h-time"
-                                className="input"
-                                type="time"
+                                mode="time"
                                 value={data.at_time}
-                                onChange={(e) => setData('at_time', e.target.value)}
+                                onChange={(v) => setData('at_time', v)}
+                                placeholder="Not on the Planner"
                             />
                         </Field>
                         {data.at_time ? (

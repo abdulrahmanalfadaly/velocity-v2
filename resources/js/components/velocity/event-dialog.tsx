@@ -1,5 +1,6 @@
 import { router, useForm } from '@inertiajs/react';
 import { type FormEvent } from 'react';
+import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
 import { Icon } from './icon';
@@ -112,42 +113,41 @@ export function EventDialog({
                     </div>
                 </Field>
                 <div className="vform-row">
-                    <TextField
-                        id="ev-date"
-                        label={data.repeat_weekly ? 'First week' : data.all_day ? 'First day' : 'Date'}
-                        type="date"
-                        value={data.date}
-                        onValue={(v) => setData('date', v)}
-                        error={errors.date}
-                        required
-                    />
+                    <Field id="ev-date" label={data.repeat_weekly ? 'First week' : data.all_day ? 'First day' : 'Date'} error={errors.date}>
+                        <DatePick id="ev-date" value={data.date} onChange={(v) => setData('date', v)} clearable={false} placeholder="Pick a day" />
+                    </Field>
                     {data.all_day ? (
-                        <TextField
-                            id="ev-end-date"
-                            label="Last day"
-                            type="date"
-                            value={data.end_date}
-                            onValue={(v) => setData('end_date', v)}
-                            error={errors.end_date}
-                        />
+                        <Field id="ev-end-date" label="Last day" error={errors.end_date}>
+                            <DatePick
+                                id="ev-end-date"
+                                value={data.end_date}
+                                onChange={(v) => setData('end_date', v)}
+                                placeholder="Same day"
+                                min={data.date}
+                            />
+                        </Field>
                     ) : (
                         <div className="vform-row ev-times">
-                            <TextField
-                                id="ev-start"
-                                label="From"
-                                type="time"
-                                value={data.start_time}
-                                onValue={(v) => setData('start_time', v)}
-                                error={errors.start_time}
-                            />
-                            <TextField
-                                id="ev-end"
-                                label="To"
-                                type="time"
-                                value={data.end_time}
-                                onValue={(v) => setData('end_time', v)}
-                                error={errors.end_time}
-                            />
+                            <Field id="ev-start" label="From" error={errors.start_time}>
+                                <DatePick
+                                    id="ev-start"
+                                    mode="time"
+                                    value={data.start_time}
+                                    onChange={(v) => setData('start_time', v)}
+                                    clearable={false}
+                                    placeholder="Pick a time"
+                                />
+                            </Field>
+                            <Field id="ev-end" label="To" error={errors.end_time}>
+                                <DatePick
+                                    id="ev-end"
+                                    mode="time"
+                                    value={data.end_time}
+                                    onChange={(v) => setData('end_time', v)}
+                                    clearable={false}
+                                    placeholder="Pick a time"
+                                />
+                            </Field>
                         </div>
                     )}
                 </div>
@@ -161,17 +161,16 @@ export function EventDialog({
                         Every week
                     </label>
                     {data.repeat_weekly && (
-                        <label className="ev-until">
+                        <span className="ev-until">
                             until
-                            <input
-                                className="input"
-                                type="date"
+                            <DatePick
+                                label="Last week"
                                 value={data.repeat_until}
-                                onChange={(e) => setData('repeat_until', e.target.value)}
-                                aria-label="Last week"
+                                onChange={(v) => setData('repeat_until', v)}
+                                placeholder="No end"
                                 min={data.date}
                             />
-                        </label>
+                        </span>
                     )}
                 </div>
                 {errors.repeat_until && <p className="field-error">{errors.repeat_until}</p>}

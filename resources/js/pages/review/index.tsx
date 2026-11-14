@@ -195,6 +195,7 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                 <section className="card rv-card">
                     <h2 className="rv-title">Tasks done each day</h2>
                     <BarChart
+                        empty={r.inProgress ? 'Nothing done yet' : 'Nothing done'}
                         bars={bars(
                             (d) => d.done,
                             (v) => `${v} done`,
@@ -209,6 +210,7 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                 <section className="card rv-card">
                     <h2 className="rv-title">Focus each day</h2>
                     <BarChart
+                        empty={r.inProgress ? 'No focus yet' : 'No focus'}
                         bars={bars((d) => d.focus, hm)}
                         label={`Minutes focused each day: ${r.days
                             .filter((d) => !d.future)
@@ -357,6 +359,7 @@ function Weeks({ weeks, clock }: { weeks: Props['weeks']; clock: Clock }) {
                 <section className="card rv-card">
                     <h2 className="rv-title">Tasks done each week</h2>
                     <BarChart
+                        empty="Nothing done in these weeks"
                         bars={weeks.map((w, i) => ({
                             key: w.start,
                             label: label(w),
@@ -371,6 +374,7 @@ function Weeks({ weeks, clock }: { weeks: Props['weeks']; clock: Clock }) {
                 <section className="card rv-card">
                     <h2 className="rv-title">Focus each week</h2>
                     <BarChart
+                        empty="No focus in these weeks"
                         bars={weeks.map((w, i) => ({
                             key: w.start,
                             label: label(w),

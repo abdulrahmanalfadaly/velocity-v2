@@ -2,6 +2,7 @@ import { goalVar } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, type ReactNode, useEffect, useRef } from 'react';
+import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Icon } from './icon';
 import { Select } from './select';
@@ -144,14 +145,9 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectValues; o
                             options={[{ value: '', label: 'No goal' }, ...goals.map((g) => ({ value: String(g.id), label: g.title }))]}
                         />
                     </Field>
-                    <TextField
-                        id="p-due"
-                        label="Due date"
-                        type="date"
-                        value={data.due_date}
-                        onValue={(v) => setData('due_date', v)}
-                        error={errors.due_date}
-                    />
+                    <Field id="p-due" label="Due date" error={errors.due_date}>
+                        <DatePick id="p-due" value={data.due_date} onChange={(v) => setData('due_date', v)} placeholder="No due date" />
+                    </Field>
                 </div>
                 <Foot
                     processing={processing}

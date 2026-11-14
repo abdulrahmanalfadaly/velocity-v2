@@ -1,6 +1,7 @@
 import type { Clock } from '@/lib/velocity';
 import { router, useForm } from '@inertiajs/react';
 import { type FormEvent, useState } from 'react';
+import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
 import { Pop } from './habit-parts';
@@ -96,7 +97,7 @@ export const dayLabel = (d: string, clock: Clock, opts: Intl.DateTimeFormatOptio
     clock.date(at(d), { ...opts, timeZone: 'UTC' });
 export const inDays = (n: number) => (n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`);
 export const everyText = (n: number) => EVERY.find(([d]) => d === n)?.[1] ?? `Every ${n} days`;
-export const firstName = (name: string) => name.split(/\s+/)[0];
+export { firstName } from '@/lib/velocity';
 
 /** "Birthday · today · turns 22" */
 export function dateLine(d: PersonDate, clock: Clock, withName = false): string {
@@ -551,7 +552,7 @@ export function CatchUpPop({ personId, today, x, y, onClose }: { personId: numbe
                         </button>
                     ))}
                 </div>
-                <input className="input" type="date" value={on} max={today} onChange={(e) => setOn(e.target.value)} aria-label="Day" required />
+                <DatePick label="Day" value={on} max={today} onChange={setOn} clearable={false} />
                 <input
                     className="input"
                     value={note}

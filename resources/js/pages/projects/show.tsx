@@ -1,3 +1,4 @@
+import { DatePick } from '@/components/velocity/date-pick';
 import { StartFocus } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
 import { ProjectGitHub } from '@/components/velocity/github-parts';
@@ -255,12 +256,11 @@ export default function ProjectShow() {
                                     value={milestone.title}
                                     onChange={(e) => setMilestone({ ...milestone, title: e.target.value })}
                                 />
-                                <input
-                                    className="input"
-                                    type="date"
-                                    aria-label="Milestone date"
+                                <DatePick
+                                    label="Milestone date"
                                     value={milestone.due}
-                                    onChange={(e) => setMilestone({ ...milestone, due: e.target.value })}
+                                    onChange={(v) => setMilestone({ ...milestone, due: v })}
+                                    placeholder="No date"
                                 />
                                 <button className="btn btn-primary btn-sm" type="submit">
                                     Add

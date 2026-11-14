@@ -194,10 +194,12 @@ export default function Planner() {
     const step = props.view === 'week' ? 7 : 1;
     const plan = (taskId?: number) => router.post(route('planner.plan'), { date: props.date, span: props.view, task_id: taskId ?? null }, keep);
 
-    // Phones show one day at a time.
+    // Phones show one day at a time. (A moment later: on the first draw Inertia isn't ready to move yet.)
     useEffect(() => {
-        if (props.view === 'week' && matchMedia('(max-width: 767px)').matches)
-            router.get('/planner', { date: props.date, view: 'day' }, { replace: true });
+        // Only when no view was asked for: "Week" tapped on a phone stays a week.
+        if (props.view !== 'week' || !matchMedia('(max-width: 767px)').matches || new URLSearchParams(location.search).has('view')) return;
+        const t = setTimeout(() => router.get('/planner', { date: props.date, view: 'day' }, { replace: true, preserveScroll: true }), 0);
+        return () => clearTimeout(t);
     }, [props.view, props.date]);
 
     // Start the grid at 7 am (or just before the first thing on), once.
@@ -574,18 +576,24 @@ export default function Planner() {
                                     })}
                                     {props.dueTasks
                                         .filter((t) => local(clock, t.dueAt).date === d)
-                                        .map((t) => (
-                                            <a
-                                                key={t.id}
-                                                className="pg-due"
-                                                href={`/tasks?task=${t.id}`}
-                                                style={{ top: (local(clock, t.dueAt).min / 60) * HOUR - 9 }}
-                                                title={`Due: ${t.title}`}
-                                            >
-                                                <Icon name="flag" className="ic-xs" />
-                                                {t.title}
-                                            </a>
-                                        ))}
+                                        .map((t) => {
+                                            const m = local(clock, t.dueAt).min;
+                                            // On top of a class or booked time: only a small flag at the edge, so it stays readable.
+                                            const over = pieces[d].some((p) => p.top < m + 15 && p.bottom > m - 15);
+                                            return (
+                                                <a
+                                                    key={t.id}
+                                                    className={`pg-due${over ? ' is-compact' : ''}`}
+                                                    href={`/tasks?task=${t.id}`}
+                                                    style={{ top: (m / 60) * HOUR - 9 }}
+                                                    title={`Due: ${t.title}`}
+                                                    aria-label={`Due: ${t.title}`}
+                                                >
+                                                    <Icon name="flag" className="ic-xs" />
+                                                    {!over && t.title}
+                                                </a>
+                                            );
+                                        })}
                                     {drag?.to?.date === d && (
                                         <span
                                             className="pblock is-ghost"

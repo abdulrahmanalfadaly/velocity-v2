@@ -4,7 +4,7 @@ import { Icon } from '@/components/velocity/icon';
 import type { PlanBlock } from '@/components/velocity/planner-parts';
 import { HabitButton } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock, dueInfo, fmt1, fmtHours } from '@/lib/velocity';
+import { Clock, dueInfo, firstName, fmt1, fmtHours } from '@/lib/velocity';
 import type { HabitToday, NotReadyTask, RankedTask, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 
@@ -56,7 +56,7 @@ type PlanItem =
 export default function Home() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
-    const first = props.auth.user?.name.split(' ')[0] ?? '';
+    const first = firstName(props.auth.user?.name ?? '');
     const [top, ...next] = props.top;
 
     return (
@@ -94,14 +94,14 @@ export default function Home() {
                         {top ? <DoNext task={top} next={next} total={props.total} clock={clock} /> : <EmptyHero />}
                         <TodayPlan plan={props.plan} clock={clock} hasTasks={props.total > 0} />
                         {props.upcoming.length > 0 && <Upcoming tasks={props.upcoming} clock={clock} />}
+                        <NotesCard notes={props.notes} clock={clock} />
                     </div>
                     <div className="col">
                         {props.habits.length > 0 && <Habits habits={props.habits} routines={props.routines} />}
-                        {(props.people.dates.length > 0 || props.people.catchUps.length > 0) && <PeopleCard people={props.people} />}
-                        <NotesCard notes={props.notes} clock={clock} />
                         {props.attention.overdue.length + props.attention.notReady.length + props.attention.milestones.length > 0 && (
                             <Attention attention={props.attention} clock={clock} />
                         )}
+                        {(props.people.dates.length > 0 || props.people.catchUps.length > 0) && <PeopleCard people={props.people} />}
                         {props.week.done > 0 && <Week week={props.week} clock={clock} />}
                     </div>
                 </div>
@@ -318,16 +318,20 @@ function Upcoming({ tasks, clock }: { tasks: RankedTask[]; clock: Clock }) {
                 <ol className="tl">
                     {tasks.map((t, i) => {
                         const d = dueInfo(t, clock);
+                        const n = clock.dayDiff(t.dueAt!);
                         return (
-                            <li key={t.id} className={`tl-item is-task${i === 0 ? ' is-now' : ''}`}>
-                                <span className="tl-time">{d.late ? 'Late' : clock.dayDiff(t.dueAt!) === 0 ? 'Today' : clock.weekday(t.dueAt!)}</span>
+                            <li key={t.id} className={`tl-item is-deadline${i === 0 ? ' is-now' : ''}`}>
+                                <span className="tl-time">
+                                    {d.late ? 'Late' : n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : clock.weekday(t.dueAt!)}
+                                </span>
                                 <span className="tl-rail">
                                     <span className="tl-dot" />
                                 </span>
                                 <Link className="tl-block" href={`/tasks?task=${t.id}`}>
                                     <div className="tl-title">{t.title}</div>
                                     <div className="tl-sub">
-                                        <Icon name="rank" className="ic-xs" />#{t.rank} · <span className={d.late ? 'is-late' : ''}>{d.text}</span> ·{' '}
+                                        <Icon name="rank" className="ic-xs" />#{t.rank} ·{' '}
+                                        <span className={d.late ? 'is-late' : ''}>{d.late ? d.text : clock.time(t.dueAt!)}</span> ·{' '}
                                         {fmtHours(t.estHours)}
                                     </div>
                                 </Link>

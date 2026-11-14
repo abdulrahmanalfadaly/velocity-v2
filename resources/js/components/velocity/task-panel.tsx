@@ -1,7 +1,8 @@
-import { Clock, dueInfo, fmt1, fmtHours, goalVar, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
+import { Clock, fmt1, fmtHours, goalVar, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
 import type { RankedTask, RepeatRule, TaskDetail } from '@/types/velocity';
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import { DatePick } from './date-pick';
 import { StartFocus } from './focus';
 import { TaskGitHub } from './github-parts';
 import { Icon } from './icon';
@@ -51,7 +52,6 @@ export function TaskPanel({
         }
     }, [title]);
     const ranked = task.rank != null ? (task as RankedTask) : null;
-    const due = dueInfo(task, clock);
     const done = task.status === 'done';
     // A task in an archived project still shows that project in the list.
     const projectChoices = task.project && !projects.some((p) => p.id === task.project!.id) ? [...projects, task.project] : projects;
@@ -207,13 +207,13 @@ export function TaskPanel({
                         Due
                     </div>
                     <div className="prop-value">
-                        <input
-                            type="datetime-local"
-                            aria-label={`Due: ${due.long}`}
-                            defaultValue={clock.localInput(task.dueAt)}
-                            key={`${task.id}-${task.dueAt}`}
-                            onBlur={(e) => e.target.value !== clock.localInput(task.dueAt) && patch(task.id, { due_at: e.target.value || null })}
+                        <DatePick
+                            mode="datetime"
                             className="prop-input"
+                            label="Due"
+                            placeholder="No due date"
+                            value={clock.localInput(task.dueAt)}
+                            onChange={(v) => patch(task.id, { due_at: v || null })}
                         />
                     </div>
                     <div className="prop-label">
@@ -238,7 +238,7 @@ export function TaskPanel({
                             className="prop-input"
                             style={{ width: 80 }}
                         />
-                        <span className="muted">hours · {fmtHours(task.estHours)}</span>
+                        <span className="muted">{Number.isInteger(task.estHours) ? 'hours' : `hours · ${fmtHours(task.estHours)}`}</span>
                     </div>
                     <div className="prop-label">
                         <Icon name="folder" />
@@ -327,15 +327,14 @@ export function TaskPanel({
                         Reminder
                     </div>
                     <div className="prop-value p-reminder">
-                        <input
-                            type="datetime-local"
-                            aria-label="Reminder"
-                            defaultValue={clock.localInput(task.reminderAt)}
-                            key={`${task.id}-r-${task.reminderAt}`}
-                            onBlur={(e) =>
-                                e.target.value !== clock.localInput(task.reminderAt) && patch(task.id, { reminder_at: e.target.value || null })
-                            }
+                        <DatePick
+                            mode="datetime"
                             className="prop-input"
+                            label="Reminder"
+                            placeholder="No reminder"
+                            defaultTime="09:00"
+                            value={clock.localInput(task.reminderAt)}
+                            onChange={(v) => patch(task.id, { reminder_at: v || null })}
                         />
                         {task.dueAt && !done && (
                             <Select
@@ -355,16 +354,6 @@ export function TaskPanel({
                                 ]}
                             />
                         )}
-                        {task.reminderAt && (
-                            <button
-                                className="icon-btn"
-                                aria-label="No reminder"
-                                title="No reminder"
-                                onClick={() => patch(task.id, { reminder_at: null })}
-                            >
-                                <Icon name="x" className="ic-sm" />
-                            </button>
-                        )}
                         <NotifyHint />
                     </div>
                     <div className="prop-label">
@@ -372,15 +361,14 @@ export function TaskPanel({
                         Can start
                     </div>
                     <div className="prop-value">
-                        <input
-                            type="datetime-local"
-                            aria-label="Can start"
-                            defaultValue={clock.localInput(task.availableFrom)}
-                            key={`${task.id}-a-${task.availableFrom}`}
-                            onBlur={(e) =>
-                                e.target.value !== clock.localInput(task.availableFrom) && patch(task.id, { available_from: e.target.value || null })
-                            }
+                        <DatePick
+                            mode="datetime"
                             className="prop-input"
+                            label="Can start"
+                            placeholder="Any time"
+                            defaultTime="09:00"
+                            value={clock.localInput(task.availableFrom)}
+                            onChange={(v) => patch(task.id, { available_from: v || null })}
                         />
                     </div>
                     <div className="prop-label">
