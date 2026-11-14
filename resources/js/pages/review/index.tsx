@@ -5,7 +5,7 @@ import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, fmt1, hm12 } from '@/lib/velocity';
 import type { HabitDay, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 interface Numbers {
     tasks: number;
@@ -20,8 +20,17 @@ interface Numbers {
     notes: number;
 }
 
+type ActivityKey = 'created' | 'cancelled' | 'reopened' | 'postponed' | 'projects' | 'goals' | 'milestones' | 'moved';
+interface ActivityItem {
+    id: number;
+    title: string;
+    at: string | null;
+    detail: string | null;
+    href: string | null;
+}
+
 interface Report {
-    kind: 'week' | 'month';
+    kind: 'day' | 'week' | 'month';
     start: string;
     last: string;
     inProgress: boolean;
@@ -43,6 +52,9 @@ interface Report {
     estimates: { id: number; title: string; guess: number; focused: number }[];
     habits: { id: number; name: string; weekly: boolean; perWeek: number | null; done: number; of: number; marks: HabitDay[] }[];
     highlights: string[];
+    activity: Record<ActivityKey, { count: number; items: ActivityItem[]; blocks?: number }>;
+    activityBefore: Record<ActivityKey, number>;
+    events: { class: number; work: number; personal: number; allDay: number; count: number };
 }
 
 interface Weekly {
@@ -60,7 +72,7 @@ interface Weekly {
 }
 
 interface Props extends VelocityShared {
-    view: 'week' | 'month' | 'weeks' | 'weekly' | 'focus';
+    view: 'day' | 'week' | 'month' | 'weeks' | 'weekly' | 'focus';
     today: string;
     report: Report | null;
     weeks: { start: string; done: number; onTime: number; withDue: number; focus: number }[];
@@ -102,7 +114,7 @@ const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 
 export default function Review() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
-    const title = { week: 'This week', month: 'This month', weeks: '12 weeks', weekly: 'Weekly review', focus: 'Focus' }[props.view];
+    const title = { day: 'Today', week: 'This week', month: 'This month', weeks: '12 weeks', weekly: 'Weekly review', focus: 'Focus' }[props.view];
     return (
         <VelocityShell
             title={title}
@@ -120,22 +132,111 @@ export default function Review() {
     );
 }
 
-/** "+4 vs last week", "same as last week". */
-function compare(now: number, before: number, r: Report, fmt: (n: number) => string = String) {
+/** "Last week 9 · +3", "Same as last week" — or nothing when Compare is off. */
+function compare(now: number, before: number, r: Report, fmt: (n: number) => string = String, on = true) {
+    if (!on) return undefined;
     const was =
-        r.kind === 'week' ? (r.inProgress ? 'the same days last week' : 'last week') : r.inProgress ? 'the same days last month' : 'last month';
+        r.kind === 'day'
+            ? 'the day before'
+            : r.kind === 'week'
+              ? r.inProgress
+                  ? 'the same days last week'
+                  : 'last week'
+              : r.inProgress
+                ? 'the same days last month'
+                : 'last month';
     if (now === before) return `Same as ${was}`;
-    return `${now > before ? '+' : '−'}${fmt(Math.abs(now - before))} vs ${was}`;
+    return `${was.charAt(0).toUpperCase() + was.slice(1)} ${fmt(before)} · ${now > before ? '+' : '−'}${fmt(Math.abs(now - before))}`;
+}
+
+const ACTIVITY: [ActivityKey, string, string][] = [
+    ['created', 'tasks', 'Added'],
+    ['cancelled', 'ban', 'Cancelled'],
+    ['reopened', 'arrowL', 'Opened again'],
+    ['postponed', 'calendar', 'Postponed'],
+    ['projects', 'folder', 'Projects completed'],
+    ['goals', 'target', 'Goals achieved'],
+    ['milestones', 'flag', 'Milestones reached'],
+    ['moved', 'planner', 'Blocks moved'],
+];
+
+/** What else happened: each number opens the items behind it. */
+function Activity({ r, clock, compareOn }: { r: Report; clock: Clock; compareOn: boolean }) {
+    const [open, setOpen] = useState<ActivityKey | null>(null);
+    const shown = ACTIVITY.filter(([k]) => r.activity[k].count > 0 || (compareOn && r.activityBefore[k] > 0));
+    const e = r.events;
+    const eventText = [
+        e.class ? `Classes ${hm(e.class)}` : null,
+        e.work ? `Work ${hm(e.work)}` : null,
+        e.personal ? `Personal ${hm(e.personal)}` : null,
+        e.allDay ? `${e.allDay} all-day` : null,
+    ].filter(Boolean);
+    if (shown.length === 0 && eventText.length === 0) return null;
+    const items = open ? r.activity[open].items : [];
+    return (
+        <section className="card rv-card">
+            <h2 className="rv-title">What changed</h2>
+            {shown.length > 0 && (
+                <div className="rv-acts" role="group" aria-label="What changed">
+                    {shown.map(([k, icon, label]) => (
+                        <button
+                            key={k}
+                            type="button"
+                            className="rv-act"
+                            aria-expanded={k === 'moved' ? undefined : open === k}
+                            disabled={k === 'moved' || r.activity[k].count === 0}
+                            onClick={() => setOpen(open === k ? null : k)}
+                        >
+                            <Icon name={icon} className="ic-sm" />
+                            <b>{r.activity[k].count}</b>
+                            <span>{label}</span>
+                            {compareOn && <small>{compare(r.activity[k].count, r.activityBefore[k], r)}</small>}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {open && items.length > 0 && (
+                <ul className="rv-finished rv-act-list">
+                    {items.map((it) => (
+                        <li key={`${open}-${it.id}-${it.at}`}>
+                            {it.href ? <Link href={it.href}>{it.title}</Link> : <span>{it.title}</span>}
+                            <span>
+                                {it.detail ? `${it.detail} · ` : ''}
+                                {it.at ? clock.date(it.at, { weekday: 'short', day: 'numeric', month: 'short' }) : ''}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {eventText.length > 0 && (
+                <p className="rv-events">
+                    <Icon name="planner" className="ic-sm" />
+                    {eventText.join(' · ')}
+                </p>
+            )}
+        </section>
+    );
 }
 
 function LookBack({ r, clock }: { r: Report; clock: Clock }) {
     const go = (date?: string) => router.get(route('review.index', { view: r.kind, date }), {}, keep);
+    // Compare with the period before: on unless switched off on this device.
+    const [compareOn, setCompareOn] = useState(() => typeof localStorage === 'undefined' || localStorage.getItem('velocity.reviewCompare') !== 'off');
+    const toggleCompare = () => {
+        localStorage.setItem('velocity.reviewCompare', compareOn ? 'off' : 'on');
+        setCompareOn(!compareOn);
+    };
     const heading =
         r.kind === 'month'
             ? day(r.start, clock, { month: 'long', year: 'numeric' })
-            : r.isCurrent
-              ? 'This week'
-              : `Week of ${day(r.start, clock, { day: 'numeric', month: 'short' })}`;
+            : r.kind === 'day'
+              ? r.isCurrent
+                  ? 'Today'
+                  : day(r.start, clock, { weekday: 'long', day: 'numeric', month: 'long' })
+              : r.isCurrent
+                ? 'This week'
+                : `Week of ${day(r.start, clock, { day: 'numeric', month: 'short' })}`;
+    const unit = r.kind === 'day' ? 'day' : r.kind === 'week' ? 'week' : 'month';
     const n = r.now;
     const b = r.before;
     const pct = (d: { done: number; of: number }) => (d.of ? Math.round((d.done / d.of) * 100) : null);
@@ -156,30 +257,37 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                 <div>
                     <h1 className="h1">{heading}</h1>
                     <p className="page-sub">
-                        {day(r.start, clock, { day: 'numeric', month: 'short' })} –{' '}
-                        {day(r.last, clock, { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {r.kind === 'day' ? (
+                            day(r.start, clock, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+                        ) : (
+                            <>
+                                {day(r.start, clock, { day: 'numeric', month: 'short' })} –{' '}
+                                {day(r.last, clock, { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </>
+                        )}
                         {r.inProgress && ' · so far'}
                     </p>
                 </div>
                 <div className="page-actions">
                     <button
-                        className="icon-btn"
-                        aria-label={r.kind === 'week' ? 'Previous week' : 'Previous month'}
-                        onClick={() => go(shift(r.start, -1))}
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        aria-pressed={compareOn}
+                        onClick={toggleCompare}
+                        title="Compare with the period before"
                     >
+                        <Icon name="columns" className="ic-sm" />
+                        Compare
+                    </button>
+                    <button className="icon-btn" aria-label={`Previous ${unit}`} onClick={() => go(shift(r.start, -1))}>
                         <Icon name="chevL" />
                     </button>
                     {!r.isCurrent && (
                         <button className="btn btn-secondary btn-sm" onClick={() => go()}>
-                            {r.kind === 'week' ? 'This week' : 'This month'}
+                            {r.kind === 'day' ? 'Today' : r.kind === 'week' ? 'This week' : 'This month'}
                         </button>
                     )}
-                    <button
-                        className="icon-btn"
-                        aria-label={r.kind === 'week' ? 'Next week' : 'Next month'}
-                        disabled={r.isCurrent}
-                        onClick={() => go(shift(r.last, 1))}
-                    >
+                    <button className="icon-btn" aria-label={`Next ${unit}`} disabled={r.isCurrent} onClick={() => go(shift(r.last, 1))}>
                         <Icon name="chevR" />
                     </button>
                 </div>
@@ -194,11 +302,11 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
             )}
 
             <section className="rv-tiles" aria-label="In numbers">
-                <Tile icon="check" label="Tasks done" value={String(n.tasks)} sub={compare(n.tasks, b.tasks, r)}>
+                <Tile icon="check" label="Tasks done" value={String(n.tasks)} sub={compare(n.tasks, b.tasks, r, String, compareOn)}>
                     {n.onTime !== null && `${n.onTime}% on time`}
                     {n.avgScore !== null && ` · avg. priority ${fmt1(n.avgScore)}`}
                 </Tile>
-                <Tile icon="focus" label="Focused" value={hm(n.focus)} sub={compare(n.focus, b.focus, r, hm)}>
+                <Tile icon="focus" label="Focused" value={hm(n.focus)} sub={compare(n.focus, b.focus, r, hm, compareOn)}>
                     {n.booked > 0 && `${hm(n.booked)} booked on the Planner`}
                 </Tile>
                 <Tile
@@ -207,7 +315,9 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                     value={pct(n.habitDays) === null ? '–' : `${pct(n.habitDays)}%`}
                     sub={n.habitDays.of ? `${n.habitDays.done} of ${n.habitDays.of} days done` : 'Nothing due'}
                 >
-                    {pct(b.habitDays) !== null && pct(n.habitDays) !== null && compare(pct(n.habitDays)!, pct(b.habitDays)!, r, (v) => `${v} points`)}
+                    {pct(b.habitDays) !== null &&
+                        pct(n.habitDays) !== null &&
+                        compare(pct(n.habitDays)!, pct(b.habitDays)!, r, (v) => `${v}%`, compareOn)}
                 </Tile>
                 <Tile icon="people" label="In touch" value={String(n.people)} sub={n.people === 1 ? 'person' : 'people'}>
                     {n.catchUps > 0 && `${n.catchUps} ${n.catchUps === 1 ? 'catch-up' : 'catch-ups'}`}
@@ -217,35 +327,39 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                 </Tile>
             </section>
 
-            <div className="rv-grid">
-                <section className="card rv-card">
-                    <h2 className="rv-title">Tasks done each day</h2>
-                    <BarChart
-                        empty={r.inProgress ? 'Nothing done yet' : 'Nothing done'}
-                        bars={bars(
-                            (d) => d.done,
-                            (v) => `${v} done`,
-                        )}
-                        label={`Tasks done each day: ${r.days
-                            .filter((d) => !d.future)
-                            .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.done}`)
-                            .join(', ')}`}
-                        table={['Day', 'Tasks done']}
-                    />
-                </section>
-                <section className="card rv-card">
-                    <h2 className="rv-title">Focus each day</h2>
-                    <BarChart
-                        empty={r.inProgress ? 'No focus yet' : 'No focus'}
-                        bars={bars((d) => d.focus, hm)}
-                        label={`Minutes focused each day: ${r.days
-                            .filter((d) => !d.future)
-                            .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.focus}`)
-                            .join(', ')}`}
-                        table={['Day', 'Minutes focused']}
-                    />
-                </section>
-            </div>
+            <Activity r={r} clock={clock} compareOn={compareOn} />
+
+            {r.kind !== 'day' && (
+                <div className="rv-grid">
+                    <section className="card rv-card">
+                        <h2 className="rv-title">Tasks done each day</h2>
+                        <BarChart
+                            empty={r.inProgress ? 'Nothing done yet' : 'Nothing done'}
+                            bars={bars(
+                                (d) => d.done,
+                                (v) => `${v} done`,
+                            )}
+                            label={`Tasks done each day: ${r.days
+                                .filter((d) => !d.future)
+                                .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.done}`)
+                                .join(', ')}`}
+                            table={['Day', 'Tasks done']}
+                        />
+                    </section>
+                    <section className="card rv-card">
+                        <h2 className="rv-title">Focus each day</h2>
+                        <BarChart
+                            empty={r.inProgress ? 'No focus yet' : 'No focus'}
+                            bars={bars((d) => d.focus, hm)}
+                            label={`Minutes focused each day: ${r.days
+                                .filter((d) => !d.future)
+                                .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.focus}`)
+                                .join(', ')}`}
+                            table={['Day', 'Minutes focused']}
+                        />
+                    </section>
+                </div>
+            )}
 
             {r.byProject.length > 0 && (
                 <section className="card rv-card">
@@ -350,7 +464,7 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
     );
 }
 
-function Tile({ icon, label, value, sub, children }: { icon: string; label: string; value: string; sub: string; children?: ReactNode }) {
+function Tile({ icon, label, value, sub, children }: { icon: string; label: string; value: string; sub?: string; children?: ReactNode }) {
     return (
         <div className="rv-tile">
             <span className="rv-tile-label">
@@ -358,7 +472,7 @@ function Tile({ icon, label, value, sub, children }: { icon: string; label: stri
                 {label}
             </span>
             <b>{value}</b>
-            <span className="rv-tile-sub">{sub}</span>
+            {sub && <span className="rv-tile-sub">{sub}</span>}
             {children && <span className="rv-tile-more">{children}</span>}
         </div>
     );
@@ -780,7 +894,8 @@ function ReviewMenu({ view, autoFocus }: { view: Props['view']; autoFocus: boole
                 <span className="side-title">Review</span>
             </div>
             <nav className="nav" aria-label="Review">
-                {item('week', 'calendar', 'This week', first)}
+                {item('day', 'sun', 'Today', first)}
+                {item('week', 'calendar', 'This week')}
                 {item('month', 'planner', 'This month')}
                 {item('weeks', 'review', '12 weeks')}
                 {item('focus', 'focus', 'Focus')}

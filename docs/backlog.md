@@ -94,11 +94,11 @@ list only covers what's missing or partly there.
 
 ## Review
 
-- [ ] ★11 A day view. **Add**
+- [x] ★11 A day view. **Add**
 - [ ] A custom date range. **Your call** (dropped on purpose in Phase 7)
-- [ ] ★11 More numbers: tasks created, cancelled, reopened, postponed; project, goal and milestone results; planner moves; focus by hour and weekday; events; click a number to see the items. **Add**
+- [x] ★11 More numbers: tasks created, cancelled, reopened, postponed; project, goal and milestone results; planner moves; focus by hour and weekday; events; click a number to see the items. **Add**
 - [ ] A capacity view. **Your call** (dropped on purpose in Phase 7)
-- [ ] ★11 Compare with the previous period (a switch). **Add**
+- [x] ★11 Compare with the previous period (a switch). **Add**
 
 ## Notes
 

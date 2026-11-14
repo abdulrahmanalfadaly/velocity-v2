@@ -5,12 +5,14 @@ namespace App\Services;
 use App\Models\CatchUp;
 use App\Models\FocusSession;
 use App\Models\Habit;
+use App\Models\Milestone;
 use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Models\TaskEvent;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Review: what happened in a week or a month, next to the same stretch of the
@@ -33,11 +35,23 @@ class ReviewService
      */
     public static function period(string $kind, CarbonImmutable $day, CarbonImmutable $today): array
     {
-        $start = $kind === 'month' ? $day->startOfMonth() : $day->startOfWeek(CarbonImmutable::MONDAY);
-        $end = $kind === 'month' ? $start->addMonth() : $start->addWeek();
+        $start = match ($kind) {
+            'month' => $day->startOfMonth(),
+            'day' => $day->startOfDay(),
+            default => $day->startOfWeek(CarbonImmutable::MONDAY),
+        };
+        $end = match ($kind) {
+            'month' => $start->addMonth(),
+            'day' => $start->addDay(),
+            default => $start->addWeek(),
+        };
         $until = $end->min($today->addDay());
         $elapsed = (int) round($start->diffInDays($until));
-        $prevStart = $kind === 'month' ? $start->subMonth() : $start->subWeek();
+        $prevStart = match ($kind) {
+            'month' => $start->subMonth(),
+            'day' => $start->subDay(),
+            default => $start->subWeek(),
+        };
         $prevUntil = $prevStart->addDays($elapsed)->min($start);
 
         return [
@@ -89,7 +103,11 @@ class ReviewService
             ])->values(),
             'estimates' => $this->estimates($done),
             'habits' => $this->habits($user, $p['start'], $days, $today),
-            'highlights' => $this->highlights($user, $kind, $p, $now, $sessions),
+            'highlights' => $kind === 'day' ? [] : $this->highlights($user, $kind, $p, $now, $sessions),
+            // What else happened: created, cancelled, reopened, postponed, finished projects, goals, milestones, moved blocks.
+            'activity' => $this->activity($user, $p['start'], $p['until'], true),
+            'activityBefore' => array_map(fn ($a) => $a['count'], $this->activity($user, $p['prevStart'], $p['prevUntil'], false)),
+            'events' => $this->eventTime($user, $p['start'], $p['until']),
         ];
     }
 
@@ -145,6 +163,74 @@ class ReviewService
                 'note' => $s->note,
             ])->values(),
         ];
+    }
+
+    /**
+     * What happened in [from, to), each with its items (newest first, up to 50):
+     * tasks created (not repeat copies), cancelled (with the reason), reopened,
+     * postponed (a due date moved later: "Fri 13 Nov → Mon 16 Nov"), projects
+     * completed, goals achieved, milestones reached, and blocks moved.
+     *
+     * @return array<string, array{count: int, items: list<array>}>
+     */
+    private function activity(User $user, CarbonImmutable $from, CarbonImmutable $to, bool $items): array
+    {
+        $tz = $user->timezone;
+        $events = TaskEvent::where('user_id', $user->id)->whereIn('type', ['created', 'promoted', 'reopened', 'updated', 'cancelled'])
+            ->where('created_at', '>=', $from->utc())->where('created_at', '<', $to->utc())
+            ->with(['task' => fn ($q) => $q->withTrashed()->select('id', 'title', 'deleted_at')])
+            ->orderByDesc('created_at')->orderByDesc('id')->get();
+        $day = fn ($at) => CarbonImmutable::parse($at)->timezone($tz)->format('D j M');
+        $later = function (TaskEvent $e): bool {
+            $b = $e->snapshot['before']['due_at'] ?? null;
+            $a = $e->snapshot['after']['due_at'] ?? null;
+
+            return $e->type === 'updated' && $b && $a && strtotime($a) > strtotime($b);
+        };
+        $list = fn (Collection $rows, callable $item) => ['count' => $rows->count(), 'items' => $items ? $rows->take(50)->map($item)->values()->all() : []];
+        $task = fn (?callable $detail = null) => fn (TaskEvent $e) => [
+            'id' => $e->task_id, 'title' => $e->task?->title ?? 'Task', 'at' => $e->created_at?->toIso8601ZuluString(),
+            'detail' => $detail ? $detail($e) : null, 'href' => $e->task && ! $e->task->trashed() ? "/tasks?task={$e->task_id}" : null,
+        ];
+        $moves = DB::table('planner_moves')->where('user_id', $user->id)->where('moved_at', '>=', $from->utc())->where('moved_at', '<', $to->utc())->get();
+
+        return [
+            'created' => $list($events->filter(fn ($e) => in_array($e->type, ['created', 'promoted'], true) && empty($e->snapshot['repeatOf'])), $task()),
+            'cancelled' => $list($events->where('type', 'cancelled'), $task(fn ($e) => $e->snapshot['reason'] ?? null)),
+            'reopened' => $list($events->where('type', 'reopened'), $task()),
+            'postponed' => $list($events->filter($later), $task(fn ($e) => $day($e->snapshot['before']['due_at']).' → '.$day($e->snapshot['after']['due_at']))),
+            'projects' => $list($user->projects()->where('completed_at', '>=', $from->utc())->where('completed_at', '<', $to->utc())->latest('completed_at')->get(),
+                fn ($p) => ['id' => $p->id, 'title' => $p->name, 'at' => $p->completed_at->toIso8601ZuluString(), 'detail' => null, 'href' => "/projects/{$p->id}"]),
+            'goals' => $list($user->goals()->where('achieved_at', '>=', $from->utc())->where('achieved_at', '<', $to->utc())->latest('achieved_at')->get(),
+                fn ($g) => ['id' => $g->id, 'title' => $g->title, 'at' => $g->achieved_at->toIso8601ZuluString(), 'detail' => null, 'href' => "/goals?focus=g{$g->id}"]),
+            'milestones' => $list(Milestone::whereIn('project_id', $user->projects()->select('id'))->with('project:id,name')
+                ->where('done_at', '>=', $from->utc())->where('done_at', '<', $to->utc())->latest('done_at')->get(),
+                fn ($m) => ['id' => $m->id, 'title' => $m->title, 'at' => $m->done_at->toIso8601ZuluString(), 'detail' => $m->project?->name, 'href' => "/projects/{$m->project_id}"]),
+            'moved' => ['count' => $moves->count(), 'items' => [], 'blocks' => $moves->unique('planner_block_id')->count()],
+        ];
+    }
+
+    /** Time in classes and events in [from, to), by calendar (minutes), and how many all-day ones. */
+    private function eventTime(User $user, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $out = ['class' => 0, 'work' => 0, 'personal' => 0, 'allDay' => 0, 'count' => 0];
+        foreach ($user->events()->get() as $e) {
+            foreach ($e->occurrences($from->utc(), $to->utc(), $user->timezone) as $o) {
+                if ($e->all_day) {
+                    $out['allDay']++;
+
+                    continue;
+                }
+                $s = $o['start']->max($from);
+                $end = $o['end']->min($to);
+                if ($end > $s) {
+                    $out[$e->calendar] = ($out[$e->calendar] ?? 0) + intdiv($end->getTimestamp() - $s->getTimestamp(), 60);
+                    $out['count']++;
+                }
+            }
+        }
+
+        return $out;
     }
 
     /** The headline numbers for a stretch of days [from, to). */

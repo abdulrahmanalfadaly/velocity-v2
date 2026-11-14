@@ -373,6 +373,7 @@ class TaskController extends Controller
                 foreach ($tasks as $t) {
                     $before[$t->id] = ['project_id' => $t->project_id];
                     $t->update(['project_id' => $projectId]);
+                    $this->history($t, $user, $before[$t->id], ['project_id' => $projectId]);
                 }
                 $toast = "Moved {$n} {$noun}";
                 break;
@@ -381,12 +382,19 @@ class TaskController extends Controller
                 foreach ($tasks as $t) {
                     $before[$t->id] = ['due_at' => $t->due_at?->toIso8601ZuluString(), 'repeat_day' => $t->repeat_day];
                     $t->update(['due_at' => $due, 'repeat_day' => null]);
+                    $this->history($t, $user, ['due_at' => $before[$t->id]['due_at']], ['due_at' => $due?->toIso8601ZuluString()]);
                 }
                 $toast = $due ? "Due date set on {$n} {$noun}" : "Due date cleared on {$n} {$noun}";
         }
 
         return back()->with('toast', $toast)
             ->with('undo', $this->undo('bulk-undo', 0, ['action' => $data['action'], 'ids' => $tasks->pluck('id')->all(), 'before' => $before]));
+    }
+
+    /** A change from the selection bar goes into the task's history like one from its panel (Review counts it). */
+    private function history(Task $task, User $user, array $before, array $after): void
+    {
+        $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => ['before' => $before, 'after' => $after, 'depends_on' => null]]);
     }
 
     /** Undo of a bulk action: not done again, restored, or back to each task's old project / due date. */

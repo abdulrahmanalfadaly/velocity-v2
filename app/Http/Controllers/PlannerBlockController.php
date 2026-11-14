@@ -11,6 +11,7 @@ use App\Support\Clock;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -85,6 +86,10 @@ class PlannerBlockController extends Controller
         $block->update([...$this->times($request, $user, $block->minutes()), 'pinned' => $pinned]);
         $local = $block->starts_at->timezone($user->timezone);
         $resized = $local->toDateString() === $before['date'] && $local->format('H:i') === $before['start'] && $block->minutes() !== $before['minutes'];
+        // For Review: how often planned time was moved.
+        if ($block->wasChanged(['starts_at', 'ends_at'])) {
+            DB::table('planner_moves')->insert(['user_id' => $user->id, 'planner_block_id' => $block->id, 'moved_at' => app(Clock::class)->now()->utc()]);
+        }
         $verb = $resized ? 'Resized' : ($block->minutes() !== $before['minutes'] ? 'Changed' : 'Moved');
 
         return back()->with('toast', "{$verb} “{$block->title()}”".$this->overlaps($user, $block))->with('undo', $this->undo('patch-block', $block->id, $before));

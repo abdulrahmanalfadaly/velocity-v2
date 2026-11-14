@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Clock;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,11 +13,21 @@ class Goal extends Model
 
     public const PROGRESS = ['tasks', 'milestones', 'manual'];
 
-    protected $fillable = ['title', 'why', 'status', 'target', 'target_date', 'progress_mode', 'progress', 'color', 'icon', 'position', 'archived_at'];
+    protected $fillable = ['title', 'why', 'status', 'target', 'target_date', 'progress_mode', 'progress', 'achieved_at', 'color', 'icon', 'position', 'archived_at'];
 
     protected function casts(): array
     {
-        return ['archived_at' => 'datetime', 'color' => 'integer', 'target_date' => 'date', 'progress' => 'integer'];
+        return ['archived_at' => 'datetime', 'achieved_at' => 'datetime', 'color' => 'integer', 'target_date' => 'date', 'progress' => 'integer'];
+    }
+
+    protected static function booted(): void
+    {
+        // When it was achieved (for Review): set as it becomes achieved, gone if it stops being so.
+        static::saving(function (Goal $goal) {
+            if ($goal->isDirty('status')) {
+                $goal->achieved_at = $goal->status === 'achieved' ? app(Clock::class)->now() : null;
+            }
+        });
     }
 
     /** Progress in % when it isn't counted from tasks (the Goals map counts those itself): milestones reached, or set by hand. */

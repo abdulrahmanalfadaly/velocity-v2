@@ -27,7 +27,7 @@ class ReviewController extends Controller
     {
         $user = $request->user();
         $q = $request->validate([
-            'view' => ['nullable', Rule::in(['week', 'month', 'weeks', 'weekly', 'focus'])],
+            'view' => ['nullable', Rule::in(['day', 'week', 'month', 'weeks', 'weekly', 'focus'])],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'range' => ['nullable', Rule::in(['week', 'month'])],
         ]);
@@ -38,7 +38,7 @@ class ReviewController extends Controller
         return Inertia::render('review/index', [
             'view' => $view,
             'today' => $today->toDateString(),
-            'report' => in_array($view, ['week', 'month'], true) ? $this->review->report($user, $view, $day) : null,
+            'report' => in_array($view, ['day', 'week', 'month'], true) ? $this->review->report($user, $view, $day) : null,
             'weeks' => $view === 'weeks' ? $this->review->weeks($user) : [],
             'weekly' => $view === 'weekly' ? $this->weekly($user, $today) : null,
             'focus' => $view === 'focus' ? $this->review->focus($user, $q['range'] ?? 'week', $day) : null,

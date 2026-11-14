@@ -525,7 +525,17 @@ leave Up next; only finished or cancelled tasks can be archived.
       as an option), progress from tasks, from milestones, or by hand (a
       slider); the Goals map shows them. `AreaController`,
       `ProjectStatusController`, `Goal::progressPct`
-- [ ] ★11 Review: day view, more numbers, click to see the items, compare switch
+- [x] ★11 Review: Today (a day at a time, against the day before) in the side
+      menu. "What changed": tasks added (not repeat copies), cancelled (with
+      the reason), opened again, postponed (a due date moved later, "Fri 13 Nov
+      → Mon 16 Nov"; the selection bar's changes now go into the history too),
+      projects completed, goals achieved, milestones reached, blocks moved on
+      the Planner; click a number to see its items (up to 50, newest first,
+      each opening its task or project). Time in classes, work and personal
+      events and the all-day ones. A Compare switch (remembered on the device)
+      shows the period before as "Last week 9 · +3". When you focus by hour
+      and weekday is Review → Focus (★4). `ReviewService::activity`,
+      `planner_moves`, `goals.achieved_at`
 - [ ] ★12 The API for all of it, request ids, Mark's example scripts
 
 ## Run it
