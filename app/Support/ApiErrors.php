@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\GitHubException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,7 @@ class ApiErrors
         $status = $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500;
         [$status, $code, $message, $extra] = match (true) {
             $e instanceof ValidationException => [422, 'INVALID', $e->getMessage(), ['fields' => $e->errors()]],
+            $e instanceof GitHubException => [$status, 'GITHUB', $e->getMessage(), []],
             $e instanceof AuthenticationException => [401, 'UNAUTHENTICATED', 'Send a valid access key: "Authorization: Bearer <key>". Keys are made in Settings → Integrations.', []],
             $e instanceof ThrottleRequestsException => [429, 'TOO_MANY_REQUESTS', 'Too many requests. Wait a minute and try again.', []],
             $status === 404 => [404, 'NOT_FOUND', self::message($e, 'Not found.'), []],

@@ -5,6 +5,7 @@ use App\Http\Controllers\CatchUpController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FocusController;
 use App\Http\Controllers\FypController;
+use App\Http\Controllers\GitHubController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\HabitController;
 use App\Http\Controllers\HistoryController;
@@ -183,6 +184,16 @@ Route::middleware(['auth'])->group(function () {
         Route::get('notes/files/{file}', [NoteFileController::class, 'show'])->whereNumber('file')->name('note-files.show');
         Route::delete('notes/files/{file}', [NoteFileController::class, 'destroy'])->whereNumber('file')->name('note-files.destroy');
         Route::post('notes/files/{id}/restore', [NoteFileController::class, 'restore'])->whereNumber('id')->name('note-files.restore');
+
+        Route::get('github/repos', [GitHubController::class, 'repos'])->name('github.repos');
+        Route::put('projects/{project}/github', [GitHubController::class, 'setRepo'])->name('projects.github');
+        Route::get('projects/{project}/github/issues', [GitHubController::class, 'issues'])->name('projects.github.issues');
+        Route::post('projects/{project}/github/task', [GitHubController::class, 'addTask'])->name('projects.github.task');
+        Route::get('tasks/{task}/github/search', [GitHubController::class, 'search'])->name('tasks.github.search');
+        Route::post('tasks/{task}/github', [GitHubController::class, 'link'])->name('tasks.github.link');
+        Route::post('tasks/{task}/github/refresh', [GitHubController::class, 'refresh'])->name('tasks.github.refresh');
+        Route::post('tasks/{task}/github/issue', [GitHubController::class, 'createIssue'])->name('tasks.github.issue');
+        Route::delete('github-links/{link}', [GitHubController::class, 'unlink'])->name('github-links.destroy');
     });
 });
 

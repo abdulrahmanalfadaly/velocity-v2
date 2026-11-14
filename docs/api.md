@@ -30,7 +30,7 @@ reads `VELOCITY_API_TOKEN` and `VELOCITY_BASE_URL` from the environment.
 | `habits` | how each habit stands | add, tick (or a count), skip |
 | `people` | people, dates, catch-ups due | add people, log a catch-up |
 | `review` | week / month numbers, weekly review | – |
-| `github` | (Phase 8, part 2) | |
+| `github` | a task's linked issues and pull requests | link and unlink them |
 
 Each key may make 120 requests a minute. Changes made with a key are marked
 with its name ("via Mark") in a task's history.
@@ -139,6 +139,20 @@ done; not ahead of today) · `POST /habits/{id}/skip` `{"date"?}`
 `dates`: dates in the next 60 days) · `GET /people/{id}` · `POST /people`
 `{"name", "relationship"?, "organisation"?, "catch_up_days"?, "contacts"?: [{"kind": "email", "value": "…"}]}` ·
 `POST /people/{id}/catch-ups` `{"kind": "message"/"call"/"met"/"other", "on"?, "note"?}`
+
+### GitHub (`github`)
+
+GitHub must be connected in Settings → Integrations (a fine-grained token).
+
+| | |
+|---|---|
+| `GET /tasks/{id}/github` | the task's linked issues and pull requests: `repo`, `number`, `kind` (issue / pull), `title`, `state` (open / closed / merged / draft), `url`. Read again from GitHub when a few minutes old; `meta.error` says if GitHub couldn't be reached (what was known is still there). |
+| `POST /tasks/{id}/github` | `{"url": "https://github.com/owner/name/issues/42"}` (or `/pull/42`) |
+| `DELETE /tasks/{id}/github/{linkId}` | unlink (nothing changes on GitHub) |
+
+GitHub problems answer with code `GITHUB`: `409` (not connected, or the token
+stopped working), `422` (not found, or the token can't see it), `503` (GitHub
+can't be reached).
 
 ### Review (`review`)
 

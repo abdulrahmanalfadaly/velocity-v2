@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\TaskActions;
 use App\Domain\Prioritization\TaskInput;
+use App\Models\GithubLink;
 use App\Models\Task;
 use App\Models\TaskStep;
 use App\Models\User;
+use App\Services\GitHub;
 use App\Services\RankingService;
 use App\Services\StudyLogger;
 use App\Services\TaskPresenter;
@@ -84,7 +86,7 @@ class TaskController extends Controller
             return null;
         }
         $user = $request->user();
-        $task = Task::with(['project.goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'people', 'events' => fn ($q) => $q->limit(8)])
+        $task = Task::with(['project.goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'people', 'githubLinks', 'events' => fn ($q) => $q->limit(8)])
             ->where('user_id', $user->id)->find($id);
         if (! $task) {
             return null;
@@ -106,6 +108,13 @@ class TaskController extends Controller
             'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
             'goal' => $task->project?->goal ? ['id' => $task->project->goal->id, 'title' => $task->project->goal->title, 'color' => $task->project->goal->color] : null,
             'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString(), 'via' => $e->via])->values(),
+            // Linked GitHub issues and pull requests (as last read; the panel asks for a fresh look when they are old).
+            'github' => $user->github_login || $task->githubLinks->isNotEmpty() ? [
+                'connected' => $user->github_login !== null,
+                'repo' => $task->project?->github_repo,
+                'links' => $task->githubLinks->map(fn (GithubLink $l) => $l->present())->values(),
+                'stale' => $task->githubLinks->contains(fn (GithubLink $l) => ! $l->fetched_at || $l->fetched_at->lt(now()->subMinutes(GitHub::STALE_MINUTES))),
+            ] : null,
         ];
     }
 

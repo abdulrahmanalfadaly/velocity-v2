@@ -25,6 +25,7 @@ interface Props extends VelocityShared {
     areas: Area[];
     newKey: { id: number; name: string; key: string } | null;
     apiUrl: string;
+    github: { login: string | null };
 }
 
 type Level = 'none' | 'read' | 'write';
@@ -126,8 +127,95 @@ export default function Integrations() {
                         </div>
                     </div>
                 </SettingsCard>
+                <SettingsCard title="GitHub">
+                    <GitHubConnect login={props.github.login} />
+                </SettingsCard>
             </SettingsLayout>
         </AppLayout>
+    );
+}
+
+/** GitHub with a fine-grained token: only the repositories and permissions chosen on GitHub. */
+function GitHubConnect({ login }: { login: string | null }) {
+    const form = useForm({ token: '' });
+    const [sure, setSure] = useState(false);
+    if (login) {
+        return (
+            <div className="settings-form ik">
+                <div className="ik-row ik-solo">
+                    <Icon name="github" className="ik-ic" />
+                    <div className="ik-main">
+                        <b>@{login}</b>
+                        <span>Connected</span>
+                    </div>
+                    {sure ? (
+                        <div className="ik-sure">
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSure(false)}>
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={() => router.delete(route('github.disconnect'), { preserveScroll: true })}
+                            >
+                                Disconnect
+                            </button>
+                        </div>
+                    ) : (
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSure(true)}>
+                            Disconnect
+                        </button>
+                    )}
+                </div>
+                <p className="settings-note">
+                    Disconnecting doesn’t delete the token on GitHub:{' '}
+                    <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener noreferrer">
+                        delete it there
+                    </a>
+                    .
+                </p>
+            </div>
+        );
+    }
+    return (
+        <form
+            className="settings-form ik"
+            onSubmit={(e) => {
+                e.preventDefault();
+                form.post(route('github.connect'), { preserveScroll: true, onSuccess: () => form.reset() });
+            }}
+        >
+            <ol className="gh-steps">
+                <li>
+                    <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">
+                        Make a fine-grained token on GitHub
+                    </a>
+                </li>
+                <li>
+                    Repository access: <b>Only select repositories</b>, then pick the ones to use
+                </li>
+                <li>
+                    Repository permissions: <b>Issues</b> Read and write, <b>Pull requests</b> Read-only (Metadata is added by itself)
+                </li>
+                <li>Paste the token here</li>
+            </ol>
+            <Field id="gh-token" label="Token" error={form.errors.token}>
+                <input
+                    id="gh-token"
+                    type="password"
+                    className="input"
+                    autoComplete="off"
+                    value={form.data.token}
+                    onChange={(e) => form.setData('token', e.target.value)}
+                    aria-describedby={form.errors.token ? 'gh-token-error' : undefined}
+                />
+            </Field>
+            <div className="settings-actions">
+                <button type="submit" className="btn btn-primary" disabled={form.processing || !form.data.token.trim()}>
+                    {form.processing ? 'Checking…' : 'Connect'}
+                </button>
+            </div>
+        </form>
     );
 }
 

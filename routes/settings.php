@@ -29,5 +29,7 @@ Route::middleware('auth')->group(function () {
         Route::get('settings/integrations', [IntegrationController::class, 'edit'])->name('integrations.edit');
         Route::post('settings/keys', [IntegrationController::class, 'store'])->name('keys.store');
         Route::delete('settings/keys/{id}', [IntegrationController::class, 'destroy'])->whereNumber('id')->name('keys.destroy');
+        Route::post('settings/github', [IntegrationController::class, 'connectGitHub'])->name('github.connect');
+        Route::delete('settings/github', [IntegrationController::class, 'disconnectGitHub'])->name('github.disconnect');
     });
 });

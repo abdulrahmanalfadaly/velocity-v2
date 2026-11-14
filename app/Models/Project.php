@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
-    protected $fillable = ['area_id', 'goal_id', 'name', 'description', 'due_date', 'position', 'archived_at'];
+    protected $fillable = ['area_id', 'goal_id', 'name', 'description', 'due_date', 'position', 'archived_at', 'github_repo'];
 
     protected function casts(): array
     {

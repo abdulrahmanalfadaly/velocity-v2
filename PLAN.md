@@ -70,7 +70,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 5 | Habits (schedules, check-ins, streaks, routines) | done |
 | 6 | People (contacts, dates, follow-ups) | done |
 | 7 | Home, Review charts, global search | done |
-| 8 | API for Mark (personal tokens with scopes) + GitHub | in progress (API done, GitHub next) |
+| 8 | API for Mark (personal tokens with scopes) + GitHub | done |
 
 ## Phase 0 / 1 checklist
 
@@ -377,9 +377,22 @@ redaction are left out on purpose. A part a key can't read is hidden whole.
 - [x] "Via Mark": history entries made with a key keep its name; the task
       panel shows the last one ("Via · Mark · changed 14 Nov").
 - [x] `examples/mark_velocity.py`: standard-library Python client.
-- [ ] GitHub: a fine-grained token in Settings → Integrations; a project's
-      repository and its open issues ("Add as task"); a task's linked issues
-      and pull requests, "Create issue", "Closed on GitHub · Mark task done".
+- [x] GitHub with a fine-grained token (Settings → Integrations, with the exact
+      settings to tick): checked with GitHub, kept encrypted, never sent to the
+      browser; Disconnect. Only fixed api.github.com paths from a checked
+      "owner/name" and a number; links are built by Velocity. `GitHub`,
+      `GitHubActions`, `GitHubController`, `github_links`
+- [x] Project: its repository (picked from the token's list, Undo) and a GitHub
+      card with up to 10 open issues: "Add as task" (a task in the project,
+      linked) or "Task ✓". Loads on its own, so the page never waits on GitHub.
+- [x] Task panel: linked issues and pull requests (#42 · Open / Closed /
+      Merged / Draft, open on GitHub), link by address or by searching the
+      project's repository, unlink (Undo), "Create issue" (the task's notes
+      only when ticked; no double send), "#42 closed on GitHub · Mark task
+      done". Links over 10 minutes old are read again in the background;
+      GitHub being down keeps what was known.
+- [x] API: `GET/POST /tasks/{id}/github`, `DELETE /tasks/{id}/github/{link}`
+      (GitHub area). No webhooks, no automatic completion, no field syncing.
 
 ## Run it
 

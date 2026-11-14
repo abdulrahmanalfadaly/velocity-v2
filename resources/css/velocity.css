@@ -2096,3 +2096,31 @@ a.pp-contact .pp-contact-value { color: var(--violet-ink); }
 .ik-area { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
 .ik-url { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-2); }
 .ik-url code { padding: 4px 8px; border-radius: 6px; background: var(--surface-3); color: var(--text); }
+.ik-solo { padding: 0; }
+.gh-steps { display: grid; gap: 4px; margin: 0; padding-left: 20px; list-style: decimal; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+.gh-steps a, .gh-note a, .settings-note a { color: var(--violet-ink); font-weight: 600; }
+
+/* GitHub: linked issues and pull requests (task panel, project card) */
+.gh-list, .gh-issues { display: grid; gap: 2px; }
+.gh-issues { padding: 0 10px 12px; }
+.gh-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gh-item { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.gh-item:hover { background: var(--hover); }
+.gh-item b, .gh-found b { font-size: 12px; font-weight: 650; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.gh-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-state { flex: none; font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+.gh-ic { flex: none; color: var(--text-2); }
+.gh-ic.is-merged { color: var(--violet-ink); }
+.gh-ic.is-closed, .gh-ic.is-draft { color: var(--text-3); }
+.gh-finished { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding: 8px 10px; border-radius: 10px; background: var(--violet-soft); color: var(--violet-ink); font-size: 13px; font-weight: 600; }
+.gh-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.gh-box > .input { flex: 1 1 220px; height: 34px; }
+.gh-box .field-error { flex-basis: 100%; margin: 0; }
+.gh-create { display: grid; justify-items: stretch; }
+.gh-create .settings-actions { justify-content: flex-start; }
+.gh-check { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-2); }
+.gh-found { flex-basis: 100%; display: grid; gap: 1px; max-height: 260px; overflow-y: auto; }
+.gh-found button { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 13px; }
+.gh-found button:hover { background: var(--hover); }
+.gh-repo { display: inline-flex; align-items: center; gap: 4px; }
+.gh-note { margin-top: 4px; }

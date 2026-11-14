@@ -71,6 +71,9 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'rename-group': { method: 'patch', route: 'person-groups.update' },
     'restore-group': { method: 'post', route: 'person-groups.restore' },
     'undo-weekly-review': { method: 'delete', route: 'review.undone' },
+    'unlink-github': { method: 'delete', route: 'github-links.destroy' },
+    'link-github': { method: 'post', route: 'tasks.github.link' },
+    'put-project-github': { method: 'put', route: 'projects.github' },
 };
 
 export function runUndo(u: Undo) {

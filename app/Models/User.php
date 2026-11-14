@@ -20,7 +20,7 @@ class User extends Authenticatable
     protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode', 'planner_hours'];
 
     /** @var list<string> */
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'github_token'];
 
     protected static function booted(): void
     {
@@ -36,6 +36,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'fyp_mode' => 'boolean',
             'planner_hours' => 'array',
+            // Stored encrypted with the app key; never sent to the browser.
+            'github_token' => 'encrypted',
         ];
     }
 

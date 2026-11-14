@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\GitHubApiController;
 use App\Http\Controllers\Api\HabitApiController;
 use App\Http\Controllers\Api\NoteApiController;
 use App\Http\Controllers\Api\OverviewController;
@@ -86,6 +87,12 @@ Route::prefix('v1')->name('api.')->group(function () {
         Route::middleware('scope:people:write')->group(function () {
             Route::post('people', [PersonApiController::class, 'store'])->name('people.store');
             Route::post('people/{person}/catch-ups', [PersonApiController::class, 'catchUp'])->whereNumber('person')->name('people.catch-up');
+        });
+
+        Route::get('tasks/{task}/github', [GitHubApiController::class, 'index'])->whereNumber('task')->middleware('scope:github:read')->name('github.index');
+        Route::middleware('scope:github:write')->group(function () {
+            Route::post('tasks/{task}/github', [GitHubApiController::class, 'store'])->whereNumber('task')->name('github.store');
+            Route::delete('tasks/{task}/github/{link}', [GitHubApiController::class, 'destroy'])->whereNumber(['task', 'link'])->name('github.destroy');
         });
 
         Route::middleware('scope:review:read')->group(function () {

@@ -1,5 +1,6 @@
 import { StartFocus } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
+import { ProjectGitHub } from '@/components/velocity/github-parts';
 import { HabitDialog } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { Picker } from '@/components/velocity/pick';
@@ -42,6 +43,8 @@ interface Props extends VelocityShared {
     done: BaseTask[];
     habits: HabitToday[];
     notes: { id: number; title: string; updatedAt: string | null }[];
+    /** Set once GitHub is connected in Settings → Integrations. */
+    github: { repo: string | null } | null;
     selected: TaskDetail | null;
     projects: { id: number; name: string }[];
 }
@@ -525,6 +528,7 @@ export default function ProjectShow() {
                         )}
                     </div>
                     <div className="col">
+                        {props.github && show('tasks') && <ProjectGitHub projectId={project.id} repo={props.github.repo} />}
                         {view === 'overview' && (
                             <section className="card" aria-labelledby="ppl-title">
                                 <div className="card-head">

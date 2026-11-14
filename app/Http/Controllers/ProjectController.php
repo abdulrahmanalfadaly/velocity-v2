@@ -137,6 +137,8 @@ class ProjectController extends Controller
             'people' => $project->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'initials' => $p->initials(), 'relationship' => $p->relationship])->values(),
             'peopleChoices' => $request->user()->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'notes' => $project->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+            // GitHub (once connected in Settings): the project's repository; its open issues load on their own.
+            'github' => $user->github_login ? ['repo' => $project->github_repo] : null,
             // The task panel opens right here (?task=id), as on the Tasks pages.
             'selected' => fn () => app(TaskController::class)->detailFor($request),
             'projects' => $user->projects()->whereNull('archived_at')->get(['id', 'name']),

@@ -3,6 +3,7 @@ import type { RankedTask, RepeatRule, TaskDetail } from '@/types/velocity';
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { StartFocus } from './focus';
+import { TaskGitHub } from './github-parts';
 import { Icon } from './icon';
 import { Picker } from './pick';
 import { askToNotify, notifyState } from './reminders';
@@ -461,6 +462,8 @@ export function TaskPanel({
                         />
                     </div>
                 </section>
+
+                {task.github && <TaskGitHub taskId={task.id} title={task.title} notes={task.notes} done={done} github={task.github} />}
 
                 <TaskFiles taskId={task.id} files={task.files} />
 

@@ -109,6 +109,12 @@ class Task extends Model
         return $this->belongsToMany(Person::class, 'person_task')->orderBy('name');
     }
 
+    /** GitHub issues and pull requests linked to this task. */
+    public function githubLinks(): HasMany
+    {
+        return $this->hasMany(GithubLink::class)->orderBy('id');
+    }
+
     /** Notes linked to this task (the task's own short notes are the `notes` column). */
     public function linkedNotes(): BelongsToMany
     {

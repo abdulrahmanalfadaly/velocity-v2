@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Services\GitHub;
+use App\Services\GitHubException;
 use App\Support\ApiAccess;
-use App\Support\Clock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -37,7 +38,30 @@ class IntegrationController extends Controller
             // The new key, once, right after it is made.
             'newKey' => $request->session()->get('newKey'),
             'apiUrl' => url('/api/v1'),
+            'github' => ['login' => $user->github_login],
         ]);
+    }
+
+    /** GitHub: a fine-grained token, checked with GitHub before it is kept (encrypted). */
+    public function connectGitHub(Request $request, GitHub $github): RedirectResponse
+    {
+        $token = trim($request->validate(['token' => ['required', 'string', 'max:255']])['token']);
+        try {
+            $login = $github->login($token);
+        } catch (GitHubException $e) {
+            throw ValidationException::withMessages(['token' => $e->getMessage()]);
+        }
+        $request->user()->forceFill(['github_token' => $token, 'github_login' => $login])->save();
+
+        return to_route('integrations.edit')->with('toast', "Connected to GitHub as @{$login}");
+    }
+
+    /** Velocity forgets the token; linked issues stay as they were last seen. */
+    public function disconnectGitHub(Request $request): RedirectResponse
+    {
+        $request->user()->forceFill(['github_token' => null, 'github_login' => null])->save();
+
+        return to_route('integrations.edit')->with('toast', 'Disconnected from GitHub');
     }
 
     public function store(Request $request): RedirectResponse

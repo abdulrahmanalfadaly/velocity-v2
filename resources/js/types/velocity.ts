@@ -76,6 +76,22 @@ export type TaskDetail = BaseTask &
         peopleChoices?: { id: number; name: string }[];
         focused: { seconds: number; sessions: number };
         goal: { id: number; title: string; color: number } | null;
+        /** Linked GitHub issues and pull requests; null when GitHub isn't connected and nothing is linked. */
+        github?: {
+            connected: boolean;
+            repo: string | null;
+            links: {
+                id: number;
+                repo: string;
+                number: number;
+                kind: 'issue' | 'pull';
+                title: string;
+                state: 'open' | 'closed' | 'merged' | 'draft';
+                url: string;
+                fetchedAt: string | null;
+            }[];
+            stale: boolean;
+        } | null;
     };
 
 export interface TaskFileInfo {
