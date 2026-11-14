@@ -218,11 +218,14 @@ export function NoteEditor({
         };
     }, [note.id, flush]);
 
-    // A new, empty note: start in the title.
+    // A new, empty note: start in the title. A day's journal entry or a class's notes: start in the text.
     const titleBox = useRef<HTMLTextAreaElement>(null);
     useEffect(() => {
         if (note.title === '' && startsEmpty && !note.journalDate && !note.event) titleBox.current?.focus();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        if (editor && startsEmpty && (note.journalDate || note.event)) editor.commands.focus('end');
+    }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
     useLayoutEffect(() => {
         const t = titleBox.current;
         if (!t) return;
@@ -233,7 +236,10 @@ export function NoteEditor({
     const titleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' || (e.key === 'ArrowDown' && titleBox.current?.selectionStart === title.length)) {
             e.preventDefault();
-            editor?.commands.focus('start');
+            if (!editor || editor.isDestroyed) return;
+            // Focus right away, so the very next key already lands in the text (the command sets the place a frame later).
+            editor.view.focus();
+            editor.commands.focus('start');
         }
     };
 

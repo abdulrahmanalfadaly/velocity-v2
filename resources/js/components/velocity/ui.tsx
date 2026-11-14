@@ -137,7 +137,7 @@ export function HabitButton({ habit }: { habit: HabitToday }) {
         ? `${habit.name}, skipped today`
         : habit.target > 1
           ? `${habit.name}: ${habit.today} of ${habit.target} today`
-          : `${habit.name}${habit.doneToday ? ', done today' : ''}`;
+          : `${habit.name}, ${habit.doneToday ? 'done today' : 'not done yet today'}`;
     return (
         <button
             type="button"

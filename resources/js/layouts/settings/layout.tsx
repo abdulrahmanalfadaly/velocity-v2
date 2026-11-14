@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 
 const PAGES = [
     { title: 'Profile', url: '/settings/profile' },
@@ -14,6 +14,11 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     const page = usePage<{ auth: { user: { fypMode: boolean } | null } }>();
     const path = page.url.split('?')[0];
     const pages = page.props.auth.user?.fypMode ? PAGES : [...PAGES, ...PERSONAL];
+    // On a phone the tabs scroll sideways: bring the current one into view.
+    const tabs = useRef<HTMLElement>(null);
+    useEffect(() => {
+        tabs.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+    }, [path]);
 
     return (
         <>
@@ -23,7 +28,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
                     <h1 className="h1">Settings</h1>
                 </div>
             </header>
-            <nav className="filters settings-tabs" aria-label="Settings">
+            <nav ref={tabs} className="filters settings-tabs" aria-label="Settings">
                 {pages.map((p) => (
                     <Link key={p.url} href={p.url} className="filter" aria-current={path === p.url ? 'page' : undefined} prefetch>
                         {p.title}

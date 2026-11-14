@@ -510,7 +510,12 @@ function LookAhead({ w, clock }: { w: Weekly; clock: Clock }) {
                     )}
                     {row(
                         'people',
-                        w.catchUps.length ? `${w.catchUps.length} to catch up with` : 'Nobody to catch up with',
+                        [
+                            w.catchUps.length ? `${w.catchUps.length} to catch up with` : null,
+                            w.dates.length ? `${w.dates.length} ${w.dates.length === 1 ? 'date' : 'dates'} coming up` : null,
+                        ]
+                            .filter(Boolean)
+                            .join(' · ') || 'Nobody to catch up with',
                         [...w.catchUps.map((c) => c.name), ...w.dates.map((d) => `${d.title} ${d.days === 0 ? 'today' : `in ${d.days} days`}`)].join(
                             ' · ',
                         ) || 'No dates in the next two weeks',
