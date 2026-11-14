@@ -501,7 +501,15 @@ leave Up next; only finished or cancelled tasks can be archived.
       "Linked from …", a goal's panel on the Goals map and a habit's panel
       list their notes; unlink with Undo. A note with only links is kept.
       `@tiptap/extension-table`, `NoteLink`
-- [ ] ★9 Views in the Tasks menu and a Next actions page (formula order)
+- [x] ★9 Views in the Tasks menu, each with its count and its own address
+      (`/tasks?show=today`, kept after a reload): Due today, Due this week,
+      Overdue, Quick wins (1 hour or less), Doing, Important (4–5), Repeating;
+      the same chips on Up next. Each is the ranking with some tasks left out,
+      same order, same numbers. Next actions (Tasks menu): each project's best
+      task by the formula, in the order of those tasks (plus the best with no
+      project), with Focus; projects with nothing ready below with why ("1
+      waiting · 1 starting later"). Low energy and Eat the frog left out (they
+      need extra points). `TaskController::next`, `NavData` view counts
 - [ ] ★10 Areas menu, project status and Complete, All projects, goal status / date / progress
 - [ ] ★11 Review: day view, more numbers, click to see the items, compare switch
 - [ ] ★12 The API for all of it, request ids, Mark's example scripts

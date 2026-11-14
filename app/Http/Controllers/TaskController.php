@@ -66,6 +66,8 @@ class TaskController extends Controller
 
         return Inertia::render('tasks/index', [
             'view' => $view,
+            // A view of the list ("?show=today"): the same ranking with some tasks left out.
+            'show' => in_array($request->query('show'), self::SHOWS, true) ? $request->query('show') : 'all',
             'tasks' => $list->toArray(),
             'settings' => $list->settings(),
             'notReady' => $this->ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->values(),
@@ -74,6 +76,46 @@ class TaskController extends Controller
                 ->with('project.goal')->latest('completed_at')->get()->map(fn ($t) => TaskPresenter::base($t)),
             'selected' => fn () => $this->detail($request),
             'projects' => $user->projects()->whereNull('archived_at')->get(['id', 'name']),
+        ]);
+    }
+
+    private const SHOWS = ['all', 'today', 'week', 'overdue', 'quick', 'doing', 'important', 'repeating', 'inbox'];
+
+    /**
+     * Next actions: each project's best task by the formula (its first in the
+     * one ranking), projects in the order of those tasks, and the projects with
+     * nothing ready, with why.
+     */
+    public function next(Request $request): Response
+    {
+        $user = $request->user();
+        $list = $this->ranking->rank($user);
+        $best = [];
+        foreach ($list->scored as $k => $s) {
+            $pid = (int) ($list->tasks[(int) $s->task->id]->project_id ?? 0);
+            $best[$pid] ??= $list->present($k);
+        }
+        $projects = $user->projects()->whereNull('archived_at')->with('goal:id,color')->orderBy('name')->get();
+        $notReady = $this->ranking->notReady($user)->groupBy(fn ($r) => (int) ($r['task']->project_id ?? 0));
+        $why = function (int $pid) use ($notReady): string {
+            $kinds = collect($notReady[$pid] ?? [])->countBy('kind');
+            $parts = array_filter([
+                $kinds['waiting'] ?? 0 ? ($kinds['waiting'].' waiting') : null,
+                $kinds['blocked'] ?? 0 ? ($kinds['blocked'].' after another task') : null,
+                $kinds['later'] ?? 0 ? ($kinds['later'].' starting later') : null,
+            ]);
+
+            return $parts ? implode(' · ', $parts) : 'No open tasks';
+        };
+
+        return Inertia::render('tasks/next', [
+            'rows' => collect($best)->map(fn ($task, $pid) => [
+                'project' => $pid ? $projects->firstWhere('id', $pid)?->only('id', 'name') + ['goalColor' => $projects->firstWhere('id', $pid)?->goal?->color] : null,
+                'task' => $task,
+            ])->filter(fn ($r, $pid) => $pid === 0 || $r['project'] !== null)->values(),
+            'idle' => $projects->filter(fn ($p) => ! isset($best[$p->id]))->map(fn ($p) => [
+                'id' => $p->id, 'name' => $p->name, 'goalColor' => $p->goal?->color, 'why' => $why($p->id),
+            ])->values(),
         ]);
     }
 

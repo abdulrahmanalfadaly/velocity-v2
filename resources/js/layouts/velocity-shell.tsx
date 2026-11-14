@@ -12,7 +12,7 @@ import { Clock } from '@/lib/velocity';
 import type { User } from '@/types';
 import type { NavProject, VelocityShared } from '@/types/velocity';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 export type Section = 'home' | 'tasks' | 'planner' | 'notes' | 'habits' | 'people' | 'review' | 'settings' | 'search';
 
@@ -276,6 +276,17 @@ export default function VelocityShell({ title, section, active, children, panel,
 }
 
 /** The Tasks side menu: only places inside Tasks. */
+/** The views of the list in the Tasks menu ("Due today" …): the same ranking, some tasks left out. */
+export const TASK_VIEWS: ['today' | 'week' | 'overdue' | 'quick' | 'doing' | 'important' | 'repeating', string, string][] = [
+    ['today', 'sun', 'Due today'],
+    ['week', 'calendar', 'Due this week'],
+    ['overdue', 'alert', 'Overdue'],
+    ['quick', 'clock', 'Quick wins'],
+    ['doing', 'play', 'Doing'],
+    ['important', 'flag', 'Important'],
+    ['repeating', 'habits', 'Repeating'],
+];
+
 function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: string; onNewProject: () => void; autoFocus?: boolean }) {
     const { props } = usePage<VelocityShared>();
     const nav = props.nav;
@@ -315,6 +326,11 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                 {item('inbox', 'inbox', 'Inbox', '/tasks/inbox', nav.counts.inbox)}
                 {item('upnext', 'rank', 'Up next', '/tasks', nav.counts.upNext)}
                 {item('waiting', 'hourglass', 'Not ready yet', '/tasks/waiting', nav.counts.waiting)}
+                {item('next', 'arrowR', 'Next actions', '/tasks/next')}
+                <div className="nav-label">Views</div>
+                {TASK_VIEWS.map(([k, icon, label]) => (
+                    <Fragment key={k}>{item(`show:${k}`, icon, label, `/tasks?show=${k}`, nav.counts.views?.[k])}</Fragment>
+                ))}
                 <div className="nav-label">Projects</div>
                 {nav.areas
                     .filter((a) => a.projects.length > 0)

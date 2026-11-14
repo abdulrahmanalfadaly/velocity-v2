@@ -190,7 +190,14 @@ export interface NavProject {
 }
 
 export interface NavData {
-    counts: { upNext: number; inbox: number; waiting: number; goals: number };
+    counts: {
+        upNext: number;
+        inbox: number;
+        waiting: number;
+        goals: number;
+        /** Ranked tasks in each view of the list. */
+        views?: Record<'today' | 'week' | 'overdue' | 'quick' | 'doing' | 'important' | 'repeating', number>;
+    };
     areas: { id: number; name: string; icon: string | null; projects: NavProject[] }[];
     /** Projects that are not in any area. */
     loose: NavProject[];

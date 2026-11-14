@@ -14,6 +14,7 @@ type View = 'upnext' | 'inbox' | 'waiting';
 
 interface Props extends VelocityShared {
     view: View;
+    show?: Filter;
     tasks: RankedTask[];
     settings: RankingSettings;
     notReady: NotReadyTask[];
@@ -36,12 +37,17 @@ const LAYOUTS: [Layout, string, string][] = [
     ['timeline', 'Timeline', 'calendar'],
 ];
 
-type Filter = 'all' | 'week' | 'quick' | 'overdue' | 'inbox';
+type Filter = 'all' | 'today' | 'week' | 'overdue' | 'quick' | 'doing' | 'important' | 'repeating' | 'inbox';
+/** Views of the list: the same ranking (same numbers) with some tasks left out. */
 const FILTERS: [Filter, string, (t: RankedTask, c: Clock) => boolean][] = [
     ['all', 'All', () => true],
+    ['today', 'Due today', (t, c) => !!t.dueAt && c.dayDiff(t.dueAt) === 0],
     ['week', 'Due this week', (t, c) => !!t.dueAt && c.dayDiff(t.dueAt) <= 7],
-    ['quick', '1 hour or less', (t) => t.estHours <= 1],
-    ['overdue', 'Overdue', (t) => t.days != null && t.days <= 0],
+    ['overdue', 'Overdue', (t, c) => !!t.dueAt && Date.parse(t.dueAt) < c.now.getTime()],
+    ['quick', 'Quick wins', (t) => t.estHours <= 1],
+    ['doing', 'Doing', (t) => t.status === 'doing'],
+    ['important', 'Important', (t) => t.importance >= 4],
+    ['repeating', 'Repeating', (t) => !!t.repeat],
     ['inbox', 'No project', (t) => !t.project],
 ];
 
@@ -56,7 +62,16 @@ export default function TasksIndex() {
     const view = props.view ?? 'upnext';
     const inInbox = view === 'inbox';
     const clock = Clock.from(props.clock);
-    const [filter, setFilter] = useState<Filter>('all');
+    // The view comes from the address (?show=today), so it stays after a reload and the Tasks menu can link to it.
+    const [filter, setFilterState] = useState<Filter>((props.show as Filter) ?? 'all');
+    useEffect(() => setFilterState((props.show as Filter) ?? 'all'), [props.show]);
+    const setFilter = (k: Filter) => {
+        setFilterState(k);
+        const url = new URL(window.location.href);
+        if (k === 'all') url.searchParams.delete('show');
+        else url.searchParams.set('show', k);
+        router.replace({ url: url.pathname + url.search, preserveScroll: true, preserveState: true, props: (p) => ({ ...p, show: k }) });
+    };
     const [weights, setWeights] = useState(props.settings.weights);
     const [popOpen, setPopOpen] = useState(false);
     const [text, setText] = useState('');
@@ -136,7 +151,7 @@ export default function TasksIndex() {
         <VelocityShell
             title={VIEWS[view].title}
             section="tasks"
-            active={view}
+            active={view === 'upnext' && filter !== 'all' ? `show:${filter}` : view}
             panel={
                 props.selected ? (
                     <TaskPanel key={props.selected.id} task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} />

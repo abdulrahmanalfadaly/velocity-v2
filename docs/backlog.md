@@ -38,9 +38,9 @@ list only covers what's missing or partly there.
 - [ ] Bulk edit more fields, and bulk reopen. **Partly** (done, move, due date, delete exist)
 - [ ] This-or-That (pick between two tasks). **Add**, without changing the order
 - [ ] Board and Timeline on project pages; Timeline by week, month or quarter. **Add** (Up next and Inbox have them)
-- [ ] ★9 Smart views like "Due today" or "Quick wins" in the side menu. **Partly** (Up next has Due this week, 1 hour or less, Overdue and No project as filters that reset when you leave); filters only, still in formula order
+- [x] ★9 Smart views like "Due today" or "Quick wins" in the side menu. **Partly** (Up next has Due this week, 1 hour or less, Overdue and No project as filters that reset when you leave); filters only, still in formula order
 - [ ] Other sorts, drag to reorder, pin a "Next action". **Your call** (breaks "one order")
-- [ ] ★9 Next Actions page: the top task of each project. **Add** (the formula picks it)
+- [x] ★9 Next Actions page: the top task of each project. **Add** (the formula picks it)
 - [ ] An "All tasks" list that includes finished and archived ones. **Add**
 - [ ] A "suggested work" score with time and energy pickers and reasons. **Can't** as GPT did it; **Filter only**; reasons stay in FYP mode
 - [x] ★3 Reminders: several per task, ones that move with the due date, "Bug me" repeats, more snooze choices. **Partly** (one reminder; "before due" is saved as a fixed time; snooze 10 min / 1 h)
