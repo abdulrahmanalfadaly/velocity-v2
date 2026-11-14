@@ -435,10 +435,6 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                     <div class="gm-nodes"></div>
                 </div>
             </div>
-            <details class="gm-key"><summary>${ic('info', 'ic-sm')}How to read it</summary>
-                <ul><li><i class="k k-goal"></i>Goal</li><li><i class="k k-project"></i>Project</li><li><i class="k k-task">3</i>Task, with its rank</li><li><i class="k k-step"></i>Step</li><li><i class="k k-note"></i>Note</li><li><i class="k k-habit"></i>Habit</li><li><i class="k k-next"></i>Path to your next task</li><li><i class="k k-late"></i>Overdue</li><li><i class="k k-wait"></i>Waiting or blocked</li></ul>
-                <p>Branch colour shows which goal it belongs to. Thicker branches sit closer to you.</p>
-            </details>
             <div class="gm-mini" aria-hidden="true"><svg data-mini preserveAspectRatio="xMidYMid meet"><g data-mini-nodes></g><rect class="vp" data-mini-vp rx="12"/></svg></div>
             <div class="gm-zoom" role="group" aria-label="Zoom">
                 <button data-gm-zoom="out" aria-label="Zoom out" title="Zoom out (−)">${ic('minus')}</button><output data-gm-k>100%</output><button data-gm-zoom="in" aria-label="Zoom in" title="Zoom in (+)">${ic('plus')}</button>
@@ -1032,7 +1028,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             }
             n.children.forEach((c) => walk(c, lv + 1));
         })(root, 0);
-        outline.innerHTML = `<div class="go-wrap"><p class="go-intro">The same map as a list, in the same order. Click any line to find it on the map.</p><div class="go-list" role="tree" aria-label="Goals, projects, tasks and steps">${rows.join('')}</div></div>`;
+        outline.innerHTML = `<div class="go-wrap"><div class="go-list" role="tree" aria-label="Goals, projects, tasks and steps">${rows.join('')}</div></div>`;
     }
     function setMode(mode: string | undefined) {
         mount.querySelectorAll<HTMLElement>('[data-gm-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.gmMode === mode)));

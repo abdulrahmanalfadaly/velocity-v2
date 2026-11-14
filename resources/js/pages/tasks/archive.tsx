@@ -8,16 +8,17 @@ interface Props extends VelocityShared {
     tasks: { id: number; title: string; project: string | null; deletedAt: string | null }[];
     projects: { id: number; name: string; archivedAt: string | null; open: number }[];
     goals: { id: number; title: string; color: number; archivedAt: string | null }[];
+    notes: { id: number; title: string; where: string; deletedAt: string | null }[];
 }
 
 const keep = { preserveScroll: true, preserveState: true };
 
-/** Deleted tasks and archived projects and goals, each with Restore. */
+/** Deleted tasks and notes, archived projects and goals, each with Restore. */
 export default function Archive() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
     const when = (iso: string | null) => (iso ? clock.date(iso, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
-    const empty = !props.tasks.length && !props.projects.length && !props.goals.length;
+    const empty = !props.tasks.length && !props.notes.length && !props.projects.length && !props.goals.length;
 
     return (
         <VelocityShell title="Archive" section="tasks" active="archive">
@@ -105,6 +106,33 @@ export default function Archive() {
                                     </div>
                                 </div>
                                 <button className="btn btn-secondary btn-sm" onClick={() => router.post(route('tasks.restore', t.id), {}, keep)}>
+                                    Restore
+                                </button>
+                            </div>
+                        ))}
+                    </section>
+                )}
+
+                {props.notes.length > 0 && (
+                    <section className="card archive-card" aria-labelledby="ar-notes">
+                        <div className="card-head">
+                            <h2 className="card-title" id="ar-notes">
+                                <Icon name="notes" />
+                                Deleted notes
+                            </h2>
+                        </div>
+                        {props.notes.map((n) => (
+                            <div className="fold-row" key={n.id}>
+                                <span className="att-ic">
+                                    <Icon name="archive" />
+                                </span>
+                                <div>
+                                    <div className="row-title">{n.title}</div>
+                                    <div className="row-sub">
+                                        {n.where} · deleted {when(n.deletedAt)}
+                                    </div>
+                                </div>
+                                <button className="btn btn-secondary btn-sm" onClick={() => router.post(route('notes.restore', n.id), {}, keep)}>
                                     Restore
                                 </button>
                             </div>

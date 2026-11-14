@@ -194,4 +194,16 @@ class NotesTest extends TestCase
         $this->getJson(route('search', ['q' => 'Private']))->assertJsonPath('groups', []);
         $this->assertSame('Private', $note->fresh()->title);
     }
+
+    public function test_a_deleted_note_waits_in_the_archive_and_comes_back(): void
+    {
+        $note = $this->user->notes()->create(['title' => 'Viva prep', 'body_text' => 'Slides']);
+        $this->delete(route('notes.destroy', $note))->assertSessionHas('undo.action');
+
+        $this->get(route('tasks.archive'))->assertInertia(fn ($page) => $page
+            ->where('notes.0.id', $note->id)->where('notes.0.title', 'Viva prep')->where('notes.0.where', 'Not in a project'));
+        $this->post(route('notes.restore', $note->id))->assertSessionHas('toast', '“Viva prep” is back');
+        $this->assertFalse($note->fresh()->trashed());
+        $this->get(route('tasks.archive'))->assertInertia(fn ($page) => $page->has('notes', 0));
+    }
 }
