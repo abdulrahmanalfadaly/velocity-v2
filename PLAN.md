@@ -69,7 +69,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 4 | Notes (editor, links to tasks, journal, files, canvas last) | in progress (drawing still to decide) |
 | 5 | Habits (schedules, check-ins, streaks, routines) | done |
 | 6 | People (contacts, dates, follow-ups) | done |
-| 7 | Home, Review charts, global search | – |
+| 7 | Home, Review charts, global search | done |
 | 8 | API for Mark (personal tokens with scopes) + GitHub | – |
 
 ## Phase 0 / 1 checklist
@@ -316,6 +316,39 @@ only ranking.
 - [x] Home: a People card (dates this week, catch-ups due). Planner: dates as
       all-day markers. Ctrl K finds people by name, who they are, where, or a
       contact. `PeopleInfo`
+
+## Phase 7 checklist
+
+The GPT version's Review is the scope reference (facts only, no scores or
+advice, every chart readable as text); its capacity limits, completion-credit
+maths, read-only transactions and custom ranges are left out on purpose.
+
+- [x] Review section (top bar › Review) with its own side menu: This week,
+      This month, 12 weeks, Weekly review. A week or month still going is
+      compared with the same days of the period before; a whole one with the
+      whole one before (months clamp to the shorter month). In numbers: tasks
+      done (on time, average priority), focused (and booked on the Planner),
+      habits (days done of days due), people in touch with, notes and journal
+      entries. Charts: tasks done and focus each day, focus by project in its
+      goal's colour; habits with their marks; first guess vs time focused for
+      finished tasks (the estimate before any later "hours left" change);
+      finished tasks. Up to three highlights (most tasks in 12 weeks or 6
+      months, longest focus, people in touch). Plain CSS bars, each chart with
+      its numbers as a table. `ReviewService`, `ReviewController`
+- [x] 12 weeks: tasks done and focus per week, week by week (the personal
+      History moves here; FYP mode's History is unchanged).
+- [x] Weekly review: Inbox, overdue, waiting tasks, habits missed this week,
+      catch-ups and dates coming, next week's deadlines and booked time, Plan
+      next week, and "Mark as done" (with Undo) for the week.
+- [x] Home: focused today / this week in the header, a Notes card (today's
+      journal entry or "Write today's entry", the last notes touched); empty
+      cards hide (Upcoming, Needs attention, Last 7 days); "Last 7 days" links
+      to Review.
+- [x] Ctrl K: actions (New task / note / habit / person, today's journal entry,
+      Start focus on #1, Plan my day / week, Weekly review) and places ("Go to
+      Planner"); classes and events (open on the Planner at their next time);
+      what was opened last when nothing is typed; "See all results" opens a
+      results page with the matching words of notes.
 
 ## Run it
 

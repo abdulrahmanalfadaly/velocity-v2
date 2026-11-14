@@ -49,6 +49,14 @@ export default function People() {
     const open = (id: number | null) =>
         router.get(route('people.index', { view: view === 'all' ? undefined : view, person: id ?? undefined }), {}, keep);
     const title = props.group?.name ?? TITLES[view] ?? 'People';
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('new') === '1') {
+            setDialog('new');
+            url.searchParams.delete('new');
+            window.history.replaceState(window.history.state, '', url);
+        }
+    }, []);
 
     return (
         <VelocityShell

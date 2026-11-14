@@ -14,7 +14,7 @@ import type { NavProject, VelocityShared } from '@/types/velocity';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
-export type Section = 'home' | 'tasks' | 'planner' | 'notes' | 'habits' | 'people' | 'review' | 'settings';
+export type Section = 'home' | 'tasks' | 'planner' | 'notes' | 'habits' | 'people' | 'review' | 'settings' | 'search';
 
 const SECTIONS: { key: Section; label: string; icon: string; href?: string; phase?: number }[] = [
     { key: 'home', label: 'Home', icon: 'home', href: '/home' },
@@ -23,7 +23,7 @@ const SECTIONS: { key: Section; label: string; icon: string; href?: string; phas
     { key: 'notes', label: 'Notes', icon: 'notes', href: '/notes' },
     { key: 'habits', label: 'Habits', icon: 'habits', href: '/habits' },
     { key: 'people', label: 'People', icon: 'people', href: '/people' },
-    { key: 'review', label: 'Review', icon: 'review', href: '/history' },
+    { key: 'review', label: 'Review', icon: 'review', href: '/review' },
 ];
 
 type Overlay = null | 'search' | 'add' | 'drawer' | 'more' | 'project';
@@ -224,7 +224,7 @@ export default function VelocityShell({ title, section, active, children, panel,
                             if (e.target === e.currentTarget) close();
                         }}
                     >
-                        {overlay === 'search' && <SearchPalette onClose={close} />}
+                        {overlay === 'search' && <SearchPalette onClose={close} onAdd={() => setOverlay('add')} />}
                         {overlay === 'add' && (
                             <QuickAdd onClose={close} projectId={active?.startsWith('project:') ? Number(active.slice(8)) : undefined} />
                         )}
@@ -347,7 +347,7 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                 <div className="nav-label">More</div>
                 {item('goals', 'target', 'Goals map', '/goals', nav.counts.goals)}
                 {item('weights', 'sliders', 'Weights', '/weights')}
-                {item('history', 'review', 'History', '/history')}
+                {item('history', 'review', 'History', '/review?view=weeks')}
                 {item('templates', 'file', 'Templates', '/tasks/templates')}
                 {item('archive', 'archive', 'Archive', '/tasks/archive')}
             </nav>

@@ -17,6 +17,8 @@ interface Props extends VelocityShared {
     plan: { items: PlanItem[]; booked: number; limit: number };
     habits: HabitToday[];
     routines: { id: number; name: string; done: number; of: number }[];
+    focus: { today: number; week: number };
+    notes: { journal: boolean; recent: { id: number; title: string; updatedAt: string | null }[] };
     people: {
         dates: {
             id: number;
@@ -75,6 +77,12 @@ export default function Home() {
                                 </>
                             )}{' '}
                             <span className="dotsep" /> {props.dueSoon} due in the next two days
+                            {props.focus.week > 0 && (
+                                <>
+                                    {' '}
+                                    <span className="dotsep" /> Focused {hm(props.focus.today)} today · {hm(props.focus.week)} this week
+                                </>
+                            )}
                         </p>
                     </div>
                 </header>
@@ -82,13 +90,16 @@ export default function Home() {
                     <div className="col">
                         {top ? <DoNext task={top} next={next} total={props.total} clock={clock} /> : <EmptyHero />}
                         <TodayPlan plan={props.plan} clock={clock} hasTasks={props.total > 0} />
-                        <Upcoming tasks={props.upcoming} clock={clock} />
+                        {props.upcoming.length > 0 && <Upcoming tasks={props.upcoming} clock={clock} />}
                     </div>
                     <div className="col">
                         {props.habits.length > 0 && <Habits habits={props.habits} routines={props.routines} />}
                         {(props.people.dates.length > 0 || props.people.catchUps.length > 0) && <PeopleCard people={props.people} />}
-                        <Attention attention={props.attention} clock={clock} />
-                        <Week week={props.week} clock={clock} />
+                        <NotesCard notes={props.notes} clock={clock} />
+                        {props.attention.overdue.length + props.attention.notReady.length + props.attention.milestones.length > 0 && (
+                            <Attention attention={props.attention} clock={clock} />
+                        )}
+                        {props.week.done > 0 && <Week week={props.week} clock={clock} />}
                     </div>
                 </div>
             </div>
@@ -496,6 +507,56 @@ function Attention({ attention, clock }: { attention: Props['attention']; clock:
     );
 }
 
+const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
+
+/** Today's journal entry, and the notes touched last. */
+function NotesCard({ notes, clock }: { notes: Props['notes']; clock: Clock }) {
+    return (
+        <section className="card" aria-labelledby="notes-title">
+            <div className="card-head">
+                <h2 className="card-title" id="notes-title">
+                    <Icon name="notes" />
+                    Notes
+                </h2>
+            </div>
+            <ul className="home-people">
+                <li>
+                    {notes.journal ? (
+                        <Link href="/notes?in=journal">
+                            <Icon name="check" className="ic-sm" />
+                            <span>
+                                <b>Today’s entry</b>
+                                <small>Written</small>
+                            </span>
+                        </Link>
+                    ) : (
+                        <button className="home-row-btn" onClick={() => router.post(route('notes.journal'))}>
+                            <Icon name="journal" className="ic-sm" />
+                            <span>
+                                <b>Write today’s entry</b>
+                                <small>Journal</small>
+                            </span>
+                        </button>
+                    )}
+                </li>
+                {notes.recent.map((n) => (
+                    <li key={n.id}>
+                        <Link href={`/notes?note=${n.id}`}>
+                            <Icon name="file" className="ic-sm" />
+                            <span>
+                                <b>{n.title}</b>
+                                {n.updatedAt && (
+                                    <small>Edited {clock.dayDiff(n.updatedAt) === 0 ? clock.time(n.updatedAt) : clock.date(n.updatedAt)}</small>
+                                )}
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </section>
+    );
+}
+
 function Week({ week, clock }: { week: Props['week']; clock: Clock }) {
     const max = Math.max(1, ...week.days.map((d) => d.count));
     return (
@@ -505,8 +566,8 @@ function Week({ week, clock }: { week: Props['week']; clock: Clock }) {
                     <Icon name="review" />
                     Last 7 days
                 </h2>
-                <Link className="card-link" href="/history">
-                    History
+                <Link className="card-link" href="/review">
+                    Review
                     <Icon name="arrowR" className="ic-sm" />
                 </Link>
             </div>

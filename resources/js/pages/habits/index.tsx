@@ -67,6 +67,14 @@ export default function Habits() {
         });
     const open = (id: number | null) => router.get(url({ habit: id ?? undefined }), {}, keep);
     const newHabit = () => setDialog({ form: {} });
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('new') === '1') {
+            setDialog({ form: {} });
+            url.searchParams.delete('new');
+            window.history.replaceState(window.history.state, '', url);
+        }
+    }, []);
     const edit = (h: HabitToday) => setDialog({ id: h.id, form: formOf(h) });
     const rowProps = {
         clock,

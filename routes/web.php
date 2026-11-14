@@ -19,6 +19,7 @@ use App\Http\Controllers\PlannerBlockController;
 use App\Http\Controllers\PlannerController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReminderController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TaskController;
@@ -117,6 +118,10 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');
         Route::post('routines/{id}/restore', [RoutineController::class, 'restore'])->whereNumber('id')->name('routines.restore');
 
+        Route::get('review', [ReviewController::class, 'index'])->name('review.index');
+        Route::post('review/weekly', [ReviewController::class, 'done'])->name('review.done');
+        Route::delete('review/weekly', [ReviewController::class, 'undone'])->name('review.undone');
+
         Route::get('people', [PersonController::class, 'index'])->name('people.index');
         Route::post('people', [PersonController::class, 'store'])->name('people.store');
         Route::patch('people/{person}', [PersonController::class, 'update'])->name('people.update');
@@ -160,6 +165,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('reminders/due', [ReminderController::class, 'due'])->name('reminders.due');
         Route::post('tasks/{task}/snooze', [ReminderController::class, 'snooze'])->name('tasks.snooze');
         Route::get('search', SearchController::class)->name('search');
+        Route::get('search/all', [SearchController::class, 'all'])->name('search.all');
 
         Route::get('notes', [NoteController::class, 'index'])->name('notes.index');
         Route::post('notes', [NoteController::class, 'store'])->name('notes.store');

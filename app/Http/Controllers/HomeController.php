@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\FocusSession;
 use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Services\HabitStats;
@@ -10,6 +11,7 @@ use App\Services\HabitTimes;
 use App\Services\PeopleInfo;
 use App\Services\RankingService;
 use App\Services\TaskPresenter;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,6 +35,10 @@ class HomeController extends Controller
             return ['day' => $day->toDateString(), 'count' => $done7->filter(fn ($t) => $t->completed_at->timezone($user->timezone)->isSameDay($day))->count()];
         });
         $withDue = $done7->whereNotNull('due_at');
+
+        // Focused today and this week (Monday on), the running session included.
+        $sessions = FocusSession::where('user_id', $user->id)->where('started_at', '>=', $today->startOfWeek(CarbonImmutable::MONDAY)->utc())->get();
+        $focused = fn ($from) => (int) round($sessions->filter(fn ($s) => $s->started_at >= $from->utc())->sum(fn ($s) => $s->elapsed($now)) / 60);
 
         // Today's plan: classes and events, and the time booked for tasks, in time order.
         $tz = $user->timezone;
@@ -62,6 +68,13 @@ class HomeController extends Controller
             // Deadlines in the next seven days, in time order.
             'upcoming' => collect($all)->filter(fn ($t) => $t['dueAt'] && $t['days'] <= 7)->sortBy('dueAt')->take(7)->values(),
             'habits' => $habits->filter(fn ($h) => $h['dueToday'])->values(),
+            'focus' => ['today' => $focused($today), 'week' => $focused($today->startOfWeek(CarbonImmutable::MONDAY))],
+            // Today's journal entry (if written) and the notes touched last.
+            'notes' => [
+                'journal' => $user->notes()->whereDate('journal_date', $today->toDateString())->where(fn ($q) => $q->where('body_text', '!=', '')->orWhere('title', '!=', ''))->exists(),
+                'recent' => $user->notes()->whereNull('journal_date')->with('event')->latest('updated_at')->limit(3)->get()
+                    ->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+            ],
             // Birthdays and dates this week, and catch-ups that are due.
             'people' => [
                 'dates' => PeopleInfo::upcoming($user, $today, PeopleInfo::SOON),

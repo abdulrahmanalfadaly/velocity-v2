@@ -70,6 +70,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'link-person': { method: 'post', route: 'people.link' },
     'rename-group': { method: 'patch', route: 'person-groups.update' },
     'restore-group': { method: 'post', route: 'person-groups.restore' },
+    'undo-weekly-review': { method: 'delete', route: 'review.undone' },
 };
 
 export function runUndo(u: Undo) {

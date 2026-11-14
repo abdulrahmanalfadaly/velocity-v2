@@ -60,7 +60,12 @@ class PagesTest extends TestCase
         // Dr. Lim: a catch-up two days late; Sara: a birthday in 4 days.
         $this->get('/people?view=attention')->assertInertia(fn (Assert $p) => $p->has('people', 2)->where('people.0.name', 'Dr. Lim Wei'));
         $this->get("/people?person={$lim->id}")->assertInertia(fn (Assert $p) => $p->where('person.tasks.0.status', 'waiting')->where('person.projects.0.name', 'Final Year Project'));
-        $this->get('/home')->assertInertia(fn (Assert $p) => $p->has('people.dates', 1)->has('people.catchUps', 1)->has('routines', 1));
+        $this->get('/home')->assertInertia(fn (Assert $p) => $p->has('people.dates', 1)->has('people.catchUps', 1)->has('routines', 1)->has('notes.recent', 3));
+        $this->get('/review')->assertInertia(fn (Assert $p) => $p->component('review/index')->has('report.days', 7)->where('report.kind', 'week'));
+        $this->get('/review?view=month')->assertInertia(fn (Assert $p) => $p->where('report.kind', 'month'));
+        $this->get('/review?view=weeks')->assertInertia(fn (Assert $p) => $p->has('weeks', 12));
+        $this->get('/review?view=weekly')->assertInertia(fn (Assert $p) => $p->where('weekly.inbox', 2));
+        $this->get('/search/all?q=chap')->assertInertia(fn (Assert $p) => $p->component('search/index')->where('groups.0.label', 'Tasks'));
     }
 
     public function test_inbox_and_not_ready_have_their_own_pages(): void
