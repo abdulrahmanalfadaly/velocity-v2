@@ -2,30 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Prioritization\PrioritizationEngine;
-use App\Domain\Prioritization\Rounding;
+use App\Actions\TaskActions;
 use App\Domain\Prioritization\TaskInput;
 use App\Models\Task;
 use App\Models\TaskStep;
 use App\Models\User;
-use App\Services\QuickAddParser;
 use App\Services\RankingService;
-use App\Services\Repeat;
 use App\Services\StudyLogger;
 use App\Services\TaskPresenter;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class TaskController extends Controller
 {
-    public function __construct(private readonly RankingService $ranking) {}
+    public function __construct(private readonly RankingService $ranking, private readonly TaskActions $actions) {}
 
     /** Every task you can work on, in priority order. */
     public function index(Request $request, StudyLogger $log): Response
@@ -111,17 +105,16 @@ class TaskController extends Controller
             'focused' => ['seconds' => (int) $task->focusSessions()->whereNotNull('ended_at')->sum('seconds'), 'sessions' => $task->focusSessions()->whereNotNull('ended_at')->count()],
             'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
             'goal' => $task->project?->goal ? ['id' => $task->project->goal->id, 'title' => $task->project->goal->title, 'color' => $task->project->goal->color] : null,
-            'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString()])->values(),
+            'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString(), 'via' => $e->via])->values(),
         ];
     }
 
     /** Quick add (plain words in) or the FYP task form (one field per attribute, FR2). */
-    public function store(Request $request, QuickAddParser $parser): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
         if (! $request->has('text')) {
-            $task = $user->tasks()->create($this->formFields($request));
-            $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
+            $task = $this->actions->create($user, $this->formFields($request));
 
             return back()->with('toast', $this->placed($task, 'Added'))->with('undo', $this->undo('delete-task', $task->id));
         }
@@ -132,29 +125,14 @@ class TaskController extends Controller
             'urgency' => ['nullable', 'integer', 'between:1,5'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
         ]);
-        $parsed = $parser->parse($data['text'], $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all());
-        if ($parsed['title'] === '') {
-            throw ValidationException::withMessages(['text' => 'A task needs a title, not only a date or hours.']);
-        }
-
-        $task = $user->tasks()->create([
-            'title' => $parsed['title'],
-            'importance' => $data['importance'] ?? 3,
-            'urgency' => $data['urgency'] ?? 3,
-            'due_at' => $parsed['due']?->utc(),
-            'est_hours' => $parsed['hours'] ?? 1,
-            'project_id' => $data['project_id'] ?? $parsed['projectId'],
-            'repeat_unit' => $parsed['repeat']['unit'] ?? null,
-            'repeat_every' => $parsed['repeat']['every'] ?? 1,
-        ]);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
+        $task = $this->actions->quickAdd($user, $data['text'], $data['importance'] ?? null, $data['urgency'] ?? null, $data['project_id'] ?? null);
         $rank = $this->ranking->rank($user)->rankOf($task->id);
 
         return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''))->with('undo', $this->undo('delete-task', $task->id));
     }
 
     /** Where a task will land, before it is saved: from quick-add words or from the FYP form's fields. */
-    public function preview(Request $request, QuickAddParser $parser, PrioritizationEngine $engine): JsonResponse
+    public function preview(Request $request): JsonResponse
     {
         $user = $request->user();
         $now = $this->ranking->now()->toDateTimeImmutable();
@@ -169,11 +147,11 @@ class TaskController extends Controller
             ]);
             $input = new TaskInput(0, 'preview', (int) $data['importance'], (int) $data['urgency'], $this->fromLocal($data['due_at'] ?? null, $user)?->toDateTimeImmutable(), (float) $data['est_hours'], $now);
 
-            return response()->json(['preview' => $this->place($input, $engine, $user, $data['except'] ?? null)]);
+            return response()->json(['preview' => $this->actions->place($input, $user, $data['except'] ?? null)]);
         }
 
         $data = $request->validate(['text' => ['required', 'string', 'max:255'], 'importance' => ['integer', 'between:1,5'], 'urgency' => ['integer', 'between:1,5']]);
-        $parsed = $parser->parse($data['text'], $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all());
+        $parsed = $this->actions->parse($user, $data['text']);
         if ($parsed['title'] === '') {
             return response()->json(['parsed' => $parsed, 'preview' => null]);
         }
@@ -188,27 +166,8 @@ class TaskController extends Controller
                 'repeat' => $parsed['repeat'],
                 'picked' => $parsed['picked'],
             ],
-            'preview' => $this->place($input, $engine, $user),
+            'preview' => $this->actions->place($input, $user),
         ]);
-    }
-
-    /** Scores a task that is not saved yet and finds its place among the others (leaving out $except). */
-    private function place(TaskInput $input, PrioritizationEngine $engine, User $user, ?int $except = null): array
-    {
-        $list = $this->ranking->rank($user);
-        $scored = $engine->score($input, $this->ranking->now()->toDateTimeImmutable(), $list->params);
-        $others = array_values(array_filter($list->scored, fn ($s) => (int) $s->task->id !== $except));
-        $ahead = array_values(array_filter($others, fn ($s) => PrioritizationEngine::compare($s, $scored) < 0));
-
-        return [
-            'rank' => count($ahead) + 1,
-            'total' => count($others) + 1,
-            'score' => $scored->displayScore(),
-            'contrib' => array_map(fn ($v) => Rounding::halfUp($v, 1), $scored->contributions),
-            'criteria' => array_map(fn ($v) => round($v, 4), $scored->criteria),
-            'above' => $ahead ? $list->tasks[(int) end($ahead)->task->id]->title : null,
-            'params' => ['weights' => $list->params->weights->toPercentages(), 'horizonDays' => $list->params->horizonDays, 'hoursPerDay' => $list->params->hoursPerDay],
-        ];
     }
 
     public function update(Request $request, Task $task): RedirectResponse
@@ -218,56 +177,19 @@ class TaskController extends Controller
         if ($request->boolean('form')) {
             $data = $this->formFields($request);
         } else {
-            $data = $request->validate([
-                'title' => ['sometimes', 'required', 'string', 'max:255'],
-                'notes' => ['sometimes', 'nullable', 'string', 'max:20000'],
-                'importance' => ['sometimes', 'integer', 'between:1,5'],
-                'urgency' => ['sometimes', 'integer', 'between:1,5'],
-                'due_at' => ['sometimes', 'nullable', 'date'],
-                'est_hours' => ['sometimes', 'numeric', 'min:0.05', 'max:500'],
-                'status' => ['sometimes', Rule::in([Task::TODO, Task::DOING, Task::WAITING])],
-                'waiting_for' => ['sometimes', 'nullable', 'string', 'max:160'],
-                'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
-                'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
-                'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
-                'available_from' => ['sometimes', 'nullable', 'date'],
-                'reminder_at' => ['sometimes', 'nullable', 'date'],
-                'depends_on' => ['sometimes', 'array', 'max:20'],
-                'depends_on.*' => ['integer', 'distinct', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
-            ], [], ['depends_on.*' => 'task', 'available_from' => 'start date']);
+            $data = $request->validate(TaskActions::updateRules($user), [], ['depends_on.*' => 'task', 'available_from' => 'start date']);
             foreach (['due_at', 'available_from', 'reminder_at'] as $key) {
                 if (array_key_exists($key, $data)) {
                     $data[$key] = $this->fromLocal($data[$key], $user);
                 }
             }
         }
-        $deps = null;
-        if (array_key_exists('depends_on', $data)) {
-            $deps = ['before' => $task->dependencies()->pluck('tasks.id')->all(), 'after' => array_map('intval', $data['depends_on'])];
-            $this->setDependencies($task, $data['depends_on']);
-            unset($data['depends_on']);
-        }
-        // A new reminder time pops up again, even if an earlier one was already shown.
-        if (array_key_exists('reminder_at', $data)) {
-            $data['reminder_sent_at'] = null;
-        }
-        // A new due date or repeat rule sets a new day of the month to keep to.
-        if (array_key_exists('due_at', $data) || array_key_exists('repeat_unit', $data)) {
-            $data['repeat_day'] = null;
-        }
-        // A done task is opened again only through "Not done" (reopen), which also handles its repeat copy.
-        if ($task->status === Task::DONE) {
-            unset($data['status']);
-        }
-        if (! $data && ! $deps) {
+        $event = $this->actions->update($task, $user, $data);
+        if (! $event) {
             return back();
         }
-        $before = $task->only(array_keys($data));
-        $task->update($data);
-        $event = $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => [
-            'before' => $before, 'after' => $task->only(array_keys($data)), 'depends_on' => $deps,
-        ]]);
-        $changed = array_keys(array_diff_key($data, ['repeat_day' => 1, 'repeat_every' => 1, 'reminder_sent_at' => 1]));
+        $deps = $event->snapshot['depends_on'] ?? null;
+        $changed = array_keys(array_diff_key($event->snapshot['after'] ?? [], ['repeat_day' => 1, 'repeat_every' => 1, 'reminder_sent_at' => 1]));
         $what = $deps ? 'Starts after' : (self::LABELS[$changed[0] ?? ''] ?? 'Task');
         $toast = $request->boolean('form') ? $this->placed($task, 'Saved') : "{$what} changed";
 
@@ -288,7 +210,7 @@ class TaskController extends Controller
         $event = $task->events()->where('type', 'updated')->findOrFail($request->integer('event'));
         $snap = $event->snapshot;
         if (! empty($snap['depends_on'])) {
-            $this->setDependencies($task, $snap['depends_on']['before']);
+            $this->actions->setDependencies($task, $snap['depends_on']['before']);
         }
         if (! empty($snap['before'])) {
             $task->update($snap['before']);
@@ -310,34 +232,6 @@ class TaskController extends Controller
         $task->forceDelete();
 
         return back()->with('toast', "“{$step->title}” is a step again");
-    }
-
-    /**
-     * "Starts after …": the task can't start until these are done. A task can't
-     * wait for itself, or for a task that (through others) waits for it.
-     *
-     * @param  list<int>  $ids
-     */
-    private function setDependencies(Task $task, array $ids): void
-    {
-        $ids = array_values(array_unique(array_map('intval', $ids)));
-        $loops = in_array($task->id, $ids, true);
-        $seen = [];
-        $stack = $ids;
-        while (! $loops && $stack) {
-            $id = array_pop($stack);
-            if (isset($seen[$id])) {
-                continue;
-            }
-            $seen[$id] = true;
-            $next = DB::table('task_dependencies')->where('task_id', $id)->pluck('depends_on_id')->all();
-            $loops = in_array($task->id, $next, true);
-            array_push($stack, ...$next);
-        }
-        if ($loops) {
-            throw ValidationException::withMessages(['depends_on' => 'That would make these tasks wait for each other.']);
-        }
-        $task->dependencies()->sync($ids);
     }
 
     /** The FYP task form: title, notes, importance, urgency, optional due date, estimated hours (FR2). */
@@ -375,36 +269,10 @@ class TaskController extends Controller
         if ($task->status === Task::DONE) {
             return back();
         }
-        $next = $this->finish($task, $user, $this->ranking->rank($user)->scoreOf($task->id));
+        $next = $this->actions->complete($task, $user);
         $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '');
 
         return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
-    }
-
-    /** Marks one open task done with the score it had, and returns its next repeat copy (if it repeats). */
-    private function finish(Task $task, User $user, ?float $score): ?Task
-    {
-        $was = $task->status;
-        $task->update(['status' => Task::DONE, 'completed_at' => $this->ranking->now(), 'score_at_completion' => $score]);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'completed', 'snapshot' => ['score' => $score, 'was' => $was]]);
-
-        return $this->repeatNext($task, $user);
-    }
-
-    /** Opens a done task again, as it was before, and takes back the repeat copy it made. */
-    private function unfinish(Task $task, User $user, ?string $status = null): void
-    {
-        // Back to what it was before it was ticked off (Doing, Waiting …), or To do, unless a status is asked for
-        // (a card dropped from "Done today" onto another column of the board).
-        $was = $status ?? $task->events()->where('type', 'completed')->first()?->snapshot['was'] ?? Task::TODO;
-        $task->update(['status' => in_array($was, Task::OPEN, true) ? $was : Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'reopened']);
-        // Undoing "done" on a repeating task takes back the copy it created, if that copy is still open.
-        $next = $task->nextRepeat()->open()->first();
-        if ($next) {
-            $next->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
-            $next->delete();
-        }
     }
 
     /**
@@ -433,14 +301,11 @@ class TaskController extends Controller
         switch ($data['action']) {
             case 'complete':
                 $list = $this->ranking->rank($user); // one ranking: each task keeps the score it had at this moment
-                $tasks->each(fn (Task $t) => $this->finish($t, $user, $list->scoreOf($t->id)));
+                $tasks->each(fn (Task $t) => $this->actions->complete($t, $user, $list->scoreOf($t->id), false));
                 $toast = "{$n} {$noun} done";
                 break;
             case 'delete':
-                $tasks->each(function (Task $t) use ($user) {
-                    $t->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
-                    $t->delete();
-                });
+                $tasks->each(fn (Task $t) => $this->actions->delete($t, $user));
                 $toast = "Deleted {$n} {$noun}";
                 break;
             case 'move':
@@ -481,57 +346,15 @@ class TaskController extends Controller
 
         foreach ($tasks as $t) {
             if ($data['action'] === 'complete' && $t->status === Task::DONE) {
-                $this->unfinish($t, $user);
+                $this->actions->reopen($t, $user);
             } elseif ($data['action'] === 'delete' && $t->trashed()) {
-                $t->restore();
-                $t->events()->create(['user_id' => $user->id, 'type' => 'restored']);
+                $this->actions->restore($t, $user);
             } elseif (in_array($data['action'], ['move', 'due'], true) && isset($data['before'][$t->id])) {
                 $t->update(array_intersect_key($data['before'][$t->id], ['project_id' => 1, 'due_at' => 1, 'repeat_day' => 1]));
             }
         }
 
         return back()->with('toast', 'Undone');
-    }
-
-    /**
-     * A finished repeating task is followed by a fresh copy with the next due date
-     * (its steps start again, undone). The copy is an ordinary task: the formula
-     * ranks it like any other.
-     */
-    private function repeatNext(Task $task, User $user): ?Task
-    {
-        if (! $task->repeat_unit || $task->nextRepeat()->exists()) {
-            return null;
-        }
-        $now = $this->ranking->now();
-        // A task with no due date repeats from the end of today.
-        $base = $task->due_at ? CarbonImmutable::instance($task->due_at) : $now->timezone($user->timezone)->setTime(23, 59);
-        $day = $task->repeat_day ?? Repeat::anchorDay($base, $task->repeat_unit, $user->timezone);
-        $due = Repeat::next($base, $task->repeat_unit, $task->repeat_every, $user->timezone, $now, $day);
-        $shift = fn ($at) => $at ? CarbonImmutable::instance($at)->addSeconds($due->getTimestamp() - $base->getTimestamp()) : null;
-
-        $next = $user->tasks()->create([
-            'project_id' => $task->project_id,
-            'parent_id' => $task->parent_id,
-            'title' => $task->title,
-            'notes' => $task->notes,
-            'importance' => $task->importance,
-            'urgency' => $task->urgency,
-            'due_at' => $due,
-            'est_hours' => $task->est_hours,
-            'available_from' => $shift($task->available_from),
-            'reminder_at' => $shift($task->reminder_at),
-            'repeat_unit' => $task->repeat_unit,
-            'repeat_every' => $task->repeat_every,
-            'repeat_day' => $day,
-            'repeated_from_id' => $task->id,
-        ]);
-        foreach ($task->steps as $step) {
-            $next->steps()->create(['title' => $step->title, 'position' => $step->position]);
-        }
-        $next->events()->create(['user_id' => $user->id, 'type' => 'created', 'snapshot' => ['repeatOf' => $task->id]]);
-
-        return $next;
     }
 
     public function reopen(Request $request, Task $task): RedirectResponse
@@ -542,7 +365,7 @@ class TaskController extends Controller
             return back();
         }
         $status = $request->validate(['status' => ['sometimes', Rule::in(Task::OPEN)]])['status'] ?? null;
-        $this->unfinish($task, $user, $status);
+        $this->actions->reopen($task, $user, $status);
 
         return back()->with('toast', "Not done: “{$task->title}”")->with('undo', $this->undo('complete', $task->id));
     }
@@ -551,8 +374,7 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
-        $task->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
-        $task->delete();
+        $this->actions->delete($task, $user);
 
         return redirect()->to(url()->previous() === url()->current() ? route('tasks.index') : preg_replace('/([?&])task=\d+&?/', '$1', url()->previous()))
             ->with('toast', "Deleted “{$task->title}”")->with('undo', ['action' => 'restore', 'id' => $task->id]);
@@ -562,8 +384,7 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $task = Task::withTrashed()->where('user_id', $user->id)->findOrFail($id);
-        $task->restore();
-        $task->events()->create(['user_id' => $user->id, 'type' => 'restored']);
+        $this->actions->restore($task, $user);
 
         return back()->with('toast', "Restored “{$task->title}”")->with('undo', $this->undo('delete-task', $task->id));
     }

@@ -67,7 +67,7 @@ class EventController extends Controller
     }
 
     /** The dialog's fields (dates and times as the user typed them, in their time zone) → what is stored. */
-    private function fields(Request $request, User $user): array
+    public static function fields(Request $request, User $user): array
     {
         $d = $request->validate([
             'title' => ['required', 'string', 'max:160'],

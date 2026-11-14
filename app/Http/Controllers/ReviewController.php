@@ -60,7 +60,7 @@ class ReviewController extends Controller
     }
 
     /** Looking ahead: what to clear, check and plan before the new week. */
-    private function weekly(User $user, CarbonImmutable $today): array
+    public function weekly(User $user, CarbonImmutable $today): array
     {
         $monday = $today->startOfWeek(CarbonImmutable::MONDAY);
         $next = $monday->addWeek();

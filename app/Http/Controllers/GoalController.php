@@ -65,7 +65,7 @@ class GoalController extends Controller
         return back()->with('toast', "Restored goal “{$goal->title}”")->with('undo', $this->undo('archive-goal', $goal->id));
     }
 
-    private function fields(Request $request, bool $partial = false): array
+    public static function fields(Request $request, bool $partial = false): array
     {
         $sometimes = $partial ? ['sometimes'] : [];
 

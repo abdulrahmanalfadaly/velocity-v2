@@ -138,7 +138,7 @@ class PersonController extends Controller
     }
 
     /** @return array{0: array, 1: list<array>, 2: list<int>} */
-    private function fields(Request $request, User $user): array
+    public static function fields(Request $request, User $user): array
     {
         $d = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -190,7 +190,7 @@ class PersonController extends Controller
         ], $contacts, array_values(array_unique($groups))];
     }
 
-    private function sync(Person $person, array $contacts, array $groups): void
+    public static function sync(Person $person, array $contacts, array $groups): void
     {
         $person->contacts()->delete();
         foreach ($contacts as $i => $c) {

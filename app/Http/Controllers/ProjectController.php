@@ -70,7 +70,7 @@ class ProjectController extends Controller
         return back()->with('toast', "Restored “{$project->name}”")->with('undo', $this->undo('archive-project', $project->id));
     }
 
-    private function fields(Request $request, bool $partial = false): array
+    public static function fields(Request $request, bool $partial = false): array
     {
         $user = $request->user();
         $sometimes = $partial ? ['sometimes'] : [];

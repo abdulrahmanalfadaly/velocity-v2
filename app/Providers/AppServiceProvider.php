@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The API: 120 requests a minute for each access key.
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)->by('key:'.($request->user()?->currentAccessToken()?->getKey() ?? $request->ip())));
+
         // The live (Vite) server only answers this computer. A phone on the same Wi-Fi
         // gets the built app instead, so it never waits on a server it can't reach.
         $host = request()->getHost();

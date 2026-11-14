@@ -7,10 +7,13 @@ const PAGES = [
     { title: 'Appearance', url: '/settings/appearance' },
     { title: 'FYP mode', url: '/settings/mode' },
 ];
+const PERSONAL = [{ title: 'Integrations', url: '/settings/integrations' }];
 
 /** Settings in the Velocity design: a row of tabs, then the page's cards. */
 export default function SettingsLayout({ children }: { children: ReactNode }) {
-    const path = usePage().url.split('?')[0];
+    const page = usePage<{ auth: { user: { fypMode: boolean } | null } }>();
+    const path = page.url.split('?')[0];
+    const pages = page.props.auth.user?.fypMode ? PAGES : [...PAGES, ...PERSONAL];
 
     return (
         <>
@@ -21,7 +24,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
                 </div>
             </header>
             <nav className="filters settings-tabs" aria-label="Settings">
-                {PAGES.map((p) => (
+                {pages.map((p) => (
                     <Link key={p.url} href={p.url} className="filter" aria-current={path === p.url ? 'page' : undefined} prefetch>
                         {p.title}
                     </Link>

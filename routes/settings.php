@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\IntegrationController;
 use App\Http\Controllers\Settings\ModeController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
@@ -22,4 +23,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('settings/mode', [ModeController::class, 'edit'])->name('mode.edit');
     Route::patch('settings/mode', [ModeController::class, 'update'])->name('mode.update');
+
+    // Personal Velocity only: access keys for the API (and, later on this page, GitHub).
+    Route::middleware('personal')->group(function () {
+        Route::get('settings/integrations', [IntegrationController::class, 'edit'])->name('integrations.edit');
+        Route::post('settings/keys', [IntegrationController::class, 'store'])->name('keys.store');
+        Route::delete('settings/keys/{id}', [IntegrationController::class, 'destroy'])->whereNumber('id')->name('keys.destroy');
+    });
 });

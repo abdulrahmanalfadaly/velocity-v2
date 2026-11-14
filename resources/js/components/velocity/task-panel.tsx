@@ -14,6 +14,14 @@ const patch = (id: number, data: Record<string, Value>) =>
     router.patch(route('tasks.update', id), data, { preserveScroll: true, preserveState: true });
 
 const repeatKey = (r: RepeatRule | null) => (r ? `${r.every}-${r.unit}` : '');
+const VIA_WORD: Record<string, string> = {
+    created: 'added',
+    updated: 'changed',
+    completed: 'done',
+    reopened: 'not done',
+    deleted: 'deleted',
+    restored: 'restored',
+};
 
 /** One task: its place in the list, details, steps and child tasks. Every change saves on its own. */
 export function TaskPanel({
@@ -46,6 +54,8 @@ export function TaskPanel({
     // A task in an archived project still shows that project in the list.
     const projectChoices = task.project && !projects.some((p) => p.id === task.project!.id) ? [...projects, task.project] : projects;
     const waitsFor = task.dependsOn.map((d) => d.id);
+    // The last change made with an access key (Mark), newest first.
+    const viaKey = task.events.find((e) => e.via);
     const toggleDone = () => {
         if (busy) return; // a second click while the first is saving would undo it
         setBusy(true);
@@ -297,6 +307,21 @@ export function TaskPanel({
                                 <span className="muted">
                                     · {task.focused.sessions} {task.focused.sessions === 1 ? 'session' : 'sessions'} · {fmtHours(task.estHours)}{' '}
                                     estimated
+                                </span>
+                            </div>
+                        </>
+                    )}
+                    {viaKey && (
+                        <>
+                            <div className="prop-label">
+                                <Icon name="key" />
+                                Via
+                            </div>
+                            <div className="prop-value">
+                                {viaKey.via}
+                                <span className="muted">
+                                    · {VIA_WORD[viaKey.type] ?? 'changed'}
+                                    {viaKey.at ? ` ${clock.date(viaKey.at, { day: 'numeric', month: 'short' })}` : ''}
                                 </span>
                             </div>
                         </>

@@ -70,7 +70,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 5 | Habits (schedules, check-ins, streaks, routines) | done |
 | 6 | People (contacts, dates, follow-ups) | done |
 | 7 | Home, Review charts, global search | done |
-| 8 | API for Mark (personal tokens with scopes) + GitHub | – |
+| 8 | API for Mark (personal tokens with scopes) + GitHub | in progress (API done, GitHub next) |
 
 ## Phase 0 / 1 checklist
 
@@ -349,6 +349,37 @@ maths, read-only transactions and custom ranges are left out on purpose.
       Planner"); classes and events (open on the Planner at their next time);
       what was opened last when nothing is typed; "See all results" opens a
       results page with the matching words of notes.
+
+## Phase 8 checklist
+
+The GPT version's API is the scope reference (Bearer keys with scopes, `{data}`
+/ `{error}` answers, the same environment variables for Mark); its review
+tokens for deletes, request reservations, capacity limits and field-by-field
+redaction are left out on purpose. A part a key can't read is hidden whole.
+
+- [x] Access keys: Settings → Integrations (personal mode). Name, full access
+      or None / Read / Read & write per area (tasks, projects, planner, notes,
+      habits, people, review read-only, github), never / 30 / 90 / 365 days.
+      Shown once with Copy; only a fingerprint is kept; Revoke asks once and is
+      final. Laravel Sanctum, keys only (no browser sessions), `vel_` prefix,
+      120 requests a minute per key. `ApiAccess`, `IntegrationController`
+- [x] One set of code for screens and API: `TaskActions` (quick add, change,
+      done with score and repeat copy, not done, delete, restore, "starts
+      after"), `FocusActions`; the other controllers' field checks are shared
+      (`fields()`), so the API checks input exactly as the screens do.
+- [x] API v1 (`routes/api.php`, `app/Http/Controllers/Api`, `docs/api.md`):
+      health, me, today (each part by area, `null` without access), search;
+      tasks (ranked with rank, score and the four parts; quick-add text;
+      preview; steps; focus); projects, milestones, goals; Planner range,
+      plan day / week, events; notes (plain text in and out, append), journal;
+      habits (state, check with a count, skip, add); people (attention, dates,
+      catch-ups, add); Review week / month and the weekly review.
+- [x] "Via Mark": history entries made with a key keep its name; the task
+      panel shows the last one ("Via · Mark · changed 14 Nov").
+- [x] `examples/mark_velocity.py`: standard-library Python client.
+- [ ] GitHub: a fine-grained token in Settings → Integrations; a project's
+      repository and its open issues ("Add as task"); a task's linked issues
+      and pull requests, "Create issue", "Closed on GitHub · Mark task done".
 
 ## Run it
 

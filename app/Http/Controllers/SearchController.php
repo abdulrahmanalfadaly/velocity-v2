@@ -46,7 +46,7 @@ class SearchController extends Controller
     }
 
     /** Each kind's matches; $more multiplies how many of each. */
-    private function find(User $user, string $q, RankedList $list, int $more): array
+    public function find(User $user, string $q, RankedList $list, int $more): array
     {
         $like = '%'.addcslashes($q, '%_\\').'%';
         $tasks = $user->tasks()->whereIn('status', [...Task::OPEN, Task::DONE])->where('title', 'like', $like)->with('project')

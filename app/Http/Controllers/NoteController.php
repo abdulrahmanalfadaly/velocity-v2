@@ -297,7 +297,7 @@ class NoteController extends Controller
      * The one note of a kind (a day's journal entry, a class on a date): the live one if
      * there is one, otherwise a new one. A deleted one makes way for the new one.
      */
-    private function openOrStart(User $user, callable $match, array $attrs): Note
+    public static function openOrStart(User $user, callable $match, array $attrs): Note
     {
         $existing = $match($user->notes()->withTrashed()->getQuery())->first();
         if ($existing && ! $existing->trashed()) {

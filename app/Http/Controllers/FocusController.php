@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\FocusActions;
 use App\Models\FocusSession;
 use App\Models\Task;
 use App\Models\User;
@@ -19,9 +20,9 @@ use Illuminate\Validation\Rule;
 class FocusController extends Controller
 {
     /** Shorter than this is a false start: not kept. */
-    public const MIN_SECONDS = 60;
+    public const MIN_SECONDS = FocusActions::MIN_SECONDS;
 
-    public function __construct(private readonly RankingService $ranking) {}
+    public function __construct(private readonly RankingService $ranking, private readonly FocusActions $actions) {}
 
     private function now(): CarbonImmutable
     {
@@ -30,30 +31,24 @@ class FocusController extends Controller
 
     public static function running(User $user): ?FocusSession
     {
-        return FocusSession::with('task:id,title')->where('user_id', $user->id)->whereNull('ended_at')->latest('id')->first();
+        return FocusActions::running($user);
+    }
+
+    /** The fields of "start focus": an optional task and planned minutes. */
+    public static function startRules(User $user): array
+    {
+        return [
+            'task_id' => ['nullable', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
+            'minutes' => ['nullable', 'integer', 'between:1,600'],
+        ];
     }
 
     public function start(Request $request): RedirectResponse
     {
         $user = $request->user();
-        $data = $request->validate([
-            'task_id' => ['nullable', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
-            'minutes' => ['nullable', 'integer', 'between:1,600'],
-        ]);
-        // Starting a new one finishes the one that was running.
-        if ($running = self::running($user)) {
-            $this->finish($running);
-        }
+        $data = $request->validate(self::startRules($user));
         $task = isset($data['task_id']) ? Task::find($data['task_id']) : null;
-        $session = $user->focusSessions()->create([
-            'task_id' => $task?->id,
-            'planned_minutes' => $data['minutes'] ?? null,
-            'started_at' => $this->now(),
-            'was_status' => $task?->status,
-        ]);
-        if ($task && $task->isOpen() && $task->status !== Task::DOING) {
-            $task->update(['status' => Task::DOING]);
-        }
+        $session = $this->actions->start($user, $task, $data['minutes'] ?? null);
 
         return back()->with('toast', $task ? "Focus on “{$task->title}”" : 'Focus started')->with('undo', $this->undo('focus-cancel', $session->id));
     }
@@ -85,7 +80,7 @@ class FocusController extends Controller
         if ($session->ended_at) {
             return back();
         }
-        $seconds = $this->finish($session);
+        $seconds = $this->actions->finish($session);
         if ($seconds < self::MIN_SECONDS) {
             return back()->with('toast', 'Under a minute – not counted');
         }
@@ -130,20 +125,6 @@ class FocusController extends Controller
         $session->delete();
 
         return back()->with('toast', 'Focus cancelled');
-    }
-
-    private function finish(FocusSession $session): int
-    {
-        $now = $this->now();
-        $seconds = $session->elapsed($now);
-        if ($seconds < self::MIN_SECONDS) {
-            $session->delete();
-
-            return $seconds;
-        }
-        $session->update(['ended_at' => $session->paused_at ?? $now, 'seconds' => $seconds, 'paused_at' => null]);
-
-        return $seconds;
     }
 
     /** "1 h 20 min", "45 min". */

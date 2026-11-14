@@ -208,7 +208,7 @@ class HabitController extends Controller
         return back()->with('toast', 'Undone');
     }
 
-    private function setDay(Habit $habit, string $date, int $count, bool $skipped): void
+    public static function setDay(Habit $habit, string $date, int $count, bool $skipped): void
     {
         $entry = $habit->entries()->whereDate('day', $date)->first();
         if ($count === 0 && ! $skipped) {
@@ -227,7 +227,7 @@ class HabitController extends Controller
     }
 
     /** The habit dialog: name, how often, how much a day, an optional time on the Planner, project. */
-    private function fields(Request $request, User $user): array
+    public static function fields(Request $request, User $user): array
     {
         $d = $request->validate([
             'name' => ['required', 'string', 'max:120'],

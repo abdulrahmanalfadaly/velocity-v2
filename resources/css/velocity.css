@@ -2069,3 +2069,30 @@ a.pp-contact .pp-contact-value { color: var(--violet-ink); }
 .sr-item small { font-size: 12px; color: var(--text-3); }
 .sr-item em { font-style: normal; font-size: 13px; color: var(--text-2); }
 .sr-item mark { background: transparent; color: var(--violet-ink); font-weight: 750; }
+
+/* Settings → Integrations: access keys */
+.ik { gap: 14px; }
+.ik code { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12.5px; }
+.ik-new { display: grid; gap: 8px; padding: 12px 14px; border-radius: 12px; background: var(--violet-soft); color: var(--violet-ink); font-size: 13.5px; }
+.ik-new p { margin: 0; }
+.ik-secret { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ik-secret code { flex: 1 1 260px; padding: 7px 10px; border-radius: 8px; background: var(--surface); color: var(--text); word-break: break-all; user-select: all; }
+.ik-list { display: grid; border: 1px solid var(--line); border-radius: 12px; }
+.ik-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.ik-row + .ik-row { border-top: 1px solid var(--line); }
+.ik-row.is-expired .ik-main { opacity: 0.6; }
+.ik-ic { width: 18px; height: 18px; color: var(--text-3); flex: none; }
+.ik-main { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.ik-main b { font-size: 14px; font-weight: 650; }
+.ik-main span { font-size: 13px; color: var(--text-2); }
+.ik-main small { font-size: 12px; color: var(--text-3); }
+.ik-sure { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ik-form { display: grid; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
+.ik-form > .field { max-width: 320px; }
+.ik-field { display: grid; gap: 6px; justify-items: start; }
+.ik-label { font-size: 13px; font-weight: 650; }
+.ik-seg { margin: 0; flex-wrap: wrap; }
+.ik-areas { display: grid; gap: 6px; }
+.ik-area { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
+.ik-url { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-2); }
+.ik-url code { padding: 4px 8px; border-radius: 6px; background: var(--surface-3); color: var(--text); }
