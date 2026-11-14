@@ -198,6 +198,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('notes/{note}/tasks', [NoteController::class, 'link'])->whereNumber('note')->name('notes.link');
         Route::delete('notes/{note}/tasks/{task}', [NoteController::class, 'unlink'])->whereNumber('note')->name('notes.unlink');
         Route::post('notes/{note}/make-task', [NoteController::class, 'makeTask'])->whereNumber('note')->name('notes.make-task');
+        Route::post('notes/{note}/links', [NoteController::class, 'linkTo'])->whereNumber('note')->name('notes.links.store');
+        Route::delete('notes/{note}/links/{link}', [NoteController::class, 'unlinkFrom'])->whereNumber('note')->name('notes.links.destroy');
         Route::post('notes/{note}/files', [NoteFileController::class, 'store'])->whereNumber('note')->name('note-files.store');
         Route::get('notes/files/{file}', [NoteFileController::class, 'show'])->whereNumber('file')->name('note-files.show');
         Route::delete('notes/files/{file}', [NoteFileController::class, 'destroy'])->whereNumber('file')->name('note-files.destroy');

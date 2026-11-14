@@ -35,6 +35,8 @@ export interface MapGoal {
     color: number;
     icon: string | null;
     projects: MapProject[];
+    /** Notes linked to the goal. */
+    notes?: MapNote[];
 }
 
 /* ------------------------------------------------------ nodes on the map */
@@ -945,6 +947,16 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                         return `<a class="gp-project" href="/projects/${p.pid}"><span class="pdot">${ic('folder')}</span><div><b>${esc(p.title)}</b><span class="gp-bar"><i style="--p:${pt.pct}%"></i></span><small>${pt.done}/${pt.total} done${next ? ` · next: #${next.rank} ${esc(next.title)}` : ''}</small></div></a>`;
                     })
                     .join('')}</div>
+                ${
+                    n.goal.notes?.length
+                        ? `<h3 class="p-section-title gp-h">Notes</h3><div class="gp-projects">${n.goal.notes
+                              .map(
+                                  (nt) =>
+                                      `<a class="gp-project" href="/notes?note=${nt.id}"><span class="pdot">${ic('notes')}</span><div><b>${esc(nt.title)}</b></div></a>`,
+                              )
+                              .join('')}</div>`
+                        : ''
+                }
             </div>${pfoot(`<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom to this goal</button>${n.goal.id > 0 ? `<button class="btn btn-secondary btn-lg" data-gm-editgoal="${n.goal.id}">${ic('settings')}Edit goal</button>` : ''}`)}`;
         } else if (n.type === 'project' || n.type === 'inbox') {
             const t = tally(n);

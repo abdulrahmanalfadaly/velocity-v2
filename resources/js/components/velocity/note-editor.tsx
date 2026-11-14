@@ -4,6 +4,7 @@ import type { TaskFileInfo } from '@/types/velocity';
 import { Link, router } from '@inertiajs/react';
 import Image from '@tiptap/extension-image';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
+import { TableKit } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
 import { type Editor, EditorContent, type JSONContent, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -30,9 +31,16 @@ export interface NoteDetail {
     tasks: { id: number; title: string; status: string; rank: number | null }[];
     files: NoteFileInfo[];
     people: { id: number; name: string }[];
+    /** Links to other notes, goals and habits. */
+    links?: { id: number; type: LinkType; targetId: number; title: string; href: string }[];
+    /** Other notes that link to this one. */
+    linkedFrom?: { id: number; title: string }[];
     updatedAt: string | null;
     createdAt: string | null;
 }
+
+export type LinkType = 'note' | 'goal' | 'habit';
+export type LinkOptions = Record<LinkType, { id: number; title: string }[]>;
 
 /** What a save sends back, for the list beside the note. */
 export interface Saved {
@@ -48,6 +56,8 @@ const keep = { preserveScroll: true, preserveState: true };
 const MAX = 20 * 1024 * 1024;
 const PICTURE = /^image\/(png|jpeg|gif|webp)$/;
 const CAL_ICON = { class: 'cap', work: 'briefcase', personal: 'heart' } as const;
+const LINK_ICON: Record<LinkType, string> = { note: 'notes', goal: 'target', habit: 'habits' };
+const LINK_NAME: Record<LinkType, string> = { note: 'Note', goal: 'Goal', habit: 'Habit' };
 const at = (d: string) => new Date(`${d}T12:00:00Z`);
 
 /** The open note: title, details row, toolbar, the text (saved as you type) and its files. */
@@ -56,6 +66,7 @@ export function NoteEditor({
     projects,
     taskOptions,
     personOptions,
+    linkOptions,
     clock,
     journalNav,
     onSaved,
@@ -66,6 +77,7 @@ export function NoteEditor({
     projects: { id: number; name: string }[];
     taskOptions: { id: number; title: string }[];
     personOptions: { id: number; name: string }[];
+    linkOptions?: LinkOptions | null;
     clock: Clock;
     journalNav?: { prev?: string; next?: string };
     onSaved: (s: Saved) => void;
@@ -79,9 +91,16 @@ export function NoteEditor({
 
     // The latest of everything, for saving from timers, unload and unmount.
     const startsEmpty = !note.doc.content?.some((n) => n.type !== 'paragraph' || (n.content?.length ?? 0) > 0);
-    const live = useRef({ title: note.title, doc: note.doc, empty: startsEmpty, dirty: false, files: note.files.length, tasks: note.tasks.length });
+    const linked = note.tasks.length + note.people.length + (note.links?.length ?? 0);
+    const live = useRef({ title: note.title, doc: note.doc, empty: startsEmpty, dirty: false, files: note.files.length, tasks: linked });
     live.current.files = note.files.length;
-    live.current.tasks = note.tasks.length;
+    live.current.tasks = linked; // anything linked keeps the note
+    // "Link note, goal or habit": one list, each choice named by its kind.
+    const linkChoices = linkOptions
+        ? (['note', 'goal', 'habit'] as LinkType[]).flatMap((type) =>
+              linkOptions[type].map((o) => ({ type, id: o.id, title: `${LINK_NAME[type]} · ${o.title}` })),
+          )
+        : [];
     const callbacks = useRef({ onSaved, onDiscarded });
     callbacks.current = { onSaved, onDiscarded };
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -158,6 +177,7 @@ export function NoteEditor({
             TaskItem.configure({ nested: true }),
             Placeholder.configure({ placeholder: 'Start writing' }),
             Image.configure({ allowBase64: false }),
+            TableKit.configure({ table: { resizable: false } }),
         ],
         content: note.doc,
         shouldRerenderOnTransaction: false,
@@ -416,6 +436,41 @@ export function NoteEditor({
                     taken={note.people.map((p) => p.id)}
                     onPick={(id) => router.post(route('people.link', id), { type: 'note', id: note.id }, keep)}
                 />
+                {(note.links ?? []).map((l) => (
+                    <span key={`l${l.id}`} className="note-task">
+                        <Link href={l.href} className="note-task-open" title="Open">
+                            <Icon name={LINK_ICON[l.type]} className="ic-xs" />
+                            <span>{l.title}</span>
+                        </Link>
+                        <button
+                            className="note-task-x"
+                            aria-label={`Unlink “${l.title}”`}
+                            onClick={() => router.delete(route('notes.links.destroy', [note.id, l.id]), keep)}
+                        >
+                            <Icon name="x" className="ic-xs" />
+                        </button>
+                    </span>
+                ))}
+                {linkOptions && (
+                    <Picker
+                        label="Link note, goal or habit"
+                        find="Find a note, goal or habit"
+                        options={linkChoices.map((c, i) => ({ id: i, title: c.title }))}
+                        taken={linkChoices.flatMap((c, i) => ((note.links ?? []).some((l) => l.type === c.type && l.targetId === c.id) ? [i] : []))}
+                        onPick={(i) => router.post(route('notes.links.store', note.id), { type: linkChoices[i].type, id: linkChoices[i].id }, keep)}
+                    />
+                )}
+                {(note.linkedFrom ?? []).length > 0 && (
+                    <span className="note-from">
+                        Linked from{' '}
+                        {note.linkedFrom!.map((n, i) => (
+                            <span key={n.id}>
+                                {i > 0 && ', '}
+                                <Link href={route('notes.index', { note: n.id })}>{n.title}</Link>
+                            </span>
+                        ))}
+                    </span>
+                )}
             </div>
 
             {editor && <Toolbar editor={editor} onPicture={(f) => void upload(f)} busy={uploading} />}
@@ -452,6 +507,8 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
             code: e.isActive('codeBlock'),
             link: e.isActive('link'),
             href: (e.getAttributes('link').href as string | undefined) ?? '',
+            table: e.isActive('table'),
+            header: e.isActive('tableHeader'),
         }),
     });
     const [linking, setLinking] = useState(false);
@@ -485,6 +542,7 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
             <i className="ntb-gap" />
             {b(s.quote, 'quote', 'Quote', () => c().toggleBlockquote().run())}
             {b(s.code, 'code', 'Code', () => c().toggleCodeBlock().run())}
+            {b(s.table, 'table', 'Table', () => !s.table && c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
             {b(s.link || linking, 'link', 'Link', () => setLinking((v) => !v))}
             <button
                 type="button"
@@ -510,6 +568,28 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
                 }}
             />
             {linking && <LinkBox editor={editor} href={s.href} onClose={() => setLinking(false)} />}
+            {s.table && (
+                <div className="ntb-table" role="group" aria-label="Table">
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => c().addRowAfter().run()}>
+                        + Row
+                    </button>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => c().addColumnAfter().run()}>
+                        + Column
+                    </button>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => c().deleteRow().run()}>
+                        − Row
+                    </button>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => c().deleteColumn().run()}>
+                        − Column
+                    </button>
+                    <button type="button" aria-pressed={s.header} onMouseDown={(e) => e.preventDefault()} onClick={() => c().toggleHeaderRow().run()}>
+                        Header row
+                    </button>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => c().deleteTable().run()}>
+                        Remove table
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

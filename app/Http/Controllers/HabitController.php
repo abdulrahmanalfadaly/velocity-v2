@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Habit;
 use App\Models\HabitEntry;
+use App\Models\NoteLink;
 use App\Models\Routine;
 use App\Models\User;
 use App\Services\HabitStats;
@@ -61,7 +62,7 @@ class HabitController extends Controller
             'week' => ['start' => $monday->toDateString(), 'isThisWeek' => $monday->equalTo($thisMonday), 'days' => collect(range(0, 6))->map(fn ($i) => $monday->addDays($i)->toDateString())],
             'habits' => $rows,
             'routine' => $routine ? ['id' => $routine->id, 'name' => $routine->name, 'habitIds' => $routine->habits()->pluck('habits.id')] : null,
-            'habit' => $open ? (new HabitStats($open, $today))->detail() : null,
+            'habit' => $open ? (new HabitStats($open, $today))->detail() + ['linkedNotes' => NoteLink::notesFor($user, 'habit', $open->id)] : null,
             'menu' => [
                 'today' => $groups->filter(fn ($g) => $g === 'todo')->count(),
                 'all' => $active->count(),

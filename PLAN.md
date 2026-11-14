@@ -493,7 +493,14 @@ leave Up next; only finished or cancelled tasks can be archived.
       moving one copy doesn't move the rest (older copies keep their series
       the first time they're moved); a new rule starts the series again from
       the task's due date. `Repeat::next` with days, `repeat_anchor`
-- [ ] ★8 Notes: tables, links to notes / goals / habits, linked from
+- [x] ★8 Notes: tables (Table button: 3 × 3 with a header row; inside one a
+      bar to add or remove rows and columns, turn the header row on or off,
+      remove the table; Tab moves between cells; search and the API read it
+      row by row, "Report | 60%"). "Link note, goal or habit" beside Link task
+      and Link person (one search over all three); the linked note says
+      "Linked from …", a goal's panel on the Goals map and a habit's panel
+      list their notes; unlink with Undo. A note with only links is kept.
+      `@tiptap/extension-table`, `NoteLink`
 - [ ] ★9 Views in the Tasks menu and a Next actions page (formula order)
 - [ ] ★10 Areas menu, project status and Complete, All projects, goal status / date / progress
 - [ ] ★11 Review: day view, more numbers, click to see the items, compare switch

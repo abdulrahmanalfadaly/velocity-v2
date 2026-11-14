@@ -102,11 +102,11 @@ list only covers what's missing or partly there.
 
 ## Notes
 
-- [ ] ★8 Tables. **Add**
+- [x] ★8 Tables. **Add**
 - [ ] Toolbar buttons for underline, inline code, a divider line. **Add**
 - [ ] PDF preview inside a note. **Add** (page zoom: **Low**)
 - [ ] Turn selected text into a task, with a jump back to that paragraph. **Partly** (Make task exists, no jump back)
-- [ ] ★8 Links to goals, habits and other notes, with a "linked from" list. **Add**
+- [x] ★8 Links to goals, habits and other notes, with a "linked from" list. **Add**
 - [ ] A note in several projects. **Add**
 - [ ] Note areas. **Add**
 - [ ] Archive a note as read-only. **Add**

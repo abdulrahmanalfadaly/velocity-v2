@@ -51,6 +51,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'restore-note': { method: 'post', route: 'notes.restore' },
     'patch-note': { method: 'patch', route: 'notes.update' },
     'link-note-task': { method: 'post', route: 'notes.link' },
+    'link-note': { method: 'post', route: 'notes.links.store' },
     'restore-note-file': { method: 'post', route: 'note-files.restore' },
     'put-habit-day': { method: 'put', route: 'habits.day' },
     'unskip-habit': { method: 'post', route: 'habits.unskip' },

@@ -1,6 +1,6 @@
 import { Icon } from '@/components/velocity/icon';
 import { MonthCalendar } from '@/components/velocity/month-calendar';
-import { type NoteDetail, NoteEditor, type Saved } from '@/components/velocity/note-editor';
+import { type LinkOptions, type NoteDetail, NoteEditor, type Saved } from '@/components/velocity/note-editor';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
@@ -36,6 +36,7 @@ interface Props extends VelocityShared {
     };
     projects: { id: number; name: string }[];
     taskOptions: { id: number; title: string }[];
+    linkOptions: LinkOptions | null;
     personOptions: { id: number; name: string }[];
     journalDays: string[];
 }
@@ -177,6 +178,7 @@ export default function Notes() {
                             projects={props.projects}
                             taskOptions={props.taskOptions}
                             personOptions={props.personOptions}
+                            linkOptions={props.linkOptions}
                             clock={clock}
                             journalNav={journalNav}
                             onSaved={(s) => setSaved((m) => ({ ...m, [s.id]: s }))}

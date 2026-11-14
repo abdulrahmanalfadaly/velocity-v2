@@ -57,11 +57,17 @@ class Note extends Model
         return $this->hasMany(NoteFile::class);
     }
 
+    /** Links to other notes, goals and habits. */
+    public function links(): HasMany
+    {
+        return $this->hasMany(NoteLink::class)->orderBy('id');
+    }
+
     /** Nothing written, nothing attached or linked: safe to throw away when the user leaves it. */
     public function scopeBlank(Builder $q): void
     {
         $q->where('title', '')->where(fn ($q) => $q->whereNull('body_text')->orWhere('body_text', ''))
-            ->doesntHave('files')->doesntHave('tasks')->doesntHave('people');
+            ->doesntHave('files')->doesntHave('tasks')->doesntHave('people')->doesntHave('links');
     }
 
     /** The name shown everywhere: the title, or what the note is for. */
@@ -111,6 +117,10 @@ class Note extends Model
         }
         if ($type === 'hardBreak') {
             return "\n";
+        }
+        // A table: one line per row, its cells side by side.
+        if ($type === 'tableRow') {
+            return implode(' | ', array_map(fn ($c) => is_array($c) ? trim(self::textOf($c)) : '', $node['content'] ?? []))."\n";
         }
         $inner = implode('', array_map(fn ($c) => is_array($c) ? self::textOf($c) : '', $node['content'] ?? []));
         // Lists and quotes hold paragraphs, which end their own lines.

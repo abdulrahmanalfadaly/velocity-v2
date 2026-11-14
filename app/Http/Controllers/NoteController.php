@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\Note;
+use App\Models\NoteLink;
 use App\Models\Person;
 use App\Models\Task;
 use App\Models\User;
@@ -33,7 +34,7 @@ class NoteController extends Controller
         $user = $request->user();
         $in = (string) $request->query('in', 'all');
         $q = trim((string) $request->query('q', ''));
-        $open = $request->integer('note') ? $user->notes()->with(['tasks', 'people', 'files' => fn ($f) => $f->where('inline', false), 'event'])->find($request->integer('note')) : null;
+        $open = $request->integer('note') ? $user->notes()->with(['tasks', 'people', 'links', 'files' => fn ($f) => $f->where('inline', false), 'event'])->find($request->integer('note')) : null;
 
         // A safety net for notes left empty when the window was closed: gone after a day.
         $user->notes()->blank()->where('updated_at', '<', $this->ranking->now()->subDay())->when($open, fn ($b) => $b->whereKeyNot($open->id))
@@ -57,6 +58,12 @@ class NoteController extends Controller
                 ->when($open?->project && $open->project->archived_at, fn ($c) => $c->push($open->project->only(['id', 'name'])))->values(),
             'taskOptions' => $open ? $user->tasks()->open()->orderBy('title')->limit(400)->get(['id', 'title']) : [],
             'personOptions' => $open ? $user->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']) : [],
+            // What "Link note, goal or habit" can choose from.
+            'linkOptions' => $open ? [
+                'note' => $user->notes()->whereKeyNot($open->id)->with('event')->latest('updated_at')->limit(300)->get()->map(fn (Note $n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
+                'goal' => $user->goals()->whereNull('archived_at')->orderBy('title')->get(['id', 'title']),
+                'habit' => $user->habits()->whereNull('archived_at')->orderBy('name')->get(['id', 'name'])->map(fn ($h) => ['id' => $h->id, 'title' => $h->name])->values(),
+            ] : null,
             'journalDays' => $in === 'journal' ? $user->notes()->whereNotNull('journal_date')->orderBy('journal_date')->pluck('journal_date')->map(fn ($d) => $d->toDateString())->values() : [],
         ]);
     }
@@ -193,6 +200,54 @@ class NoteController extends Controller
         return back();
     }
 
+    /** Link a note to another note, a goal or a habit (from the note's "Link" picker). */
+    public function linkTo(Request $request, Note $note): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($note, $user);
+        $d = $request->validate(['type' => ['required', Rule::in(NoteLink::TYPES)], 'id' => ['required', 'integer']]);
+        $owner = match ($d['type']) {
+            'note' => $user->notes()->whereKey($d['id'])->exists() && (int) $d['id'] !== $note->id,
+            'goal' => $user->goals()->whereKey($d['id'])->exists(),
+            default => $user->habits()->whereKey($d['id'])->exists(),
+        };
+        abort_unless($owner, 404);
+        $note->links()->firstOrCreate(['linkable_type' => $d['type'], 'linkable_id' => $d['id']]);
+        $note->touch();
+
+        return back();
+    }
+
+    public function unlinkFrom(Request $request, Note $note, NoteLink $link): RedirectResponse
+    {
+        $this->own($note, $request->user());
+        abort_unless($link->note_id === $note->id, 404);
+        $link->delete();
+
+        return back()->with('toast', 'Unlinked')->with('undo', $this->undo('link-note', $note->id, ['type' => $link->linkable_type, 'id' => $link->linkable_id]));
+    }
+
+    /** A note's links with what they point at (gone ones left out). */
+    private function links(Note $n, User $user): array
+    {
+        $titles = [
+            'note' => $user->notes()->whereIn('id', $n->links->where('linkable_type', 'note')->pluck('linkable_id'))->with('event')->get()->mapWithKeys(fn (Note $x) => [$x->id => $x->displayTitle()]),
+            'goal' => $user->goals()->whereIn('id', $n->links->where('linkable_type', 'goal')->pluck('linkable_id'))->pluck('title', 'id'),
+            'habit' => $user->habits()->whereIn('id', $n->links->where('linkable_type', 'habit')->pluck('linkable_id'))->pluck('name', 'id'),
+        ];
+        $href = fn (string $type, int $id) => match ($type) {
+            'note' => route('notes.index', ['note' => $id]),
+            'goal' => route('goals.index', ['focus' => "g{$id}"]),
+            default => route('habits.index', ['view' => 'all', 'habit' => $id]),
+        };
+
+        return $n->links->filter(fn (NoteLink $l) => isset($titles[$l->linkable_type][$l->linkable_id]))
+            ->map(fn (NoteLink $l) => [
+                'id' => $l->id, 'type' => $l->linkable_type, 'targetId' => $l->linkable_id,
+                'title' => $titles[$l->linkable_type][$l->linkable_id], 'href' => $href($l->linkable_type, $l->linkable_id),
+            ])->values()->all();
+    }
+
     public function unlink(Request $request, Note $note, Task $task): RedirectResponse
     {
         $user = $request->user();
@@ -288,6 +343,9 @@ class NoteController extends Controller
             'tasks' => $n->tasks->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status, 'rank' => $list->rankOf($t->id)])->values(),
             'files' => $n->files->map(fn ($f) => $f->present())->values(),
             'people' => $n->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
+            'links' => $this->links($n, $user),
+            // Other notes that link to this one.
+            'linkedFrom' => NoteLink::notesFor($user, 'note', $n->id),
             'updatedAt' => $n->updated_at?->toIso8601ZuluString(),
             'createdAt' => $n->created_at?->toIso8601ZuluString(),
         ];

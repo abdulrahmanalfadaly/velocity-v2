@@ -26,6 +26,7 @@ type HabitDetail = HabitToday & {
     best: number;
     rate: { done: number; of: number; unit: 'days' | 'weeks' | 'months' };
     notes: { date: string; note: string; count: number; skipped: boolean }[];
+    linkedNotes?: { id: number; title: string }[];
     total: number;
     history: HabitDay[];
     since: string;
@@ -556,6 +557,21 @@ function HabitPanel({
                                 </li>
                             ))}
                         </ul>
+                    </section>
+                )}
+                {(h.linkedNotes ?? []).length > 0 && (
+                    <section className="p-section">
+                        <div className="p-section-head">
+                            <h3 className="p-section-title">Linked notes</h3>
+                        </div>
+                        <div className="p-linked">
+                            {h.linkedNotes!.map((n) => (
+                                <Link key={n.id} className="p-linked-note" href={route('notes.index', { note: n.id })}>
+                                    <Icon name="notes" className="ic-sm" />
+                                    <span>{n.title}</span>
+                                </Link>
+                            ))}
+                        </div>
                     </section>
                 )}
                 {h.routines.length > 0 && (

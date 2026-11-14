@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Goal;
+use App\Models\NoteLink;
 use App\Models\Task;
 use App\Services\HabitStats;
 use App\Services\RankingService;
@@ -125,9 +126,11 @@ class GoalController extends Controller
         $branches = $goals->map(fn ($g) => [
             'id' => $g->id, 'title' => $g->title, 'why' => $g->why, 'target' => $g->target, 'color' => $g->color, 'icon' => $g->icon,
             'projects' => $g->projects->map($projectNode)->values(),
+            // Notes linked to the goal (a note's "Link" picker).
+            'notes' => NoteLink::notesFor($user, 'goal', $g->id),
         ])->values();
         if ($other->isNotEmpty()) {
-            $branches->push(['id' => 0, 'title' => 'Other projects', 'why' => null, 'target' => null, 'color' => 0, 'icon' => 'folder', 'projects' => $other->map($projectNode)->values()]);
+            $branches->push(['id' => 0, 'title' => 'Other projects', 'why' => null, 'target' => null, 'color' => 0, 'icon' => 'folder', 'projects' => $other->map($projectNode)->values(), 'notes' => []]);
         }
 
         return Inertia::render('goals/index', [
