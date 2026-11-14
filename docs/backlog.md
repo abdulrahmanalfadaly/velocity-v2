@@ -50,12 +50,12 @@ list only covers what's missing or partly there.
 
 ## Projects, goals and areas
 
-- [ ] ★10 Project status, start and target dates, "Complete project". **Add**
-- [ ] ★10 An "All projects" page. **Add**
+- [x] ★10 Project status, start and target dates, "Complete project". **Add**
+- [x] ★10 An "All projects" page. **Add**
 - [ ] Delete a project or goal that still has things in it, with Undo. **Add**
-- [ ] ★10 Goal dates, status, and progress by milestones or by hand. **Add** (the Goals map already shows progress from tasks)
+- [x] ★10 Goal dates, status, and progress by milestones or by hand. **Add** (the Goals map already shows progress from tasks)
 - [ ] Several goals for one project or habit. **Add**
-- [ ] ★10 Areas: rename, remove, collapse, a menu on each. **Add**
+- [x] ★10 Areas: rename, remove, collapse, a menu on each. **Add**
 
 ## Planner
 

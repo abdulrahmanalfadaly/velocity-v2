@@ -70,13 +70,23 @@ class GoalController extends Controller
     {
         $sometimes = $partial ? ['sometimes'] : [];
 
-        return $request->validate([
+        $data = $request->validate([
             'title' => [...$sometimes, 'required', 'string', 'max:160'],
             'why' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'status' => ['sometimes', Rule::in(Goal::STATUSES)],
             'target' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'target_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'progress_mode' => ['sometimes', Rule::in(Goal::PROGRESS)],
+            'progress' => ['sometimes', 'nullable', 'integer', 'between:0,100'],
             'color' => [...$sometimes, 'required', 'integer', 'between:1,3'],
             'icon' => ['sometimes', 'nullable', Rule::in(self::ICONS)],
-        ], [], ['color' => 'colour']);
+        ], [], ['color' => 'colour', 'target_date' => 'target date']);
+        // Only "by hand" keeps a number.
+        if (array_key_exists('progress_mode', $data) && $data['progress_mode'] !== 'manual') {
+            $data['progress'] = null;
+        }
+
+        return $data;
     }
 
     public function index(Request $request, RankingService $ranking): Response
@@ -125,6 +135,9 @@ class GoalController extends Controller
             ->with(['notes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')])->get();
         $branches = $goals->map(fn ($g) => [
             'id' => $g->id, 'title' => $g->title, 'why' => $g->why, 'target' => $g->target, 'color' => $g->color, 'icon' => $g->icon,
+            'status' => $g->status, 'targetDate' => $g->target_date?->toDateString(), 'progressMode' => $g->progress_mode, 'progress' => $g->progress,
+            // Milestones or by hand: the % the map shows instead of counting tasks.
+            'progressPct' => $g->progressPct(),
             'projects' => $g->projects->map($projectNode)->values(),
             // Notes linked to the goal (a note's "Link" picker).
             'notes' => NoteLink::notesFor($user, 'goal', $g->id),

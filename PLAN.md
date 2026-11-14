@@ -510,7 +510,21 @@ leave Up next; only finished or cancelled tasks can be archived.
       project), with Focus; projects with nothing ready below with why ("1
       waiting · 1 starting later"). Low energy and Eat the frog left out (they
       need extra points). `TaskController::next`, `NavData` view counts
-- [ ] ★10 Areas menu, project status and Complete, All projects, goal status / date / progress
+- [x] ★10 Areas in the Tasks menu: ⋯ menu (Rename, icon, New project here,
+      Remove area — its projects move to Other, Undo puts them back), click to
+      fold (remembered on the device), New area at the end; empty areas show.
+      Projects: Planned / Active / On hold on the project page (a planned or
+      on-hold project's tasks leave Up next and wait under Not ready yet as
+      "Project on hold"; personal mode only, FYP's ranking untouched; the menu
+      tags them), Complete (with open tasks: "Cancel them and complete" /
+      "Keep them open" / "Not yet"; a "Completed … · Reopen" bar; out of the
+      menu; Undo reopens the tasks it cancelled). All projects page (Tasks
+      menu): tabs Active / Planned / On hold / Completed / Archived, each with
+      progress, open tasks, due date and its best task's rank. Goals: status
+      (Active, Paused, Achieved, Dropped), a real target date (the words stay
+      as an option), progress from tasks, from milestones, or by hand (a
+      slider); the Goals map shows them. `AreaController`,
+      `ProjectStatusController`, `Goal::progressPct`
 - [ ] ★11 Review: day view, more numbers, click to see the items, compare switch
 - [ ] ★12 The API for all of it, request ids, Mark's example scripts
 

@@ -19,6 +19,37 @@ use Inertia\Response;
 /** A project is its own little world: tasks and steps, habits, notes and milestones. */
 class ProjectController extends Controller
 {
+    /** All projects: each with its status, progress, open tasks, due date and its best task's place in the ranking. */
+    public function index(Request $request, RankingService $ranking): Response
+    {
+        $user = $request->user();
+        $list = $ranking->rank($user);
+        $best = [];
+        foreach ($list->scored as $s) {
+            $best[(int) ($list->tasks[(int) $s->task->id]->project_id ?? 0)] ??= $s->rank;
+        }
+        $projects = $user->projects()->with(['goal:id,title,color', 'area:id,name'])->withCount([
+            'tasks as open_count' => fn ($q) => $q->whereIn('status', Task::OPEN),
+            'tasks as done_count' => fn ($q) => $q->where('status', Task::DONE),
+        ])->orderBy('name')->get();
+
+        return Inertia::render('projects/index', [
+            'projects' => $projects->map(fn (Project $p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'status' => $p->archived_at ? 'archived' : $p->status,
+                'goal' => $p->goal ? ['title' => $p->goal->title, 'color' => $p->goal->color] : null,
+                'area' => $p->area?->name,
+                'open' => $p->open_count,
+                'done' => $p->done_count,
+                'pct' => $p->open_count + $p->done_count ? (int) round($p->done_count / ($p->open_count + $p->done_count) * 100) : 0,
+                'dueDate' => $p->due_date?->toDateString(),
+                'completedAt' => $p->completed_at?->toIso8601ZuluString(),
+                'bestRank' => $best[$p->id] ?? null,
+            ])->values(),
+        ]);
+    }
+
     /** New project (from the "+" in the Tasks menu). An area can be made on the way. */
     public function store(Request $request): RedirectResponse
     {
@@ -123,6 +154,9 @@ class ProjectController extends Controller
                 'areaId' => $project->area_id,
                 'goal' => $project->goal ? ['id' => $project->goal->id, 'title' => $project->goal->title, 'color' => $project->goal->color] : null,
                 'archived' => $project->archived_at !== null,
+                'status' => $project->status,
+                'completedAt' => $project->completed_at?->toIso8601ZuluString(),
+                'openCount' => $project->tasks()->whereIn('status', Task::OPEN)->count(),
             ],
             'stats' => [
                 'done' => $doneCount, 'total' => $total, 'pct' => $total ? (int) round($doneCount / $total * 100) : 0, 'bestRank' => $open[0]['rank'] ?? null,

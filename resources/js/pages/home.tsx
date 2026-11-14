@@ -475,7 +475,7 @@ function Attention({ attention, clock }: { attention: Props['attention']; clock:
             .filter((t) => !attention.followUps.some((f) => f.id === t.id))
             .map((t) => ({
                 key: `n${t.id}`,
-                icon: t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : 'calendar',
+                icon: t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : t.kind === 'held' ? 'pause' : 'calendar',
                 critical: false,
                 title: t.title,
                 detail: t.why,

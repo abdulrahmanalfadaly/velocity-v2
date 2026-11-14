@@ -1,10 +1,11 @@
 import { DatePick } from '@/components/velocity/date-pick';
 import { StartFocus } from '@/components/velocity/focus';
-import { ProjectDialog } from '@/components/velocity/forms';
+import { Modal, ProjectDialog } from '@/components/velocity/forms';
 import { ProjectGitHub } from '@/components/velocity/github-parts';
 import { HabitDialog } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { Picker } from '@/components/velocity/pick';
+import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Check, HabitButton, Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
@@ -33,6 +34,9 @@ interface Props extends VelocityShared {
         areaId: number | null;
         goal: { id: number; title: string; color: number } | null;
         archived: boolean;
+        status: 'planned' | 'active' | 'on_hold' | 'completed';
+        completedAt: string | null;
+        openCount: number;
     };
     stats: { done: number; total: number; pct: number; bestRank: number | null; focusedWeek: number };
     people: { id: number; name: string; initials: string; relationship: string | null }[];
@@ -97,6 +101,7 @@ export default function ProjectShow() {
     const [open, setOpen] = useState<Record<number, boolean>>({ [props.tasks[0]?.id ?? 0]: true });
     const [text, setText] = useState('');
     const [editing, setEditing] = useState(false);
+    const [completing, setCompleting] = useState(false);
     const [newHabit, setNewHabit] = useState(false);
     const [milestone, setMilestone] = useState<{ title: string; due: string } | null>(null);
     const select = (id: number | null) =>
@@ -126,6 +131,15 @@ export default function ProjectShow() {
             onEscape={props.selected ? () => select(null) : undefined}
         >
             <div className="main-inner project" data-view={view} style={{ ['--g' as string]: goalVar(project.goal?.color) }}>
+                {project.status === 'completed' && !project.archived && (
+                    <div className="archived-bar" role="status">
+                        <Icon name="check" />
+                        <span>Completed{project.completedAt ? ` ${clock.date(project.completedAt)}` : ''}.</span>
+                        <button className="btn btn-secondary btn-sm" onClick={() => router.post(route('projects.reopen', project.id), {}, keep)}>
+                            Reopen
+                        </button>
+                    </div>
+                )}
                 {project.archived && (
                     <div className="archived-bar" role="status">
                         <Icon name="archive" />
@@ -147,6 +161,33 @@ export default function ProjectShow() {
                             )}
                             {project.area && <span className="world-area">{project.area}</span>}
                             <span className="world-gap" />
+                            {project.status !== 'completed' && (
+                                <>
+                                    <Select
+                                        className="btn btn-ghost btn-sm"
+                                        label="Status"
+                                        value={project.status}
+                                        search={false}
+                                        onChange={(v) => router.post(route('projects.status', project.id), { status: v }, keep)}
+                                        options={[
+                                            { value: 'planned', label: 'Planned' },
+                                            { value: 'active', label: 'Active' },
+                                            { value: 'on_hold', label: 'On hold' },
+                                        ]}
+                                    />
+                                    <button
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={() =>
+                                            project.openCount > 0
+                                                ? setCompleting(true)
+                                                : router.post(route('projects.complete', project.id), { open: 'keep' }, keep)
+                                        }
+                                    >
+                                        <Icon name="check" className="ic-sm" />
+                                        Complete
+                                    </button>
+                                </>
+                            )}
                             <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
                                 <Icon name="settings" className="ic-sm" />
                                 Edit project
@@ -668,6 +709,48 @@ export default function ProjectShow() {
                 </div>
             </div>
             {newHabit && <HabitDialog initial={{ project_id: project.id }} projects={props.projects} onClose={() => setNewHabit(false)} />}
+            {completing && (
+                <Modal title={`Complete “${project.name}”?`} onClose={() => setCompleting(false)}>
+                    <div className="vform">
+                        <p className="vform-text-plain">
+                            {project.openCount === 1 ? '1 task is still open.' : `${project.openCount} tasks are still open.`}
+                        </p>
+                        <div className="vform-foot">
+                            <button type="button" className="btn btn-ghost" onClick={() => setCompleting(false)}>
+                                Not yet
+                            </button>
+                            <div className="vform-foot-right">
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() =>
+                                        router.post(
+                                            route('projects.complete', project.id),
+                                            { open: 'keep' },
+                                            { ...keep, onSuccess: () => setCompleting(false) },
+                                        )
+                                    }
+                                >
+                                    Keep them open
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    onClick={() =>
+                                        router.post(
+                                            route('projects.complete', project.id),
+                                            { open: 'cancel' },
+                                            { ...keep, onSuccess: () => setCompleting(false) },
+                                        )
+                                    }
+                                >
+                                    Cancel them and complete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
+            )}
             {editing && (
                 <ProjectDialog
                     project={{

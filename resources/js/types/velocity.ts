@@ -66,7 +66,7 @@ export interface RankedTask extends BaseTask {
 }
 
 export interface NotReadyTask extends BaseTask {
-    kind: 'waiting' | 'blocked' | 'later';
+    kind: 'waiting' | 'blocked' | 'later' | 'held';
     why: string;
 }
 
@@ -187,6 +187,7 @@ export interface NavProject {
     name: string;
     goalColor: number | null;
     open: number;
+    status?: 'planned' | 'active' | 'on_hold' | 'completed';
 }
 
 export interface NavData {

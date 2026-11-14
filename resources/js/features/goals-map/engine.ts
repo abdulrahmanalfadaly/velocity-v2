@@ -37,6 +37,12 @@ export interface MapGoal {
     projects: MapProject[];
     /** Notes linked to the goal. */
     notes?: MapNote[];
+    status?: 'active' | 'paused' | 'achieved' | 'dropped';
+    targetDate?: string | null;
+    progressMode?: 'tasks' | 'milestones' | 'manual';
+    progress?: number | null;
+    /** From milestones or set by hand: shown instead of counting tasks. */
+    progressPct?: number | null;
 }
 
 /* ------------------------------------------------------ nodes on the map */
@@ -225,7 +231,15 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         return n;
     };
     const stateOf = (t: MapTask): TaskState =>
-        t.kind !== 'ranked' ? t.kind : t.status === 'doing' ? 'doing' : t.days != null && t.days <= 0 ? 'overdue' : 'open';
+        t.kind === 'held'
+            ? 'later'
+            : t.kind !== 'ranked'
+              ? t.kind
+              : t.status === 'doing'
+                ? 'doing'
+                : t.days != null && t.days <= 0
+                  ? 'overdue'
+                  : 'open';
     const orderOf = (t: MapTask) => (t.kind === 'ranked' ? t.rank : t.kind === 'done' ? 10000 + t.id : 5000 + t.id);
     function taskNodes(tasks: MapTask[], hue: number): TaskNode[] {
         const byParent = new Map<number, MapTask[]>();
@@ -293,8 +307,17 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             done = n.stats.done;
             total = n.stats.total;
         }
+        if (n.type === 'goal' && n.goal.progressPct != null) return { done, total, pct: n.goal.progressPct };
         return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
     }
+    const GOAL_STATUS: Record<string, string> = { paused: 'Paused', achieved: 'Achieved', dropped: 'Dropped' };
+    // "by 30 Jun 2027" from the target date, or the goal's own words ("by Jun 2027").
+    const goalBy = (g: MapGoal) =>
+        g.targetDate
+            ? `by ${clock.date(`${g.targetDate}T12:00:00Z`, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`
+            : g.target
+              ? `by ${esc(g.target)}`
+              : '';
     const count = (n: MapNode, type: NodeType) => n.children.filter((c) => c.type === type).length;
 
     /* ---------------------------------------------------------------- layout */
@@ -510,7 +533,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 return `<span class="mn-orbit"></span>${progressRing(totals.pct, 196, 5)}<span class="avatar">${esc(initials)}</span><b>${esc(data.userName.split(' ')[0])}</b><span>${goalCount} goals · ${totals.pct}% done</span>`;
             case 'goal': {
                 const t = tally(n);
-                return `<span class="gdot">${ic(n.goal.icon || 'target')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${count(n, 'project')} projects${n.goal.target ? ` · by ${esc(n.goal.target)}` : ''}</div></div><span class="mn-pct">${progressRing(t.pct, 44, 4)}<span>${t.pct}%</span></span>${knob(n)}`;
+                const status = GOAL_STATUS[n.goal.status ?? 'active'];
+                return `<span class="gdot">${ic(n.goal.icon || 'target')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${count(n, 'project')} projects${status ? ` · ${status}` : ''}${goalBy(n.goal) ? ` · ${goalBy(n.goal)}` : ''}</div></div><span class="mn-pct">${progressRing(t.pct, 44, 4)}<span>${t.pct}%</span></span>${knob(n)}`;
             }
             case 'inbox':
                 return `<span class="pdot">${ic('inbox')}</span><div class="mn-body"><div class="mn-title">Inbox</div><div class="mn-meta">${n.children.length} tasks not in a project yet</div></div>${knob(n)}`;
@@ -937,7 +961,13 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             const t = tally(n);
             html = `${phead('<span>Goal</span>')}<div class="panel-body" ${goalStyle(n)}>
                 <div class="gp-head"><span class="gdot gdot-lg">${ic(n.goal.icon || 'target')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${esc(n.goal.why || '')}</p></div></div>
-                <div class="gp-stats"><span class="mn-pct">${progressRing(t.pct, 64, 6)}<span>${t.pct}%</span></span><div><b>${t.done} of ${t.total} tasks done</b><span>${n.goal.target ? `Target: ${esc(n.goal.target)}` : ''}</span></div></div>
+                <div class="gp-stats"><span class="mn-pct">${progressRing(t.pct, 64, 6)}<span>${t.pct}%</span></span><div><b>${
+                    n.goal.progressMode === 'manual'
+                        ? 'Set by hand'
+                        : n.goal.progressMode === 'milestones'
+                          ? 'From milestones'
+                          : `${t.done} of ${t.total} tasks done`
+                }</b><span>${[GOAL_STATUS[n.goal.status ?? 'active'], goalBy(n.goal)].filter(Boolean).join(' · ')}</span></div></div>
                 <h3 class="p-section-title gp-h">Projects</h3>
                 <div class="gp-projects">${n.children
                     .filter((p): p is ProjectNode => p.type === 'project')

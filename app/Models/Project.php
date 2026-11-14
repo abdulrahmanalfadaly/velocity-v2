@@ -9,11 +9,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
-    protected $fillable = ['area_id', 'goal_id', 'name', 'description', 'due_date', 'position', 'archived_at', 'github_repo'];
+    public const STATUSES = ['planned', 'active', 'on_hold', 'completed'];
+
+    /** Not being worked on now: its tasks leave Up next (shown under Not ready yet). */
+    public const HELD = ['planned', 'on_hold'];
+
+    protected $fillable = ['area_id', 'goal_id', 'name', 'description', 'status', 'completed_at', 'due_date', 'position', 'archived_at', 'github_repo'];
 
     protected function casts(): array
     {
-        return ['due_date' => 'date', 'archived_at' => 'datetime'];
+        return ['due_date' => 'date', 'archived_at' => 'datetime', 'completed_at' => 'datetime'];
     }
 
     public function user(): BelongsTo

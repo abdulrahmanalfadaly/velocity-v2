@@ -6,6 +6,7 @@ use App\Domain\Prioritization\ExplanationBuilder;
 use App\Domain\Prioritization\PrioritizationEngine;
 use App\Domain\Prioritization\RankingParameters;
 use App\Domain\Prioritization\TaskInput;
+use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\Clock;
@@ -38,7 +39,9 @@ class RankingService
             ->where('user_id', $user->id)
             ->whereIn('status', [Task::TODO, Task::DOING])
             ->where(fn (Builder $q) => $q->whereNull('available_from')->orWhere('available_from', '<=', $now))
-            ->whereDoesntHave('dependencies', fn (Builder $q) => $q->whereNotIn('status', [Task::DONE, Task::CANCELLED]));
+            ->whereDoesntHave('dependencies', fn (Builder $q) => $q->whereNotIn('status', [Task::DONE, Task::CANCELLED]))
+            // A planned or on-hold project's tasks wait (personal mode; FYP mode stays as the report has it).
+            ->when(! $user->fyp_mode, fn (Builder $q) => $q->whereDoesntHave('project', fn (Builder $p) => $p->whereIn('status', Project::HELD)));
     }
 
     public function rank(User $user, ?RankingParameters $params = null): RankedList
@@ -84,6 +87,9 @@ class RankingService
             ->get()
             ->reject(fn (Task $t) => $eligible->has($t->id))
             ->map(function (Task $t) use ($today, $user) {
+                if (! $user->fyp_mode && $t->project && in_array($t->project->status, Project::HELD, true)) {
+                    return ['task' => $t, 'kind' => 'held', 'why' => $t->project->status === 'planned' ? 'Project planned' : 'Project on hold'];
+                }
                 if ($t->status === Task::WAITING) {
                     $since = $user->fyp_mode ? null : FollowUps::waitingDays($t, $today); // FYP mode stays as the report has it
 

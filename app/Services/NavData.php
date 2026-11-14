@@ -30,12 +30,14 @@ class NavData
         $ranked = (clone $eligible)->count();
         $notReady = Task::where('user_id', $user->id)->whereIn('status', Task::OPEN)->count() - $ranked;
 
-        $projects = $user->projects()->whereNull('archived_at')->with('goal:id,color')->orderBy('position')->orderBy('id')->get();
+        // Completed projects leave the menu (All projects lists them).
+        $projects = $user->projects()->whereNull('archived_at')->where('status', '!=', 'completed')->with('goal:id,color')->orderBy('position')->orderBy('id')->get();
         $item = fn ($p) => [
             'id' => $p->id,
             'name' => $p->name,
             'goalColor' => $p->goal?->color,
             'open' => (int) ($openByProject[$p->id] ?? 0),
+            'status' => $p->status,
         ];
         $goals = $user->goals()->whereNull('archived_at')->orderBy('position')->get(['id', 'title', 'color']);
 

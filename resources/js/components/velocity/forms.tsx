@@ -60,7 +60,7 @@ export interface ProjectValues {
 const NEW_AREA = 'new';
 
 /** New project, or edit one (with Archive / Restore). Areas and goals come from the side-menu data. */
-export function ProjectDialog({ project, onClose }: { project?: ProjectValues; onClose: () => void }) {
+export function ProjectDialog({ project, areaId, onClose }: { project?: ProjectValues; areaId?: number; onClose: () => void }) {
     const { props } = usePage<VelocityShared>();
     const areas = props.nav?.areas ?? [];
     const goals = props.nav?.goals ?? [];
@@ -68,7 +68,7 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectValues; o
         name: project?.name ?? '',
         description: project?.description ?? '',
         due_date: project?.dueDate ?? '',
-        area: project?.areaId ? String(project.areaId) : areas.length ? '' : NEW_AREA,
+        area: project?.areaId ? String(project.areaId) : areaId ? String(areaId) : areas.length ? '' : NEW_AREA,
         new_area: '',
         goal_id: project?.goalId ? String(project.goalId) : '',
     });
@@ -167,9 +167,15 @@ export interface GoalValues {
     target: string | null;
     color: number;
     icon: string | null;
+    status?: 'active' | 'paused' | 'achieved' | 'dropped';
+    targetDate?: string | null;
+    progressMode?: 'tasks' | 'milestones' | 'manual';
+    progress?: number | null;
 }
 
 const GOAL_ICONS = ['target', 'cap', 'briefcase', 'heart', 'flame', 'zap'];
+type GoalStatus = NonNullable<GoalValues['status']>;
+type GoalProgress = NonNullable<GoalValues['progressMode']>;
 
 /** New goal, or edit one (with Archive). Colour is one of the three goal colours. */
 export function GoalDialog({ goal, onClose }: { goal?: GoalValues; onClose: () => void }) {
@@ -179,11 +185,21 @@ export function GoalDialog({ goal, onClose }: { goal?: GoalValues; onClose: () =
         target: goal?.target ?? '',
         color: goal?.color ?? 1,
         icon: goal?.icon ?? 'target',
+        status: goal?.status ?? 'active',
+        target_date: goal?.targetDate ?? '',
+        progress_mode: goal?.progressMode ?? 'tasks',
+        progress: goal?.progress ?? 0,
     });
     const { data, setData, errors, processing } = form;
     const submit = (e: FormEvent) => {
         e.preventDefault();
-        form.transform((d) => ({ ...d, why: d.why || null, target: d.target || null }));
+        form.transform((d) => ({
+            ...d,
+            why: d.why || null,
+            target: d.target || null,
+            target_date: d.target_date || null,
+            progress: d.progress_mode === 'manual' ? Number(d.progress) : null,
+        }));
         const opts = { preserveScroll: true, onSuccess: onClose };
         if (goal?.id) form.patch(route('goals.update', goal.id), opts);
         else form.post(route('goals.store'), opts);
@@ -205,15 +221,63 @@ export function GoalDialog({ goal, onClose }: { goal?: GoalValues; onClose: () =
                     <textarea id="g-why" className="input vform-text" rows={2} value={data.why} onChange={(e) => setData('why', e.target.value)} />
                 </Field>
                 <div className="vform-row">
+                    <Field id="g-date" label="Target date" error={errors.target_date}>
+                        <DatePick id="g-date" value={data.target_date} onChange={(v) => setData('target_date', v)} placeholder="No date" />
+                    </Field>
                     <TextField
                         id="g-target"
-                        label="By when"
+                        label="Or in words"
                         value={data.target}
                         onValue={(v) => setData('target', v)}
                         placeholder="Jun 2027, Every day…"
                         maxLength={60}
                         error={errors.target}
                     />
+                </div>
+                <div className="vform-row">
+                    <Field id="g-status" label="Status" error={errors.status}>
+                        <Select
+                            id="g-status"
+                            value={data.status}
+                            search={false}
+                            onChange={(v) => setData('status', v as GoalStatus)}
+                            options={[
+                                { value: 'active', label: 'Active' },
+                                { value: 'paused', label: 'Paused' },
+                                { value: 'achieved', label: 'Achieved' },
+                                { value: 'dropped', label: 'Dropped' },
+                            ]}
+                        />
+                    </Field>
+                    <Field id="g-progress" label="Progress" error={errors.progress_mode || errors.progress}>
+                        <Select
+                            id="g-progress"
+                            value={data.progress_mode}
+                            search={false}
+                            onChange={(v) => setData('progress_mode', v as GoalProgress)}
+                            options={[
+                                { value: 'tasks', label: 'From its tasks' },
+                                { value: 'milestones', label: 'From milestones' },
+                                { value: 'manual', label: 'By hand' },
+                            ]}
+                        />
+                    </Field>
+                </div>
+                {data.progress_mode === 'manual' && (
+                    <Field id="g-pct" label={`Progress: ${data.progress}%`}>
+                        <input
+                            id="g-pct"
+                            className="g-range"
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={data.progress}
+                            onChange={(e) => setData('progress', Number(e.target.value))}
+                        />
+                    </Field>
+                )}
+                <div className="vform-row">
                     <Field id="g-color" label="Colour" error={errors.color}>
                         <div className="vform-swatches" role="radiogroup" id="g-color">
                             {[1, 2, 3].map((c) => (

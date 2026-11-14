@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArchiveController;
+use App\Http\Controllers\AreaController;
 use App\Http\Controllers\CatchUpController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FocusController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\PersonLinkController;
 use App\Http\Controllers\PlannerBlockController;
 use App\Http\Controllers\PlannerController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectStatusController;
 use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\RoutineController;
@@ -89,7 +91,15 @@ Route::middleware(['auth'])->group(function () {
         Route::post('templates/{template}/use', [TemplateController::class, 'use'])->name('templates.use');
         Route::post('templates/{id}/restore', [TemplateController::class, 'restore'])->whereNumber('id')->name('templates.restore');
 
+        Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
+        Route::post('projects/{project}/status', [ProjectStatusController::class, 'status'])->name('projects.status');
+        Route::post('projects/{project}/complete', [ProjectStatusController::class, 'complete'])->name('projects.complete');
+        Route::post('projects/{project}/reopen', [ProjectStatusController::class, 'reopen'])->name('projects.reopen');
+        Route::post('areas', [AreaController::class, 'store'])->name('areas.store');
+        Route::patch('areas/{area}', [AreaController::class, 'update'])->name('areas.update');
+        Route::delete('areas/{area}', [AreaController::class, 'destroy'])->name('areas.destroy');
+        Route::post('areas/{id}/restore', [AreaController::class, 'restore'])->whereNumber('id')->name('areas.restore');
         Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
         Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::post('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');

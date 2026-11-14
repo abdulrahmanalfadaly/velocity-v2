@@ -40,7 +40,19 @@ export default function GoalsMap() {
                 onNewGoal: () => setDialog('new'),
                 onEditGoal: (id) => {
                     const g = goals.current.find((x) => x.id === id);
-                    if (g) setDialog({ id: g.id, title: g.title, why: g.why, target: g.target, color: g.color, icon: g.icon });
+                    if (g)
+                        setDialog({
+                            id: g.id,
+                            title: g.title,
+                            why: g.why,
+                            target: g.target,
+                            color: g.color,
+                            icon: g.icon,
+                            status: g.status,
+                            targetDate: g.targetDate,
+                            progressMode: g.progressMode,
+                            progress: g.progress,
+                        });
                 },
             },
         );

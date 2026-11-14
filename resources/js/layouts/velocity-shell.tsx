@@ -2,6 +2,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/compon
 import { UserMenuContent } from '@/components/user-menu-content';
 import { FocusDone, FocusTimer } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
+import { Pop } from '@/components/velocity/habit-parts';
 import { Icon, Logo } from '@/components/velocity/icon';
 import { QuickAdd } from '@/components/velocity/quick-add';
 import { Reminders } from '@/components/velocity/reminders';
@@ -55,8 +56,20 @@ export default function VelocityShell({ title, section, active, children, panel,
     const hasMenu = section === 'tasks' || !!menu;
     const hasSidebar = hasMenu && !hideSidebar;
     const sectionLabel = SECTIONS.find((s) => s.key === section)?.label ?? title;
+    const [projectArea, setProjectArea] = useState<number | undefined>(undefined);
     const sideMenu = (autoFocus: boolean) =>
-        menu ? menu({ autoFocus }) : <TasksMenu active={active} onNewProject={() => setOverlay('project')} autoFocus={autoFocus} />;
+        menu ? (
+            menu({ autoFocus })
+        ) : (
+            <TasksMenu
+                active={active}
+                onNewProject={(areaId) => {
+                    setProjectArea(areaId);
+                    setOverlay('project');
+                }}
+                autoFocus={autoFocus}
+            />
+        );
     const isDark =
         appearance === 'dark' || (appearance === 'system' && typeof window !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -264,7 +277,7 @@ export default function VelocityShell({ title, section, active, children, panel,
                     </div>
                 )}
 
-                {overlay === 'project' && <ProjectDialog onClose={close} />}
+                {overlay === 'project' && <ProjectDialog areaId={projectArea} onClose={close} />}
 
                 <Reminders clock={Clock.from(props.clock)} onOpen={openTask} />
                 <FocusDone />
@@ -287,23 +300,210 @@ export const TASK_VIEWS: ['today' | 'week' | 'overdue' | 'quick' | 'doing' | 'im
     ['repeating', 'habits', 'Repeating'],
 ];
 
-function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: string; onNewProject: () => void; autoFocus?: boolean }) {
+const AREA_ICONS = ['folder', 'cap', 'briefcase', 'heart', 'home', 'book', 'target', 'flame'];
+const keepState = { preserveScroll: true, preserveState: true };
+
+/** An area's header in the Tasks menu: fold it (remembered on this device), and a menu to rename it, change its icon, add a project, remove it. */
+function AreaHead({
+    area,
+    folded,
+    onFold,
+    onNewProject,
+}: {
+    area: { id: number; name: string; icon: string | null };
+    folded: boolean;
+    onFold: () => void;
+    onNewProject: (areaId: number) => void;
+}) {
+    const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+    const [renaming, setRenaming] = useState(false);
+    const [name, setName] = useState(area.name);
+    const rename = () => {
+        setRenaming(false);
+        if (name.trim() && name.trim() !== area.name) router.patch(route('areas.update', area.id), { name: name.trim() }, keepState);
+        else setName(area.name);
+    };
+    if (renaming) {
+        return (
+            <form
+                className="nav-area"
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    rename();
+                }}
+            >
+                <Icon name={area.icon ?? 'folder'} />
+                <input
+                    className="nav-area-input"
+                    value={name}
+                    maxLength={80}
+                    autoFocus
+                    aria-label="Area name"
+                    onChange={(e) => setName(e.target.value)}
+                    onBlur={rename}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                            e.stopPropagation();
+                            setName(area.name);
+                            setRenaming(false);
+                        }
+                    }}
+                />
+            </form>
+        );
+    }
+    return (
+        <div className="nav-area">
+            <button type="button" className="nav-area-fold" aria-expanded={!folded} onClick={onFold} title={folded ? 'Show its projects' : 'Fold'}>
+                <Icon name={area.icon ?? 'folder'} />
+                <span>{area.name}</span>
+                <Icon name={folded ? 'chevR' : 'chevD'} className="ic-xs nav-area-chev" />
+            </button>
+            <button
+                type="button"
+                className="icon-btn nav-area-more"
+                aria-label={`More for ${area.name}`}
+                onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setMenu({ x: r.left, y: r.bottom + 4 });
+                }}
+            >
+                <Icon name="more" />
+            </button>
+            {menu && (
+                <Pop x={menu.x} y={menu.y} label={area.name} onClose={() => setMenu(null)} width={230}>
+                    <button
+                        className="bmenu-item"
+                        onClick={() => {
+                            setMenu(null);
+                            setRenaming(true);
+                        }}
+                    >
+                        <Icon name="sliders" />
+                        Rename
+                    </button>
+                    <div className="area-icons" role="radiogroup" aria-label="Icon">
+                        {AREA_ICONS.map((i) => (
+                            <button
+                                key={i}
+                                type="button"
+                                role="radio"
+                                aria-checked={(area.icon ?? 'folder') === i}
+                                aria-label={i}
+                                onClick={() => {
+                                    setMenu(null);
+                                    router.patch(route('areas.update', area.id), { icon: i }, keepState);
+                                }}
+                            >
+                                <Icon name={i} />
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        className="bmenu-item"
+                        onClick={() => {
+                            setMenu(null);
+                            onNewProject(area.id);
+                        }}
+                    >
+                        <Icon name="plus" />
+                        New project here
+                    </button>
+                    <button
+                        className="bmenu-item"
+                        onClick={() => {
+                            setMenu(null);
+                            router.delete(route('areas.destroy', area.id), keepState);
+                        }}
+                    >
+                        <Icon name="trash" />
+                        Remove area
+                    </button>
+                </Pop>
+            )}
+        </div>
+    );
+}
+
+/** "New area" at the end of the projects: a name, Enter. */
+function NewArea() {
+    const [open, setOpen] = useState(false);
+    const [name, setName] = useState('');
+    if (!open) {
+        return (
+            <button type="button" className="nav-item nav-new-area" onClick={() => setOpen(true)}>
+                <Icon name="plus" />
+                <span className="label">New area</span>
+            </button>
+        );
+    }
+    return (
+        <form
+            className="nav-area"
+            onSubmit={(e) => {
+                e.preventDefault();
+                if (name.trim()) router.post(route('areas.store'), { name: name.trim() }, keepState);
+                setName('');
+                setOpen(false);
+            }}
+        >
+            <Icon name="folder" />
+            <input
+                className="nav-area-input"
+                value={name}
+                maxLength={80}
+                autoFocus
+                placeholder="Area name"
+                aria-label="New area name"
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => !name.trim() && setOpen(false)}
+                onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                        e.stopPropagation();
+                        setOpen(false);
+                    }
+                }}
+            />
+        </form>
+    );
+}
+
+const STATUS_TAG: Record<string, string> = { planned: 'Planned', on_hold: 'On hold' };
+
+function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: string; onNewProject: (areaId?: number) => void; autoFocus?: boolean }) {
     const { props } = usePage<VelocityShared>();
     const nav = props.nav;
     const first = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (autoFocus) first.current?.focus();
     }, [autoFocus]);
+    // Folded areas, remembered on this device.
+    const [folded, setFolded] = useState<number[]>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('velocity.foldedAreas') ?? '[]');
+        } catch {
+            return [];
+        }
+    });
+    const fold = (id: number) => {
+        const next = folded.includes(id) ? folded.filter((x) => x !== id) : [...folded, id];
+        setFolded(next);
+        localStorage.setItem('velocity.foldedAreas', JSON.stringify(next));
+    };
     if (!nav) return null;
     const project = (p: NavProject) => (
         <Link
             key={p.id}
             href={`/projects/${p.id}`}
-            className={`nav-item nav-proj${active === `project:${p.id}` ? ' is-active' : ''}`}
+            className={`nav-item nav-proj${active === `project:${p.id}` ? ' is-active' : ''}${p.status && STATUS_TAG[p.status] ? ' is-held' : ''}`}
             aria-current={active === `project:${p.id}` ? 'page' : undefined}
         >
             <span className="label">{p.name}</span>
-            {p.open > 0 && <span className="count">{p.open}</span>}
+            {p.status && STATUS_TAG[p.status] ? (
+                <span className="nav-tag">{STATUS_TAG[p.status]}</span>
+            ) : (
+                p.open > 0 && <span className="count">{p.open}</span>
+            )}
         </Link>
     );
     const hasProjects = nav.loose.length > 0 || nav.areas.some((a) => a.projects.length > 0);
@@ -318,7 +518,7 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
         <>
             <div className="side-head">
                 <span className="side-title">Tasks</span>
-                <button ref={first} className="icon-btn" onClick={onNewProject} aria-label="New project" title="New project">
+                <button ref={first} className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
                     <Icon name="plus" />
                 </button>
             </div>
@@ -332,17 +532,13 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                     <Fragment key={k}>{item(`show:${k}`, icon, label, `/tasks?show=${k}`, nav.counts.views?.[k])}</Fragment>
                 ))}
                 <div className="nav-label">Projects</div>
-                {nav.areas
-                    .filter((a) => a.projects.length > 0)
-                    .map((a) => (
-                        <div key={a.id}>
-                            <div className="nav-area">
-                                <Icon name={a.icon ?? 'folder'} />
-                                {a.name}
-                            </div>
-                            {a.projects.map(project)}
-                        </div>
-                    ))}
+                {item('projects', 'folder', 'All projects', '/projects')}
+                {nav.areas.map((a) => (
+                    <div key={a.id}>
+                        <AreaHead area={a} folded={folded.includes(a.id)} onFold={() => fold(a.id)} onNewProject={onNewProject} />
+                        {!folded.includes(a.id) && a.projects.map(project)}
+                    </div>
+                ))}
                 {nav.loose.length > 0 && (
                     <div>
                         {nav.areas.some((a) => a.projects.length > 0) && (
@@ -355,11 +551,12 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                     </div>
                 )}
                 {!hasProjects && (
-                    <button type="button" className="nav-item" onClick={onNewProject}>
+                    <button type="button" className="nav-item" onClick={() => onNewProject()}>
                         <Icon name="plus" />
                         <span className="label">New project</span>
                     </button>
                 )}
+                <NewArea />
                 <div className="nav-label">More</div>
                 {item('goals', 'target', 'Goals map', '/goals', nav.counts.goals)}
                 {item('weights', 'sliders', 'Weights', '/weights')}

@@ -55,6 +55,7 @@ const KINDS: [NotReadyTask['kind'], string, string][] = [
     ['waiting', 'Waiting', 'hourglass'],
     ['blocked', 'After another task', 'lock'],
     ['later', 'Starts later', 'calendar'],
+    ['held', 'Project planned or on hold', 'pause'],
 ];
 
 export default function TasksIndex() {
