@@ -80,7 +80,10 @@ export default function Home() {
                             {props.focus.week > 0 && (
                                 <>
                                     {' '}
-                                    <span className="dotsep" /> Focused {hm(props.focus.today)} today · {hm(props.focus.week)} this week
+                                    <span className="dotsep" /> Focused{' '}
+                                    {props.focus.today > 0
+                                        ? `${hm(props.focus.today)} today · ${hm(props.focus.week)} this week`
+                                        : `${hm(props.focus.week)} this week`}
                                 </>
                             )}
                         </p>

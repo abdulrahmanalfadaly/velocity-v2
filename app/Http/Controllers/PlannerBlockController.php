@@ -6,6 +6,7 @@ use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\PlanBuilder;
+use App\Support\Clock;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,8 +37,12 @@ class PlannerBlockController extends Controller
 
         $r = $this->builder->plan($user, $days, $task?->id);
         $short = count($r['short']);
+        // Work is only booked before it's due (an overdue task: as soon as possible).
+        $dueBefore = $task?->due_at && $task->due_at > app(Clock::class)->now() && $task->due_at <= $first->utc();
         $text = match (true) {
-            $task !== null => $r['minutes'] ? 'Booked '.self::dur($r['minutes'])." for “{$task->title}”" : "No free time left for “{$task->title}”",
+            $task !== null && $r['minutes'] > 0 => 'Booked '.self::dur($r['minutes'])." for “{$task->title}”",
+            $task !== null && $dueBefore => "“{$task->title}” is due before then",
+            $task !== null => "No free time left for “{$task->title}”",
             $r['minutes'] > 0 => 'Booked '.self::dur($r['minutes']).($short ? " · {$short} didn’t fit" : ''),
             $short > 0 => 'No free time left',
             default => 'Nothing to book',

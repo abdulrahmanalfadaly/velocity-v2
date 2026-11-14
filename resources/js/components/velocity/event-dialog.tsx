@@ -198,13 +198,13 @@ export function EventDialog({
                         {eventId && initial.repeat_weekly && occurrenceDate && (
                             <button type="button" className="btn btn-ghost" onClick={() => remove('one')}>
                                 <Icon name="x" />
-                                This week only
+                                Remove this week
                             </button>
                         )}
                         {eventId && (
                             <button type="button" className="btn btn-ghost" onClick={() => remove('all')}>
                                 <Icon name="archive" />
-                                {initial.repeat_weekly ? 'Every week' : 'Remove'}
+                                {initial.repeat_weekly ? 'Remove every week' : 'Remove'}
                             </button>
                         )}
                     </span>

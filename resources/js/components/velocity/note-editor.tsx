@@ -225,7 +225,13 @@ export function NoteEditor({
         if (note.title === '' && startsEmpty && !note.journalDate && !note.event) titleBox.current?.focus();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => {
-        if (editor && startsEmpty && (note.journalDate || note.event)) editor.commands.focus('end');
+        if (!editor || !startsEmpty || !(note.journalDate || note.event)) return;
+        try {
+            editor.view.focus(); // at once, not a frame later
+        } catch {
+            // the view isn't on the page yet: the command below still places the cursor
+        }
+        editor.commands.focus('end');
     }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
     useLayoutEffect(() => {
         const t = titleBox.current;

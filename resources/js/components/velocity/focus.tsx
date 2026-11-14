@@ -69,7 +69,8 @@ export function FocusTimer({ variant }: { variant: 'chip' | 'float' }) {
     return (
         <div
             className={`${variant === 'chip' ? 'focus-chip' : 'focus-float'}${over ? ' is-over' : ''}${paused ? ' is-paused' : ''}`}
-            role="status"
+            // A timer, not a live message: screen readers don't read out every passing second.
+            role="timer"
             aria-label={`Focus ${paused ? 'paused' : over ? 'time is up' : 'running'}: ${label}`}
         >
             <span className="focus-dot" />

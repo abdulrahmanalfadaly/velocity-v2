@@ -81,8 +81,10 @@ class HabitController extends Controller
     {
         $user = $request->user();
         $habit = $user->habits()->create($this->fields($request, $user));
+        // Back where the dialog was opened, minus "?new=1" (Ctrl K's New habit), or a reload would open it again.
+        $back = rtrim(preg_replace('/([?&])new=1(&|$)/', '$1', url()->previous()), '?&');
 
-        return back()->with('toast', "Added “{$habit->name}”")->with('undo', $this->undo('delete-habit', $habit->id));
+        return redirect()->to($back)->with('toast', "Added “{$habit->name}”")->with('undo', $this->undo('delete-habit', $habit->id));
     }
 
     public function update(Request $request, Habit $habit): RedirectResponse
