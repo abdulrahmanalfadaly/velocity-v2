@@ -61,6 +61,8 @@ class PlannerController extends Controller
             'habitTimes' => HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
                 ->map(fn ($o) => HabitTimes::present($o))->values(),
             'personDates' => PeopleInfo::between($user, $first, $first->addDays($count)),
+            'followUps' => $user->tasks()->open()->whereDate('follow_up_on', '>=', $first->toDateString())->whereDate('follow_up_on', '<=', $first->addDays($count - 1)->toDateString())
+                ->get(['id', 'title', 'follow_up_on'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'date' => $t->follow_up_on->toDateString()])->values(),
             'unbooked' => $this->builder->unbooked($user, $days->all(), $list),
             'hours' => PlanBuilder::hours($user),
             'dayLimit' => $user->weights()->hours_per_day,

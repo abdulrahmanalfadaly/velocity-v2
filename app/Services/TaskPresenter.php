@@ -25,6 +25,11 @@ class TaskPresenter
             'completedAt' => $task->completed_at?->toIso8601ZuluString(),
             'scoreAtCompletion' => $task->score_at_completion,
             'reminderAt' => $task->reminder_at?->toIso8601ZuluString(),
+            'followUpOn' => $task->follow_up_on?->toDateString(),
+            'waitingSince' => $task->waiting_since?->toIso8601ZuluString(),
+            'cancelledAt' => $task->cancelled_at?->toIso8601ZuluString(),
+            'cancelReason' => $task->cancel_reason,
+            'archivedAt' => $task->archived_at?->toIso8601ZuluString(),
             'repeat' => $task->repeat_unit ? ['unit' => $task->repeat_unit, 'every' => $task->repeat_every ?? 1] : null,
             'project' => $project ? [
                 'id' => $project->id,

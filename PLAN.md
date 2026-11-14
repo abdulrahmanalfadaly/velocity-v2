@@ -423,7 +423,21 @@ leave Up next; only finished or cancelled tasks can be archived.
       "1h 30m" (one length) and ranges ("11-1pm" = 11 am to 1 pm, "3pm to
       4:30pm"); "at 3" and "2-3" stay words. `QuickAddParser::parseEvent`,
       `events.preview`
-- [ ] ★2 Follow-ups, cancel with a reason, archive a task
+- [x] ★2 Follow-ups: a Follow up day in the task panel (any open task); when it
+      comes the task heads Not ready yet ("Follow up · 1 day late · waiting for
+      Dr. Lim, 3 days", rank kept, "Followed up" clears it), Home's Needs
+      attention, and the Planner's all-day row. Never changes the order.
+      Waiting tasks remember since when ("Waiting for Dr. Lim · 3 days";
+      personal mode only). Cancel task (panel ⊘, selection bar): optional
+      reason, shown in the panel and the project's Finished list; its focus
+      stops; tasks after it can start; a repeating one offers Skip this one
+      (next copy made) or Stop repeating; Reopen / Undo put it back as it was.
+      Archive (finished tasks only): out of project pages, Done today and
+      search, listed first on the Archive page with Take out; still counted in
+      History and Review. Settings → Tasks: archive finished tasks never /
+      after 1, 7 or 30 days (a task taken out stays out until finished again).
+      Delete now has a bin icon. `FollowUps`, `AutoArchive`,
+      `TaskActions::cancel / archive`
 - [ ] ★3 Reminders: several per task, before-due ones that move, Bug me, more snooze
 - [ ] ★4 Focus: Pomodoro and settings, any length, intention and note, Task done, history
 - [ ] ★5 Planner: resize and exact times, overlap warning, settings, free time

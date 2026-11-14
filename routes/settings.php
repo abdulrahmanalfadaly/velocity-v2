@@ -4,6 +4,7 @@ use App\Http\Controllers\Settings\IntegrationController;
 use App\Http\Controllers\Settings\ModeController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
+use App\Http\Controllers\Settings\TaskSettingsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -26,6 +27,8 @@ Route::middleware('auth')->group(function () {
 
     // Personal Velocity only: access keys for the API (and, later on this page, GitHub).
     Route::middleware('personal')->group(function () {
+        Route::get('settings/tasks', [TaskSettingsController::class, 'edit'])->name('task-settings.edit');
+        Route::patch('settings/tasks', [TaskSettingsController::class, 'update'])->name('task-settings.update');
         Route::get('settings/integrations', [IntegrationController::class, 'edit'])->name('integrations.edit');
         Route::post('settings/keys', [IntegrationController::class, 'store'])->name('keys.store');
         Route::delete('settings/keys/{id}', [IntegrationController::class, 'destroy'])->whereNumber('id')->name('keys.destroy');

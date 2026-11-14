@@ -6,7 +6,7 @@ import { Board, Timeline } from '@/components/velocity/task-views';
 import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { adjustWeights, Clock, CRIT, DEFAULT_WEIGHTS, dueInfo, fmt1, fmtHours, repeatText, rerank, sameWeights } from '@/lib/velocity';
-import type { BaseTask, CriterionKey, NotReadyTask, RankedTask, RankingSettings, TaskDetail, VelocityShared } from '@/types/velocity';
+import type { BaseTask, CriterionKey, FollowUpTask, NotReadyTask, RankedTask, RankingSettings, TaskDetail, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -17,6 +17,7 @@ interface Props extends VelocityShared {
     tasks: RankedTask[];
     settings: RankingSettings;
     notReady: NotReadyTask[];
+    followUps: FollowUpTask[];
     doneToday: BaseTask[];
     selected: TaskDetail | null;
     projects: { id: number; name: string }[];
@@ -84,6 +85,7 @@ export default function TasksIndex() {
 
     // The Inbox is the same ranking with project tasks hidden, so every task keeps its number.
     const base = inInbox ? list.filter((t) => !t.project) : list;
+    const followUps = inInbox ? props.followUps.filter((f) => !f.project) : props.followUps;
     const notReady = inInbox ? props.notReady.filter((w) => !w.project) : props.notReady;
     const doneToday = inInbox ? props.doneToday.filter((d) => !d.project) : props.doneToday;
     const filters = inInbox ? FILTERS.filter((f) => f[0] !== 'inbox') : FILTERS;
@@ -106,7 +108,7 @@ export default function TasksIndex() {
         });
         lastPick.current = id;
     };
-    const bulk = (action: 'complete' | 'delete' | 'move' | 'due', extra: Record<string, string | number | null> = {}) => {
+    const bulk = (action: 'complete' | 'cancel' | 'delete' | 'move' | 'due', extra: Record<string, string | number | null> = {}) => {
         if (!picked?.length) return;
         router.post(
             route('tasks.bulk'),
@@ -216,9 +218,59 @@ export default function TasksIndex() {
 
                 {view === 'waiting' ? (
                     <>
-                        {notReady.length === 0 && <p className="list-empty">Nothing is waiting.</p>}
+                        {notReady.length === 0 && followUps.length === 0 && <p className="list-empty">Nothing is waiting.</p>}
+                        {followUps.length > 0 && (
+                            <details className="section-fold" open>
+                                <summary>
+                                    <Icon name="chevR" className="chev" />
+                                    Follow up <span className="hint">· {followUps.length}</span>
+                                </summary>
+                                {followUps.map((f) => (
+                                    <div
+                                        className={`fold-row is-link${props.selected?.id === f.id ? ' is-selected' : ''}`}
+                                        key={f.id}
+                                        tabIndex={0}
+                                        onClick={() => open(props.selected?.id === f.id ? null : f.id)}
+                                        onKeyDown={(e) =>
+                                            (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open(f.id))
+                                        }
+                                    >
+                                        <span className="att-ic">
+                                            <Icon name="followUp" />
+                                        </span>
+                                        <div>
+                                            <div className="row-title">{f.title}</div>
+                                            <div className="row-sub">
+                                                {f.rank != null && (
+                                                    <>
+                                                        <span>#{f.rank}</span>
+                                                        <span className="dotsep" />
+                                                    </>
+                                                )}
+                                                <span>{f.project?.name ?? 'No project'}</span>
+                                                <span className="dotsep" />
+                                                <span>{f.why}</span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.patch(
+                                                    route('tasks.update', f.id),
+                                                    { follow_up_on: null },
+                                                    { preserveScroll: true, preserveState: true },
+                                                );
+                                            }}
+                                        >
+                                            Followed up
+                                        </button>
+                                    </div>
+                                ))}
+                            </details>
+                        )}
                         {KINDS.map(([kind, label, icon]) => {
-                            const rows = notReady.filter((w) => w.kind === kind);
+                            const rows = notReady.filter((w) => w.kind === kind && !followUps.some((f) => f.id === w.id));
                             return (
                                 rows.length > 0 && (
                                     <details className="section-fold" open key={kind}>
@@ -519,8 +571,12 @@ export default function TasksIndex() {
                     >
                         Set due
                     </button>
+                    <button className="btn btn-secondary btn-sm" disabled={!picked.length} onClick={() => bulk('cancel')}>
+                        <Icon name="ban" className="ic-sm" />
+                        Cancel
+                    </button>
                     <button className="btn btn-secondary btn-sm" disabled={!picked.length} onClick={() => bulk('delete')}>
-                        <Icon name="archive" className="ic-sm" />
+                        <Icon name="trash" className="ic-sm" />
                         Delete
                     </button>
                     <span className="bulk-sep" />

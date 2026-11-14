@@ -23,16 +23,16 @@ list only covers what's missing or partly there.
 
 ## Tasks
 
-- [ ] ★2 Cancel a task with a reason. **Add** (the data allows "Cancelled"; no way to set it yet)
+- [x] ★2 Cancel a task with a reason. **Add** (the data allows "Cancelled"; no way to set it yet)
 - [ ] A capture-only Inbox where new tasks wait unsorted and unranked. **Your call** (v2's Inbox is the ranked list of tasks with no project)
 - [ ] Target date and energy level. **Filter only** (GPT gave them score points)
 - [ ] Link a task straight to a goal; warn when a task is due after its project. **Add**
 - [ ] More quick-add words (start date, reminder, importance) and chips you can remove. **Partly** (due, project, hours, repeat work)
-- [ ] ★2 Follow-up dates and a "Needs attention" group. **Add**
+- [x] ★2 Follow-up dates and a "Needs attention" group. **Add**
 - [ ] "Make available now" (clear the start date in one click). **Add**
 - [ ] Dependencies: a "Blocks" list, stop finishing a task that is still blocked, warnings on cancel or reopen. **Partly**
 - [ ] Real subtasks, with "Complete anyway?" when some are still open. **Add**
-- [ ] ★2 Archive a task, and auto-archive old finished ones. **Add**
+- [x] ★2 Archive a task, and auto-archive old finished ones. **Add**
 - [ ] ★7 Repeat on several weekdays (Mon + Thu), an end date, skip one, move one without moving the rest. **Partly**
 - [ ] Templates with dates like "day 3 after start". **Add**
 - [ ] Bulk edit more fields, and bulk reopen. **Partly** (done, move, due date, delete exist)

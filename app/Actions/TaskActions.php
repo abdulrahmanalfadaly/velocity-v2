@@ -41,6 +41,7 @@ class TaskActions
             'est_hours' => ['sometimes', 'numeric', 'min:0.05', 'max:500'],
             'status' => ['sometimes', Rule::in([Task::TODO, Task::DOING, Task::WAITING])],
             'waiting_for' => ['sometimes', 'nullable', 'string', 'max:160'],
+            'follow_up_on' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
             'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
@@ -105,9 +106,13 @@ class TaskActions
         if (array_key_exists('due_at', $data) || array_key_exists('repeat_unit', $data)) {
             $data['repeat_day'] = null;
         }
-        // A done task is opened again only through "Not done" (reopen), which also handles its repeat copy.
-        if ($task->status === Task::DONE) {
+        // A done or cancelled task is opened again only through reopen, which also handles its repeat copy.
+        if (in_array($task->status, Task::FINISHED, true)) {
             unset($data['status']);
+        }
+        // Waiting from now ("waiting for Dr. Lim · 5 days"); any other status forgets it.
+        if (isset($data['status']) && $data['status'] !== $task->status) {
+            $data['waiting_since'] = $data['status'] === Task::WAITING ? $this->ranking->now() : null;
         }
         if (! $data && ! $deps) {
             return null;
@@ -162,13 +167,48 @@ class TaskActions
         return $this->repeatNext($task, $user);
     }
 
-    /** Opens a done task again, as it was before, and takes back the repeat copy it made. */
+    /**
+     * Cancels an open task: it won't be done. A running focus on it stops; its
+     * planner blocks, reminders and follow-up stop counting because it isn't
+     * open any more. With $next a repeating task skips just this one and its
+     * next copy is made.
+     */
+    public function cancel(Task $task, User $user, ?string $reason = null, bool $next = false): ?Task
+    {
+        $running = FocusActions::running($user);
+        if ($running && (int) $running->task_id === $task->id) {
+            app(FocusActions::class)->finish($running);
+        }
+        $was = $task->status;
+        $task->update(['status' => Task::CANCELLED, 'cancelled_at' => $this->ranking->now(), 'cancel_reason' => $reason]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'cancelled', 'snapshot' => ['reason' => $reason, 'was' => $was]]);
+
+        return $next ? $this->repeatNext($task, $user) : null;
+    }
+
+    /** A done or cancelled task out of the lists (it still counts in History and Review). */
+    public function archive(Task $task, User $user): void
+    {
+        $task->update(['archived_at' => $this->ranking->now()]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'archived']);
+    }
+
+    public function unarchive(Task $task, User $user): void
+    {
+        $task->update(['archived_at' => null, 'unarchived_at' => $this->ranking->now()]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'unarchived']);
+    }
+
+    /** Opens a done or cancelled task again, as it was before, and takes back the repeat copy it made. */
     public function reopen(Task $task, User $user, ?string $status = null): void
     {
-        // Back to what it was before it was ticked off (Doing, Waiting …), or To do, unless a status is asked for
-        // (a card dropped from "Done today" onto another column of the board).
-        $was = $status ?? $task->events()->where('type', 'completed')->first()?->snapshot['was'] ?? Task::TODO;
-        $task->update(['status' => in_array($was, Task::OPEN, true) ? $was : Task::TODO, 'completed_at' => null, 'score_at_completion' => null]);
+        // Back to what it was before it was ticked off or cancelled (Doing, Waiting …), or To do, unless a status
+        // is asked for (a card dropped from "Done today" onto another column of the board).
+        $was = $status ?? $task->events()->whereIn('type', ['completed', 'cancelled'])->first()?->snapshot['was'] ?? Task::TODO;
+        $task->update([
+            'status' => in_array($was, Task::OPEN, true) ? $was : Task::TODO, 'completed_at' => null, 'score_at_completion' => null,
+            'cancelled_at' => null, 'cancel_reason' => null, 'archived_at' => null,
+        ]);
         $task->events()->create(['user_id' => $user->id, 'type' => 'reopened']);
         // Undoing "done" on a repeating task takes back the copy it created, if that copy is still open.
         $next = $task->nextRepeat()->open()->first();

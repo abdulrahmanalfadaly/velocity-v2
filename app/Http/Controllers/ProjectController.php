@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FocusSession;
 use App\Models\Project;
 use App\Models\Task;
+use App\Services\AutoArchive;
 use App\Services\HabitStats;
 use App\Services\RankingService;
 use App\Services\TaskPresenter;
@@ -100,7 +101,10 @@ class ProjectController extends Controller
         $list = $ranking->rank($user);
         $open = $list->toArray(fn (Task $t) => $t->project_id === $project->id);
         $notReady = $ranking->notReady($user, $project->id)->map(fn ($r) => TaskPresenter::notReady($r))->values();
-        $done = $project->tasks()->where('status', Task::DONE)->latest('completed_at')->limit(30)->get();
+        AutoArchive::run($user, $ranking->now());
+        // Finished here: done and cancelled, the latest first (archived ones are out of the way).
+        $done = $project->tasks()->whereIn('status', Task::FINISHED)->whereNull('archived_at')
+            ->orderByRaw('coalesce(completed_at, cancelled_at) desc')->limit(30)->get();
         $total = count($open) + $notReady->count() + $project->tasks()->where('status', Task::DONE)->count();
         $doneCount = $project->tasks()->where('status', Task::DONE)->count();
         $todayLocal = $ranking->now()->timezone($user->timezone)->startOfDay();

@@ -5,7 +5,7 @@ import type { PlanBlock } from '@/components/velocity/planner-parts';
 import { HabitButton } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, firstName, fmt1, fmtHours } from '@/lib/velocity';
-import type { HabitToday, NotReadyTask, RankedTask, VelocityShared } from '@/types/velocity';
+import type { FollowUpTask, HabitToday, NotReadyTask, RankedTask, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 
 interface Props extends VelocityShared {
@@ -32,6 +32,7 @@ interface Props extends VelocityShared {
         catchUps: { personId: number; name: string; initials: string; late: number }[];
     };
     attention: {
+        followUps: FollowUpTask[];
         overdue: RankedTask[];
         notReady: NotReadyTask[];
         milestones: { title: string; project: string; projectId: number; dueDate: string }[];
@@ -98,9 +99,11 @@ export default function Home() {
                     </div>
                     <div className="col">
                         {props.habits.length > 0 && <Habits habits={props.habits} routines={props.routines} />}
-                        {props.attention.overdue.length + props.attention.notReady.length + props.attention.milestones.length > 0 && (
-                            <Attention attention={props.attention} clock={clock} />
-                        )}
+                        {props.attention.followUps.length +
+                            props.attention.overdue.length +
+                            props.attention.notReady.length +
+                            props.attention.milestones.length >
+                            0 && <Attention attention={props.attention} clock={clock} />}
                         {(props.people.dates.length > 0 || props.people.catchUps.length > 0) && <PeopleCard people={props.people} />}
                         {props.week.done > 0 && <Week week={props.week} clock={clock} />}
                     </div>
@@ -459,15 +462,26 @@ function Attention({ attention, clock }: { attention: Props['attention']; clock:
             href: `/tasks?task=${t.id}`,
             action: 'Open',
         })),
-        ...attention.notReady.map((t) => ({
-            key: `n${t.id}`,
-            icon: t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : 'calendar',
+        ...attention.followUps.map((t) => ({
+            key: `f${t.id}`,
+            icon: 'followUp',
             critical: false,
             title: t.title,
             detail: t.why,
             href: `/tasks?task=${t.id}`,
-            action: t.kind === 'waiting' ? 'Follow up' : '',
+            action: 'Open',
         })),
+        ...attention.notReady
+            .filter((t) => !attention.followUps.some((f) => f.id === t.id))
+            .map((t) => ({
+                key: `n${t.id}`,
+                icon: t.kind === 'waiting' ? 'hourglass' : t.kind === 'blocked' ? 'lock' : 'calendar',
+                critical: false,
+                title: t.title,
+                detail: t.why,
+                href: `/tasks?task=${t.id}`,
+                action: t.kind === 'waiting' ? 'Follow up' : '',
+            })),
         ...attention.milestones.map((m) => ({
             key: `m${m.projectId}-${m.title}`,
             icon: 'flag',

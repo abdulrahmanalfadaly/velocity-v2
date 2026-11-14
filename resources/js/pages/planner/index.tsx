@@ -44,6 +44,7 @@ interface Props extends VelocityShared {
     dueTasks: { id: number; title: string; dueAt: string }[];
     habitTimes: PlanHabit[];
     personDates: { key: string; date: string; title: string; kind: 'birthday' | 'anniversary' | 'other'; personId: number }[];
+    followUps: { id: number; title: string; date: string }[];
 }
 
 /** A habit with a set time, on a day it is due. */
@@ -446,7 +447,7 @@ export default function Planner() {
                             </button>
                         ))}
                     </div>
-                    {(allDay.length > 0 || (props.personDates ?? []).length > 0) && (
+                    {(allDay.length > 0 || (props.personDates ?? []).length > 0 || (props.followUps ?? []).length > 0) && (
                         <div className="pg-allday">
                             <span className="pg-gutter">all day</span>
                             {props.days.map((d) => (
@@ -472,6 +473,19 @@ export default function Planner() {
                                                     className="ic-xs"
                                                 />
                                                 <span className="pev-title">{pd.title}</span>
+                                            </Link>
+                                        ))}
+                                    {(props.followUps ?? [])
+                                        .filter((f) => f.date === d)
+                                        .map((f) => (
+                                            <Link
+                                                key={`f${f.id}`}
+                                                className="pev is-date"
+                                                href={`/tasks/waiting?task=${f.id}`}
+                                                title={`Follow up: ${f.title}`}
+                                            >
+                                                <Icon name="followUp" className="ic-xs" />
+                                                <span className="pev-title">{f.title}</span>
                                             </Link>
                                         ))}
                                 </div>

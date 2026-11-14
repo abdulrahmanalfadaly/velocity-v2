@@ -49,8 +49,8 @@ class SearchController extends Controller
     public function find(User $user, string $q, RankedList $list, int $more): array
     {
         $like = '%'.addcslashes($q, '%_\\').'%';
-        $tasks = $user->tasks()->whereIn('status', [...Task::OPEN, Task::DONE])->where('title', 'like', $like)->with('project')
-            ->orderByRaw("case when status = 'done' then 1 else 0 end")->latest('updated_at')->limit(6 * $more)->get()
+        $tasks = $user->tasks()->whereNull('archived_at')->where('title', 'like', $like)->with('project')
+            ->orderByRaw("case when status in ('done', 'cancelled') then 1 else 0 end")->latest('updated_at')->limit(6 * $more)->get()
             ->map(fn ($t) => [
                 'kind' => 'task', 'id' => $t->id, 'title' => $t->title,
                 'sub' => collect([$list->rankOf($t->id) ? '#'.$list->rankOf($t->id) : ucfirst($t->status), $t->project?->name])->filter()->join(' · '),

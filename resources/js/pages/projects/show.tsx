@@ -498,23 +498,38 @@ export default function ProjectShow() {
                                     <details className="pt-done">
                                         <summary>
                                             <Icon name="chevR" className="chev" />
-                                            Done <span>· {props.done.length}</span>
+                                            Finished <span>· {props.done.length}</span>
                                         </summary>
                                         <ul className="ptree">
                                             {props.done.map((t) => (
                                                 <li key={t.id} className="pt">
                                                     <div className="pt-row is-quiet is-done">
                                                         <span className="pt-caret-gap" />
-                                                        <Check
-                                                            done
-                                                            label={`Mark “${t.title}” not done`}
-                                                            onClick={() => router.post(route('tasks.reopen', t.id), {}, keep)}
-                                                        />
+                                                        {t.status === 'cancelled' ? (
+                                                            <button
+                                                                className="p-cancel-mark is-small"
+                                                                aria-label={`Reopen “${t.title}”`}
+                                                                title="Reopen"
+                                                                onClick={() => router.post(route('tasks.reopen', t.id), {}, keep)}
+                                                            >
+                                                                <Icon name="ban" />
+                                                            </button>
+                                                        ) : (
+                                                            <Check
+                                                                done
+                                                                label={`Mark “${t.title}” not done`}
+                                                                onClick={() => router.post(route('tasks.reopen', t.id), {}, keep)}
+                                                            />
+                                                        )}
                                                         <span className="rank-badge is-none">–</span>
                                                         <div className="pt-main">
                                                             <div className="row-title">{t.title}</div>
                                                             <div className="row-sub">
-                                                                {t.completedAt ? `Done ${clock.date(t.completedAt)}` : 'Done'}
+                                                                {t.status === 'cancelled'
+                                                                    ? `Cancelled${t.cancelledAt ? ` ${clock.date(t.cancelledAt)}` : ''}${t.cancelReason ? ` · ${t.cancelReason}` : ''}`
+                                                                    : t.completedAt
+                                                                      ? `Done ${clock.date(t.completedAt)}`
+                                                                      : 'Done'}
                                                             </div>
                                                         </div>
                                                         <span />

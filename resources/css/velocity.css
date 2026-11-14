@@ -707,6 +707,12 @@ select.input { padding-right: 8px; }
 .qa-times .input { width: 112px; }
 .qa-date { min-width: 160px; }
 .qa-error { margin: 0; padding: 0 18px 12px; }
+/* A cancelled task: a quiet "ban" mark in place of the tick (click to reopen). */
+.p-cancel-mark { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border: 1.5px solid var(--line-strong, var(--line)); border-radius: 50%; background: var(--surface-2); color: var(--text-3); padding: 0; cursor: pointer; }
+.p-cancel-mark .ic { width: 15px; height: 15px; }
+.p-cancel-mark:hover { color: var(--text); }
+.p-cancel-mark.is-small { width: 20px; height: 20px; }
+.p-cancel-mark.is-small .ic { width: 12px; height: 12px; }
 
 .s-input { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px 0 18px; border-bottom: 1px solid var(--line); }
 .s-input .ic { width: 20px; height: 20px; color: var(--text-3); }

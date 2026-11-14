@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\FocusSession;
 use App\Models\PlannerBlock;
 use App\Models\Task;
+use App\Services\FollowUps;
 use App\Services\HabitStats;
 use App\Services\HabitTimes;
 use App\Services\PeopleInfo;
@@ -88,6 +89,7 @@ class HomeController extends Controller
                 'of' => $r->habits->filter(fn ($h) => in_array($groups[$h->id] ?? 'off', ['todo', 'done'], true))->count(),
             ])->filter(fn ($r) => $r['of'] > 0)->values(),
             'attention' => [
+                'followUps' => FollowUps::due($user, $today)->map(fn (Task $t) => FollowUps::present($t, $today, $list->rankOf($t->id)))->values(),
                 'overdue' => collect($all)->filter(fn ($t) => $t['days'] !== null && $t['days'] <= 0)->values(),
                 'notReady' => $ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->values(),
                 'milestones' => $user->projects()->whereNull('archived_at')->with(['milestones' => fn ($q) => $q->whereNull('done_at')->whereBetween('due_date', [$today->toDateString(), $today->addDays(3)->toDateString()])])->get()

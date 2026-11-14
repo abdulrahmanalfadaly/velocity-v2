@@ -4,6 +4,7 @@ import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { StartFocus } from './focus';
+import { Modal } from './forms';
 import { TaskGitHub } from './github-parts';
 import { Icon } from './icon';
 import { Picker } from './pick';
@@ -53,6 +54,10 @@ export function TaskPanel({
     }, [title]);
     const ranked = task.rank != null ? (task as RankedTask) : null;
     const done = task.status === 'done';
+    const cancelled = task.status === 'cancelled';
+    const finished = done || cancelled;
+    const [cancelling, setCancelling] = useState(false);
+    const waitedDays = task.status === 'waiting' && task.waitingSince ? -clock.dayDiff(task.waitingSince) : 0;
     // A task in an archived project still shows that project in the list.
     const projectChoices = task.project && !projects.some((p) => p.id === task.project!.id) ? [...projects, task.project] : projects;
     const waitsFor = task.dependsOn.map((d) => d.id);
@@ -62,7 +67,7 @@ export function TaskPanel({
         if (busy) return; // a second click while the first is saving would undo it
         setBusy(true);
         router.post(
-            route(done ? 'tasks.reopen' : 'tasks.complete', task.id),
+            route(finished ? 'tasks.reopen' : 'tasks.complete', task.id),
             {},
             { preserveScroll: true, preserveState: true, onFinish: () => setBusy(false) },
         );
@@ -93,13 +98,40 @@ export function TaskPanel({
                     >
                         <Icon name="file" />
                     </button>
+                    {!finished && (
+                        <button
+                            className="icon-btn"
+                            aria-label="Cancel task"
+                            title="Cancel task (it won’t be done)"
+                            onClick={() => setCancelling(true)}
+                        >
+                            <Icon name="ban" />
+                        </button>
+                    )}
+                    {finished && (
+                        <button
+                            className="icon-btn"
+                            aria-label={task.archivedAt ? 'Take out of the archive' : 'Archive'}
+                            title={task.archivedAt ? 'Take out of the archive' : 'Archive'}
+                            aria-pressed={!!task.archivedAt}
+                            onClick={() =>
+                                router.post(
+                                    route(task.archivedAt ? 'tasks.unarchive' : 'tasks.archive-one', task.id),
+                                    {},
+                                    { preserveScroll: true, preserveState: true },
+                                )
+                            }
+                        >
+                            <Icon name="archive" />
+                        </button>
+                    )}
                     <button
                         className="icon-btn"
                         aria-label="Delete task"
                         title="Delete (you can undo)"
                         onClick={() => router.delete(route('tasks.destroy', task.id), { preserveScroll: true })}
                     >
-                        <Icon name="archive" />
+                        <Icon name="trash" />
                     </button>
                     <button className="icon-btn" onClick={onClose} aria-label="Close">
                         <Icon name="x" />
@@ -108,7 +140,13 @@ export function TaskPanel({
             </div>
             <div className="panel-body">
                 <div className="p-title-row">
-                    <Check done={done} size="check-lg" label={done ? 'Mark not done' : 'Mark done'} onClick={toggleDone} />
+                    {cancelled ? (
+                        <button className="p-cancel-mark" onClick={toggleDone} aria-label="Reopen" title="Reopen">
+                            <Icon name="ban" />
+                        </button>
+                    ) : (
+                        <Check done={done} size="check-lg" label={done ? 'Mark not done' : 'Mark done'} onClick={toggleDone} />
+                    )}
                     <textarea
                         ref={titleRef}
                         className="p-title p-title-edit"
@@ -128,7 +166,7 @@ export function TaskPanel({
                         }}
                     />
                 </div>
-                {!done && (
+                {!finished && (
                     <div className="seg" role="radiogroup" aria-label="Status">
                         {(['todo', 'doing', 'waiting'] as const).map((s) => (
                             <button
@@ -152,11 +190,13 @@ export function TaskPanel({
                             <span className="score-num">{fmt1(ranked.score)}</span>
                         </>
                     ) : done ? (
-                        'Done'
+                        `Done${task.archivedAt ? ' · archived' : ''}`
+                    ) : cancelled ? (
+                        `Cancelled${task.cancelledAt ? ` ${clock.date(task.cancelledAt)}` : ''}${task.cancelReason ? ` · ${task.cancelReason}` : ''}${task.archivedAt ? ' · archived' : ''}`
                     ) : task.status === 'waiting' ? (
-                        `Waiting${task.waitingFor ? ` for ${task.waitingFor}` : ''}`
-                    ) : task.dependsOn.some((d) => d.status !== 'done') ? (
-                        `After “${task.dependsOn.find((d) => d.status !== 'done')!.title}”`
+                        `Waiting${task.waitingFor ? ` for ${task.waitingFor}` : ''}${waitedDays > 0 ? ` · ${waitedDays === 1 ? '1 day' : `${waitedDays} days`}` : ''}`
+                    ) : task.dependsOn.some((d) => d.status !== 'done' && d.status !== 'cancelled') ? (
+                        `After “${task.dependsOn.find((d) => d.status !== 'done' && d.status !== 'cancelled')!.title}”`
                     ) : task.availableFrom ? (
                         `From ${clock.date(task.availableFrom, { weekday: 'short', day: 'numeric', month: 'short' })}`
                     ) : null}
@@ -182,6 +222,23 @@ export function TaskPanel({
                                         patch(task.id, { waiting_for: e.target.value.trim() || null })
                                     }
                                     onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                                />
+                            </div>
+                        </>
+                    )}
+                    {!finished && (
+                        <>
+                            <div className="prop-label">
+                                <Icon name="followUp" />
+                                Follow up
+                            </div>
+                            <div className="prop-value">
+                                <DatePick
+                                    className="prop-input"
+                                    label="Follow up"
+                                    placeholder="No follow-up"
+                                    value={task.followUpOn ?? ''}
+                                    onChange={(v) => patch(task.id, { follow_up_on: v || null })}
                                 />
                             </div>
                         </>
@@ -377,7 +434,7 @@ export function TaskPanel({
                     </div>
                     <div className="prop-value p-after">
                         {task.dependsOn.map((d) => (
-                            <span key={d.id} className={`p-after-chip${d.status === 'done' ? ' is-done' : ''}`}>
+                            <span key={d.id} className={`p-after-chip${d.status === 'done' || d.status === 'cancelled' ? ' is-done' : ''}`}>
                                 {d.title}
                                 <button
                                     type="button"
@@ -546,12 +603,80 @@ export function TaskPanel({
             </div>
             <div className="panel-foot">
                 <button className="btn btn-primary btn-lg" onClick={toggleDone} disabled={busy}>
-                    <Icon name="check" />
-                    {done ? 'Not done' : 'Mark done'}
+                    <Icon name={cancelled ? 'arrowL' : 'check'} />
+                    {done ? 'Not done' : cancelled ? 'Reopen' : 'Mark done'}
                 </button>
-                {!done && <StartFocus taskId={task.id} className="btn btn-secondary btn-lg" />}
+                {!finished && <StartFocus taskId={task.id} className="btn btn-secondary btn-lg" />}
             </div>
+            {cancelling && <CancelTask task={task} onClose={() => setCancelling(false)} />}
         </>
+    );
+}
+
+/** "Cancel task": an optional reason; a repeating task can skip only this one or stop repeating. */
+function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }) {
+    const [reason, setReason] = useState('');
+    const send = (skip: boolean) =>
+        router.post(
+            route('tasks.cancel', task.id),
+            { reason: reason.trim() || null, skip },
+            { preserveScroll: true, preserveState: true, onSuccess: onClose },
+        );
+    return (
+        <Modal title={`Cancel “${task.title}”?`} onClose={onClose}>
+            <div
+                className="vform"
+                onKeyDown={(e) => {
+                    // Escape closes this box only, not the task panel behind it.
+                    if (e.key === 'Escape') {
+                        e.stopPropagation();
+                        onClose();
+                    }
+                }}
+            >
+                <div className="field">
+                    <div className="field-label">
+                        <label htmlFor="cancel-reason">Why? (optional)</label>
+                    </div>
+                    <textarea
+                        id="cancel-reason"
+                        className="input"
+                        rows={2}
+                        maxLength={300}
+                        value={reason}
+                        placeholder="Supervisor dropped this section"
+                        onChange={(e) => setReason(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                send(!!task.repeat);
+                            }
+                        }}
+                    />
+                </div>
+                <div className="vform-foot">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>
+                        Keep it
+                    </button>
+                    <div className="vform-foot-right">
+                        {task.repeat ? (
+                            <>
+                                <button type="button" className="btn btn-secondary" onClick={() => send(false)}>
+                                    Stop repeating
+                                </button>
+                                <button type="button" className="btn btn-primary" onClick={() => send(true)}>
+                                    Skip this one
+                                </button>
+                            </>
+                        ) : (
+                            <button type="button" className="btn btn-primary" onClick={() => send(false)}>
+                                Cancel task
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </Modal>
     );
 }
 

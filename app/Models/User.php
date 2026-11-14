@@ -17,7 +17,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     /** @var list<string> */
-    protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode', 'planner_hours'];
+    protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode', 'planner_hours', 'auto_archive_days'];
 
     /** @var list<string> */
     protected $hidden = ['password', 'remember_token', 'github_token'];

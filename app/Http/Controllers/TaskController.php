@@ -8,6 +8,8 @@ use App\Models\GithubLink;
 use App\Models\Task;
 use App\Models\TaskStep;
 use App\Models\User;
+use App\Services\AutoArchive;
+use App\Services\FollowUps;
 use App\Services\GitHub;
 use App\Services\RankingService;
 use App\Services\StudyLogger;
@@ -60,13 +62,15 @@ class TaskController extends Controller
         $user = $request->user();
         $list = $this->ranking->rank($user);
         $now = $this->ranking->now()->timezone($user->timezone);
+        AutoArchive::run($user, $this->ranking->now());
 
         return Inertia::render('tasks/index', [
             'view' => $view,
             'tasks' => $list->toArray(),
             'settings' => $list->settings(),
             'notReady' => $this->ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->values(),
-            'doneToday' => $user->tasks()->where('status', Task::DONE)->where('completed_at', '>=', $now->startOfDay()->utc())
+            'followUps' => FollowUps::due($user, $now->startOfDay())->map(fn (Task $t) => FollowUps::present($t, $now->startOfDay(), $list->rankOf($t->id)))->values(),
+            'doneToday' => $user->tasks()->where('status', Task::DONE)->whereNull('archived_at')->where('completed_at', '>=', $now->startOfDay()->utc())
                 ->with('project.goal')->latest('completed_at')->get()->map(fn ($t) => TaskPresenter::base($t)),
             'selected' => fn () => $this->detail($request),
             'projects' => $user->projects()->whereNull('archived_at')->get(['id', 'name']),
@@ -207,7 +211,7 @@ class TaskController extends Controller
 
     private const LABELS = [
         'title' => 'Title', 'notes' => 'Notes', 'importance' => 'Importance', 'urgency' => 'Urgency', 'due_at' => 'Due date',
-        'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'project_id' => 'Project',
+        'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'follow_up_on' => 'Follow-up', 'project_id' => 'Project',
         'repeat_unit' => 'Repeat', 'available_from' => 'Start date', 'reminder_at' => 'Reminder',
     ];
 
@@ -294,7 +298,7 @@ class TaskController extends Controller
         $data = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:200'],
             'ids.*' => ['integer', 'distinct'],
-            'action' => ['required', Rule::in(['complete', 'delete', 'move', 'due'])],
+            'action' => ['required', Rule::in(['complete', 'cancel', 'delete', 'move', 'due'])],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'due_at' => ['nullable', 'date'],
         ]);
@@ -312,6 +316,10 @@ class TaskController extends Controller
                 $list = $this->ranking->rank($user); // one ranking: each task keeps the score it had at this moment
                 $tasks->each(fn (Task $t) => $this->actions->complete($t, $user, $list->scoreOf($t->id), false));
                 $toast = "{$n} {$noun} done";
+                break;
+            case 'cancel':
+                $tasks->each(fn (Task $t) => $this->actions->cancel($t, $user));
+                $toast = "Cancelled {$n} {$noun}";
                 break;
             case 'delete':
                 $tasks->each(fn (Task $t) => $this->actions->delete($t, $user));
@@ -345,7 +353,7 @@ class TaskController extends Controller
         $data = $request->validate([
             'ids' => ['required', 'array', 'max:200'],
             'ids.*' => ['integer'],
-            'action' => ['required', Rule::in(['complete', 'delete', 'move', 'due'])],
+            'action' => ['required', Rule::in(['complete', 'cancel', 'delete', 'move', 'due'])],
             'before' => ['nullable', 'array'],
             'before.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'before.*.due_at' => ['nullable', 'date'],
@@ -354,7 +362,7 @@ class TaskController extends Controller
         $tasks = Task::withTrashed()->where('user_id', $user->id)->whereIn('id', $data['ids'])->get();
 
         foreach ($tasks as $t) {
-            if ($data['action'] === 'complete' && $t->status === Task::DONE) {
+            if (($data['action'] === 'complete' && $t->status === Task::DONE) || ($data['action'] === 'cancel' && $t->status === Task::CANCELLED)) {
                 $this->actions->reopen($t, $user);
             } elseif ($data['action'] === 'delete' && $t->trashed()) {
                 $this->actions->restore($t, $user);
@@ -370,13 +378,64 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
-        if ($task->status !== Task::DONE) {
+        if (! in_array($task->status, Task::FINISHED, true)) {
             return back();
         }
         $status = $request->validate(['status' => ['sometimes', Rule::in(Task::OPEN)]])['status'] ?? null;
+        if ($task->status === Task::CANCELLED) {
+            // Undo cancels it again the same way (skipping a repeat makes the next copy again).
+            $undo = $this->undo('cancel-task', $task->id, ['reason' => $task->cancel_reason, 'skip' => $task->nextRepeat()->open()->exists()]);
+            $this->actions->reopen($task, $user, $status);
+
+            return back()->with('toast', "Back: “{$task->title}”")->with('undo', $undo);
+        }
         $this->actions->reopen($task, $user, $status);
 
         return back()->with('toast', "Not done: “{$task->title}”")->with('undo', $this->undo('complete', $task->id));
+    }
+
+    /** "Cancel task": it won't be done (with a reason, if given). A repeating one can skip only this time. */
+    public function cancel(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:300'], 'skip' => ['sometimes', 'boolean']]);
+        if (! in_array($task->status, Task::OPEN, true)) {
+            return back();
+        }
+        $skip = ($data['skip'] ?? false) && $task->repeat_unit;
+        $reason = trim($data['reason'] ?? '') ?: ($skip ? 'Skipped' : null);
+        $next = $this->actions->cancel($task, $user, $reason, (bool) $skip);
+        $toast = $skip
+            ? "Skipped “{$task->title}”".($next?->due_at ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '')
+            : "Cancelled “{$task->title}”";
+
+        return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+    }
+
+    /** A done or cancelled task goes to the archive (out of project pages, Done today and search). */
+    public function archive(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        if (! in_array($task->status, Task::FINISHED, true) || $task->archived_at) {
+            return back();
+        }
+        $this->actions->archive($task, $user);
+
+        return back()->with('toast', "Archived “{$task->title}”")->with('undo', $this->undo('unarchive-task', $task->id));
+    }
+
+    public function unarchive(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        if (! $task->archived_at) {
+            return back();
+        }
+        $this->actions->unarchive($task, $user);
+
+        return back()->with('toast', "“{$task->title}” is out of the archive")->with('undo', $this->undo('archive-task', $task->id));
     }
 
     public function destroy(Request $request, Task $task): RedirectResponse

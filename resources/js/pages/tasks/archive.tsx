@@ -5,6 +5,7 @@ import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 
 interface Props extends VelocityShared {
+    archived: { id: number; title: string; project: string | null; status: 'done' | 'cancelled'; finishedAt: string | null; reason: string | null }[];
     tasks: { id: number; title: string; project: string | null; deletedAt: string | null }[];
     projects: { id: number; name: string; archivedAt: string | null; open: number }[];
     goals: { id: number; title: string; color: number; archivedAt: string | null }[];
@@ -18,7 +19,7 @@ export default function Archive() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
     const when = (iso: string | null) => (iso ? clock.date(iso, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
-    const empty = !props.tasks.length && !props.notes.length && !props.projects.length && !props.goals.length;
+    const empty = !props.archived.length && !props.tasks.length && !props.notes.length && !props.projects.length && !props.goals.length;
 
     return (
         <VelocityShell title="Archive" section="tasks" active="archive">
@@ -86,6 +87,36 @@ export default function Archive() {
                     </section>
                 )}
 
+                {props.archived.length > 0 && (
+                    <section className="card archive-card" aria-labelledby="ar-archived">
+                        <div className="card-head">
+                            <h2 className="card-title" id="ar-archived">
+                                <Icon name="archive" />
+                                Archived tasks
+                            </h2>
+                        </div>
+                        {props.archived.map((t) => (
+                            <div className="fold-row" key={t.id}>
+                                <span className="att-ic">
+                                    <Icon name={t.status === 'cancelled' ? 'ban' : 'check'} />
+                                </span>
+                                <div>
+                                    <Link className="row-title" href={`/tasks?task=${t.id}`}>
+                                        {t.title}
+                                    </Link>
+                                    <div className="row-sub">
+                                        {t.project ?? 'No project'} · {t.status === 'cancelled' ? 'cancelled' : 'done'} {when(t.finishedAt)}
+                                        {t.reason ? ` · ${t.reason}` : ''}
+                                    </div>
+                                </div>
+                                <button className="btn btn-secondary btn-sm" onClick={() => router.post(route('tasks.unarchive', t.id), {}, keep)}>
+                                    Take out
+                                </button>
+                            </div>
+                        ))}
+                    </section>
+                )}
+
                 {props.tasks.length > 0 && (
                     <section className="card archive-card" aria-labelledby="ar-tasks">
                         <div className="card-head">
@@ -97,7 +128,7 @@ export default function Archive() {
                         {props.tasks.map((t) => (
                             <div className="fold-row" key={t.id}>
                                 <span className="att-ic">
-                                    <Icon name="archive" />
+                                    <Icon name="trash" />
                                 </span>
                                 <div>
                                     <div className="row-title">{t.title}</div>

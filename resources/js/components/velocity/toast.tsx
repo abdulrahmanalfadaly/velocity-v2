@@ -8,6 +8,9 @@ export type ToastState = { text: string; undo: Undo | null } | null;
 /** What each kind of Undo calls. The server names the action; this maps it to a route. */
 const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route: string }> = {
     reopen: { method: 'post', route: 'tasks.reopen' },
+    'cancel-task': { method: 'post', route: 'tasks.cancel' },
+    'archive-task': { method: 'post', route: 'tasks.archive-one' },
+    'unarchive-task': { method: 'post', route: 'tasks.unarchive' },
     complete: { method: 'post', route: 'tasks.complete' },
     restore: { method: 'post', route: 'tasks.restore' },
     'delete-task': { method: 'delete', route: 'tasks.destroy' },

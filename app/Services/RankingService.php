@@ -27,8 +27,7 @@ class RankingService
         private readonly PrioritizationEngine $engine,
         private readonly ExplanationBuilder $explainer,
         private readonly Clock $clock,
-    ) {
-    }
+    ) {}
 
     /** @return Builder<Task> open tasks the formula may rank */
     public function eligibleQuery(User $user): Builder
@@ -73,6 +72,7 @@ class RankingService
     public function notReady(User $user, ?int $projectId = null): Collection
     {
         $now = $this->clock->now();
+        $today = $now->timezone($user->timezone)->startOfDay();
         $eligible = $this->eligibleQuery($user)->pluck('id')->flip();
 
         return Task::query()
@@ -83,9 +83,12 @@ class RankingService
             ->orderBy('created_at')
             ->get()
             ->reject(fn (Task $t) => $eligible->has($t->id))
-            ->map(function (Task $t) use ($now) {
+            ->map(function (Task $t) use ($today, $user) {
                 if ($t->status === Task::WAITING) {
-                    return ['task' => $t, 'kind' => 'waiting', 'why' => $t->waiting_for ? "Waiting for {$t->waiting_for}" : 'Waiting on someone else'];
+                    $since = $user->fyp_mode ? null : FollowUps::waitingDays($t, $today); // FYP mode stays as the report has it
+
+                    return ['task' => $t, 'kind' => 'waiting', 'why' => ($t->waiting_for ? "Waiting for {$t->waiting_for}" : 'Waiting on someone else')
+                        .($since ? ' · '.FollowUps::days($since) : '')];
                 }
                 if ($t->dependencies->isNotEmpty()) {
                     return ['task' => $t, 'kind' => 'blocked', 'why' => 'Starts after “'.$t->dependencies->first()->title.'”'];

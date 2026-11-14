@@ -7,7 +7,10 @@ const PAGES = [
     { title: 'Appearance', url: '/settings/appearance' },
     { title: 'FYP mode', url: '/settings/mode' },
 ];
-const PERSONAL = [{ title: 'Integrations', url: '/settings/integrations' }];
+const PERSONAL = [
+    { title: 'Tasks', url: '/settings/tasks' },
+    { title: 'Integrations', url: '/settings/integrations' },
+];
 
 /** Settings in the Velocity design: a row of tabs, then the page's cards. */
 export default function SettingsLayout({ children }: { children: ReactNode }) {

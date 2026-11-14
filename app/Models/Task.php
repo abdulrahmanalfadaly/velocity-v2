@@ -28,10 +28,14 @@ class Task extends Model
 
     public const STATUSES = [self::TODO, self::DOING, self::WAITING, self::DONE, self::CANCELLED];
 
+    /** Done or cancelled: no longer open, and can go to the archive. */
+    public const FINISHED = [self::DONE, self::CANCELLED];
+
     protected $fillable = [
         'project_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
         'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion', 'reminder_at', 'reminder_sent_at',
         'repeat_unit', 'repeat_every', 'repeat_day', 'repeated_from_id',
+        'follow_up_on', 'waiting_since', 'cancelled_at', 'cancel_reason', 'archived_at', 'unarchived_at',
     ];
 
     protected function casts(): array
@@ -48,6 +52,11 @@ class Task extends Model
             'reminder_sent_at' => 'datetime',
             'repeat_every' => 'integer',
             'repeat_day' => 'integer',
+            'follow_up_on' => 'date',
+            'waiting_since' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'archived_at' => 'datetime',
+            'unarchived_at' => 'datetime',
         ];
     }
 

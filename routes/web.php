@@ -77,6 +77,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('tasks/{task}/unpromote', [TaskController::class, 'unpromote'])->name('tasks.unpromote');
 
         Route::get('tasks/archive', ArchiveController::class)->name('tasks.archive');
+        Route::post('tasks/{task}/cancel', [TaskController::class, 'cancel'])->name('tasks.cancel');
+        Route::post('tasks/{task}/archive', [TaskController::class, 'archive'])->name('tasks.archive-one');
+        Route::post('tasks/{task}/unarchive', [TaskController::class, 'unarchive'])->name('tasks.unarchive');
 
         Route::get('tasks/templates', [TemplateController::class, 'index'])->name('templates.index');
         Route::post('templates', [TemplateController::class, 'store'])->name('templates.store');

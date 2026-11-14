@@ -35,6 +35,12 @@ export interface BaseTask {
     completedAt: string | null;
     scoreAtCompletion: number | null;
     reminderAt: string | null;
+    /** A day to check on it ("YYYY-MM-DD"); never changes the order. */
+    followUpOn: string | null;
+    waitingSince: string | null;
+    cancelledAt: string | null;
+    cancelReason: string | null;
+    archivedAt: string | null;
     repeat: RepeatRule | null;
     project: ProjectRef | null;
     parent: { id: number; title: string } | null;
@@ -58,6 +64,12 @@ export interface RankedTask extends BaseTask {
 
 export interface NotReadyTask extends BaseTask {
     kind: 'waiting' | 'blocked' | 'later';
+    why: string;
+}
+
+/** A task whose follow-up day has come: "Follow up today · waiting for Dr. Lim, 5 days". */
+export interface FollowUpTask extends BaseTask {
+    rank: number | null;
     why: string;
 }
 
