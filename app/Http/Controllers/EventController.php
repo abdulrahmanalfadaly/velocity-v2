@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\User;
+use App\Services\QuickAddParser;
+use App\Services\RankingService;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,6 +22,14 @@ class EventController extends Controller
         $event = $user->events()->create($this->fields($request, $user));
 
         return back()->with('toast', "Added “{$event->title}”")->with('undo', $this->undo('delete-event', $event->id));
+    }
+
+    /** Quick add's Event tab: what a typed line means ("Dentist tomorrow 3-4pm #personal"), before it is saved. */
+    public function preview(Request $request, QuickAddParser $parser, RankingService $ranking): JsonResponse
+    {
+        $text = $request->validate(['text' => ['required', 'string', 'max:255']])['text'];
+
+        return response()->json($parser->parseEvent($text, $ranking->now()->timezone($request->user()->timezone)));
     }
 
     public function update(Request $request, Event $event): RedirectResponse

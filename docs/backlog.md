@@ -88,8 +88,8 @@ list only covers what's missing or partly there.
 - [ ] Follow-ups on Home, an Inbox hint, a Refresh button, a refresh at midnight. **Add**
 - [ ] A projects card, a focus card with breaks, a mini goals map. **Low** (optional)
 - [ ] Search: filter by type, include archived, find people by nickname. **Add**
-- [ ] ★1 Quick add → Event. **Add** (the tab is there, greyed out)
-- [ ] ★1 Quick add → Person. **Add**
+- [x] ★1 Quick add → Event. **Add** (the tab is there, greyed out)
+- [x] ★1 Quick add → Person. **Add**
 - [ ] Quick add: text for a note, keep the draft with Retry on an error, "Add another". **Add**
 
 ## Review

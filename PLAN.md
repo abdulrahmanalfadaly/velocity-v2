@@ -81,7 +81,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 6 | People (contacts, dates, follow-ups) | done |
 | 7 | Home, Review charts, global search | done |
 | 8 | API for Mark (personal tokens with scopes) + GitHub | done |
-| 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | planning |
+| 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | in progress |
 
 ## Phase 0 / 1 checklist
 
@@ -404,6 +404,36 @@ redaction are left out on purpose. A part a key can't read is hidden whole.
       GitHub being down keeps what was known.
 - [x] API: `GET/POST /tasks/{id}/github`, `DELETE /tasks/{id}/github/{link}`
       (GitHub area). No webhooks, no automatic completion, no field syncing.
+
+## Phase 9 checklist
+
+The GPT version's features that v2 lacked, the user's twelve top picks first
+(the rest wait in `docs/backlog.md`). Plan approved on 15 Nov with these calls:
+limit / avoid habits count a day with nothing logged as kept; the plain focus
+timer keeps counting past its time (Pomodoro stops at each round's end); a
+cancelled task frees the tasks waiting on it; Planned / On hold projects' tasks
+leave Up next; only finished or cancelled tasks can be archived.
+
+- [x] ★1 Quick add: Event tab ("Dentist tomorrow 3-4pm #personal", "Quiz fri
+      9-10am #class", "Gym every mon 6pm"; the day, times, calendar and Every
+      week fill in as you type and can be changed by hand; no time = all day; a
+      start alone lasts the hours typed or an hour; only weekly repeats) and
+      Person tab (name and who they are; you stay where you are). Errors show
+      in the box and the text stays. The parser also reads "3 pm", "noon",
+      "1h 30m" (one length) and ranges ("11-1pm" = 11 am to 1 pm, "3pm to
+      4:30pm"); "at 3" and "2-3" stay words. `QuickAddParser::parseEvent`,
+      `events.preview`
+- [ ] ★2 Follow-ups, cancel with a reason, archive a task
+- [ ] ★3 Reminders: several per task, before-due ones that move, Bug me, more snooze
+- [ ] ★4 Focus: Pomodoro and settings, any length, intention and note, Task done, history
+- [ ] ★5 Planner: resize and exact times, overlap warning, settings, free time
+- [ ] ★6 Habits: minutes / limit / avoid, monthly and every-N-days, pause, check-in notes
+- [ ] ★7 Repeats: several weekdays, until, skip one, moving one doesn't move the rest
+- [ ] ★8 Notes: tables, links to notes / goals / habits, linked from
+- [ ] ★9 Views in the Tasks menu and a Next actions page (formula order)
+- [ ] ★10 Areas menu, project status and Complete, All projects, goal status / date / progress
+- [ ] ★11 Review: day view, more numbers, click to see the items, compare switch
+- [ ] ★12 The API for all of it, request ids, Mark's example scripts
 
 ## Run it
 

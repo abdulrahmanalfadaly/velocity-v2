@@ -76,9 +76,14 @@ class PersonController extends Controller
         [$fields, $contacts, $groups] = $this->fields($request, $user);
         $person = $user->people()->create($fields);
         $this->sync($person, $contacts, $groups);
+        $toast = "Added “{$person->name}”";
+        if ($request->boolean('stay')) {
+            // From quick add: stay where you are.
+            return back()->with('toast', $toast)->with('undo', $this->undo('delete-person', $person->id));
+        }
 
         return redirect()->route('people.index', array_filter(['view' => $request->input('view'), 'person' => $person->id]))
-            ->with('toast', "Added “{$person->name}”")->with('undo', $this->undo('delete-person', $person->id));
+            ->with('toast', $toast)->with('undo', $this->undo('delete-person', $person->id));
     }
 
     public function update(Request $request, Person $person): RedirectResponse
