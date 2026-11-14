@@ -68,7 +68,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | in progress |
 | 4 | Notes (editor, links to tasks, journal, files, canvas last) | in progress (drawing still to decide) |
 | 5 | Habits (schedules, check-ins, streaks, routines) | done |
-| 6 | People (contacts, dates, follow-ups) | – |
+| 6 | People (contacts, dates, follow-ups) | done |
 | 7 | Home, Review charts, global search | – |
 | 8 | API for Mark (personal tokens with scopes) + GitHub | – |
 
@@ -287,6 +287,35 @@ every check-in and three Planner modes are left out on purpose.
       skip it there), and "Plan my day" books around it unless it is done or
       skipped. `HabitTimes`
 - [x] Ctrl K finds habits; the Goals map opens them; Undo for every change.
+
+## Phase 6 checklist
+
+The GPT version's People is the scope reference (contacts, important dates with
+reminders, keeping in touch, groups, links to notes); its follow-ups separate
+from tasks, list of "memories", version locks and no-delete rule are left out
+on purpose: follow-ups are tasks linked to the person, so the formula stays the
+only ranking.
+
+- [x] People page with its own side menu (All people, Needs attention,
+      Birthdays & dates for the next 60 days, each group, Archived); each row
+      shows what is next ("Birthday in 3 days", "Catch up · 2 days late").
+      New / Edit person: name, who they are, where, how to reach them (email,
+      phone, link, other: checked, links get https://), groups (new ones made
+      on the way), keep in touch every n days. Archive and delete with Undo.
+- [x] Person panel: contact lines (click to email, call, open), keep in touch
+      ("Talked today": message / call / met / other, any past day, a note; the
+      history with remove + Undo), dates, tasks ("Waiting on …", New task for
+      them, Link task), notes (New note, Link note), projects, About.
+- [x] Dates: birthday, anniversary or other; yearly or once (needs the year);
+      29 February is kept on 28 February in other years; age / years from the
+      year. Reminder on the day or 1 / 3 / 7 / 14 days before, at 9:00, shown
+      once each time the date comes round (reminder card + Windows
+      notification). `PersonDate::next`, `ReminderController`
+- [x] Links: People row in the task panel (the picker says "Waiting on…" for a
+      waiting task), people on notes, a People card on project pages.
+- [x] Home: a People card (dates this week, catch-ups due). Planner: dates as
+      all-day markers. Ctrl K finds people by name, who they are, where, or a
+      contact. `PeopleInfo`
 
 ## Run it
 

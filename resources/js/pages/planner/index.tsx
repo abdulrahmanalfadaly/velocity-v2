@@ -5,7 +5,7 @@ import { BlockMenu, type Hours, HoursDialog, type PlanBlock } from '@/components
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, fmtHours, round1 } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
-import { router, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Occurrence {
@@ -43,6 +43,7 @@ interface Props extends VelocityShared {
     calendars: Record<CalendarKey, number>;
     dueTasks: { id: number; title: string; dueAt: string }[];
     habitTimes: PlanHabit[];
+    personDates: { key: string; date: string; title: string; kind: 'birthday' | 'anniversary' | 'other'; personId: number }[];
 }
 
 /** A habit with a set time, on a day it is due. */
@@ -443,7 +444,7 @@ export default function Planner() {
                             </button>
                         ))}
                     </div>
-                    {allDay.length > 0 && (
+                    {(allDay.length > 0 || (props.personDates ?? []).length > 0) && (
                         <div className="pg-allday">
                             <span className="pg-gutter">all day</span>
                             {props.days.map((d) => (
@@ -459,6 +460,17 @@ export default function Planner() {
                                                 <Icon name={ICON[e.calendar]} className="ic-xs" />
                                                 <span className="pev-title">{e.title}</span>
                                             </button>
+                                        ))}
+                                    {(props.personDates ?? [])
+                                        .filter((pd) => pd.date === d)
+                                        .map((pd) => (
+                                            <Link key={pd.key} className="pev is-date" href={`/people?person=${pd.personId}`}>
+                                                <Icon
+                                                    name={pd.kind === 'birthday' ? 'gift' : pd.kind === 'anniversary' ? 'heart' : 'calendar'}
+                                                    className="ic-xs"
+                                                />
+                                                <span className="pev-title">{pd.title}</span>
+                                            </Link>
                                         ))}
                                 </div>
                             ))}

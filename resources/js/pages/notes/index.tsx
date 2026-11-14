@@ -36,6 +36,7 @@ interface Props extends VelocityShared {
     };
     projects: { id: number; name: string }[];
     taskOptions: { id: number; title: string }[];
+    personOptions: { id: number; name: string }[];
     journalDays: string[];
 }
 
@@ -175,6 +176,7 @@ export default function Notes() {
                             note={props.note}
                             projects={props.projects}
                             taskOptions={props.taskOptions}
+                            personOptions={props.personOptions}
                             clock={clock}
                             journalNav={journalNav}
                             onSaved={(s) => setSaved((m) => ({ ...m, [s.id]: s }))}

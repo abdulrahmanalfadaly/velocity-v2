@@ -56,6 +56,20 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'delete-routine': { method: 'delete', route: 'routines.destroy' },
     'restore-routine': { method: 'post', route: 'routines.restore' },
     'patch-routine': { method: 'patch', route: 'routines.update' },
+    'delete-person': { method: 'delete', route: 'people.destroy' },
+    'restore-person': { method: 'post', route: 'people.restore' },
+    'patch-person': { method: 'patch', route: 'people.update' },
+    'put-person-about': { method: 'put', route: 'people.about' },
+    'archive-person': { method: 'post', route: 'people.archive' },
+    'unarchive-person': { method: 'post', route: 'people.unarchive' },
+    'delete-person-date': { method: 'delete', route: 'person-dates.destroy' },
+    'restore-person-date': { method: 'post', route: 'person-dates.restore' },
+    'patch-person-date': { method: 'patch', route: 'person-dates.update' },
+    'delete-catch-up': { method: 'delete', route: 'catch-ups.destroy' },
+    'restore-catch-up': { method: 'post', route: 'catch-ups.restore' },
+    'link-person': { method: 'post', route: 'people.link' },
+    'rename-group': { method: 'patch', route: 'person-groups.update' },
+    'restore-group': { method: 'post', route: 'person-groups.restore' },
 };
 
 export function runUndo(u: Undo) {

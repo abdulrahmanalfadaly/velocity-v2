@@ -46,6 +46,23 @@ class PagesTest extends TestCase
         $this->getJson('/search?q=chap')->assertOk()->assertJsonPath('groups.0.label', 'Tasks');
     }
 
+    public function test_notes_habits_people_and_the_planner_render_with_the_demo_data(): void
+    {
+        $this->actingAs($this->user);
+        $lim = $this->user->people()->where('name', 'Dr. Lim Wei')->firstOrFail();
+
+        $this->get('/planner')->assertInertia(fn (Assert $p) => $p->component('planner/index')->has('habitTimes')->has('personDates'));
+        $this->get('/notes')->assertInertia(fn (Assert $p) => $p->component('notes/index')->has('notes', 6)->where('note', null));
+        $this->get('/habits')->assertInertia(fn (Assert $p) => $p->component('habits/index')->has('habits', 5)->has('menu.routines', 1));
+        $this->get('/habits?view=week')->assertInertia(fn (Assert $p) => $p->has('habits.0.days', 7));
+        $this->get('/people')->assertInertia(fn (Assert $p) => $p->component('people/index')->has('people', 3)->has('menu.groups', 2));
+        $this->get('/people?view=dates')->assertInertia(fn (Assert $p) => $p->where('upcoming.0.title', 'Sara’s birthday')->where('upcoming.0.days', 4));
+        // Dr. Lim: a catch-up two days late; Sara: a birthday in 4 days.
+        $this->get('/people?view=attention')->assertInertia(fn (Assert $p) => $p->has('people', 2)->where('people.0.name', 'Dr. Lim Wei'));
+        $this->get("/people?person={$lim->id}")->assertInertia(fn (Assert $p) => $p->where('person.tasks.0.status', 'waiting')->where('person.projects.0.name', 'Final Year Project'));
+        $this->get('/home')->assertInertia(fn (Assert $p) => $p->has('people.dates', 1)->has('people.catchUps', 1)->has('routines', 1));
+    }
+
     public function test_inbox_and_not_ready_have_their_own_pages(): void
     {
         $this->actingAs($this->user);

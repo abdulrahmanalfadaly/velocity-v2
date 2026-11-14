@@ -3,14 +3,14 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 
 interface Item {
-    kind: 'task' | 'project' | 'goal' | 'note' | 'habit';
+    kind: 'task' | 'project' | 'goal' | 'note' | 'habit' | 'person';
     id: number;
     title: string;
     sub: string;
     url: string;
 }
 
-const KIND_ICON = { task: 'tasks', project: 'folder', goal: 'target', note: 'notes', habit: 'habits' } as const;
+const KIND_ICON = { task: 'tasks', project: 'folder', goal: 'target', note: 'notes', habit: 'habits', person: 'person' } as const;
 
 /** Ctrl K: find tasks, projects, goals and notes. Arrow keys move, Enter opens. */
 export function SearchPalette({ onClose }: { onClose: () => void }) {
@@ -69,7 +69,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
                     ref={input}
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search tasks, projects, goals, notes and habits"
+                    placeholder="Search tasks, projects, notes, habits and people"
                     aria-label="Search everything"
                     onKeyDown={(e) => {
                         if (e.key === 'ArrowDown') {

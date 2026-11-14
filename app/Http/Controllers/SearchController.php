@@ -42,12 +42,19 @@ class SearchController extends Controller
         $habits = $user->habits()->whereNull('archived_at')->where('name', 'like', $like)->with('project')->orderBy('name')->limit(4)->get()
             ->map(fn ($h) => ['kind' => 'habit', 'id' => $h->id, 'title' => $h->name, 'sub' => $h->project?->name ?? $h->scheduleLabel(), 'url' => route('habits.index', ['habit' => $h->id])]);
 
+        $people = $user->people()->whereNull('archived_at')
+            ->where(fn ($w) => $w->where('name', 'like', $like)->orWhere('relationship', 'like', $like)->orWhere('organisation', 'like', $like)
+                ->orWhereHas('contacts', fn ($c) => $c->where('value', 'like', $like)))
+            ->orderBy('name')->limit(4)->get()
+            ->map(fn ($p) => ['kind' => 'person', 'id' => $p->id, 'title' => $p->name, 'sub' => collect([$p->relationship, $p->organisation])->filter()->join(' · ') ?: 'Person', 'url' => route('people.index', ['person' => $p->id])]);
+
         return response()->json(['groups' => array_values(array_filter([
             ['label' => 'Tasks', 'items' => $tasks->values()],
             ['label' => 'Projects', 'items' => $projects->values()],
             ['label' => 'Goals', 'items' => $goals->values()],
             ['label' => 'Notes', 'items' => $notes->values()],
             ['label' => 'Habits', 'items' => $habits->values()],
+            ['label' => 'People', 'items' => $people->values()],
         ], fn ($g) => count($g['items']) > 0))]);
     }
 }

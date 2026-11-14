@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PersonDate;
 use App\Models\Task;
 use App\Services\RankingService;
 use Illuminate\Http\JsonResponse;
@@ -29,12 +30,36 @@ class ReminderController extends Controller
             Task::whereKey($tasks->pluck('id'))->update(['reminder_sent_at' => $now]);
         }
 
-        return response()->json(['reminders' => $tasks->map(fn (Task $t) => [
-            'id' => $t->id,
-            'title' => $t->title,
-            'remindAt' => $t->reminder_at->toIso8601ZuluString(),
-            'dueAt' => $t->due_at?->toIso8601ZuluString(),
-        ])->values()]);
+        // Birthdays and other dates: at 9:00 on the day (or the days before that were asked for), once for each time it comes round.
+        $today = $now->timezone($user->timezone)->startOfDay();
+        $dates = PersonDate::whereNotNull('remind_days')
+            ->whereHas('person', fn ($p) => $p->where('user_id', $user->id)->whereNull('archived_at')->whereNull('deleted_at'))
+            ->with('person')->get()
+            ->map(fn (PersonDate $d) => ['d' => $d, 'next' => $d->next($today)])
+            ->filter(fn ($x) => $x['next']
+                && $x['d']->reminded_for?->toDateString() !== $x['next']->toDateString()
+                && $now >= $x['next']->subDays($x['d']->remind_days)->setTime(9, 0))
+            ->take(20)->values();
+        foreach ($dates as $x) {
+            $x['d']->update(['reminded_for' => $x['next']->toDateString()]);
+        }
+
+        return response()->json([
+            'reminders' => $tasks->map(fn (Task $t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'remindAt' => $t->reminder_at->toIso8601ZuluString(),
+                'dueAt' => $t->due_at?->toIso8601ZuluString(),
+            ])->values(),
+            'dates' => $dates->map(fn ($x) => [
+                'id' => $x['d']->id,
+                'personId' => $x['d']->person_id,
+                'title' => $x['d']->title($x['d']->person->name),
+                'date' => $x['next']->toDateString(),
+                'days' => (int) round($today->diffInDays($x['next'])),
+                'turns' => $x['d']->turns($x['next']),
+            ]),
+        ]);
     }
 
     /** "Snooze": remind again in a while. */

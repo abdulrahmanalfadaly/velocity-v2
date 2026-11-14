@@ -17,6 +17,18 @@ interface Props extends VelocityShared {
     plan: { items: PlanItem[]; booked: number; limit: number };
     habits: HabitToday[];
     routines: { id: number; name: string; done: number; of: number }[];
+    people: {
+        dates: {
+            id: number;
+            personId: number;
+            title: string;
+            kind: 'birthday' | 'anniversary' | 'other';
+            next: string;
+            days: number;
+            turns: number | null;
+        }[];
+        catchUps: { personId: number; name: string; initials: string; late: number }[];
+    };
     attention: {
         overdue: RankedTask[];
         notReady: NotReadyTask[];
@@ -74,6 +86,7 @@ export default function Home() {
                     </div>
                     <div className="col">
                         {props.habits.length > 0 && <Habits habits={props.habits} routines={props.routines} />}
+                        {(props.people.dates.length > 0 || props.people.catchUps.length > 0) && <PeopleCard people={props.people} />}
                         <Attention attention={props.attention} clock={clock} />
                         <Week week={props.week} clock={clock} />
                     </div>
@@ -309,6 +322,55 @@ function Upcoming({ tasks, clock }: { tasks: RankedTask[]; clock: Clock }) {
                     })}
                 </ol>
             )}
+        </section>
+    );
+}
+
+const DATE_ICON = { birthday: 'gift', anniversary: 'heart', other: 'calendar' } as const;
+
+/** Birthdays and dates this week, and people it is time to catch up with. */
+function PeopleCard({ people }: { people: Props['people'] }) {
+    return (
+        <section className="card" aria-labelledby="people-title">
+            <div className="card-head">
+                <h2 className="card-title" id="people-title">
+                    <Icon name="people" />
+                    People
+                </h2>
+            </div>
+            <ul className="home-people">
+                {people.dates.map((d) => (
+                    <li key={`d${d.id}`}>
+                        <Link href={`/people?person=${d.personId}`}>
+                            <Icon name={DATE_ICON[d.kind]} className="ic-sm" />
+                            <span>
+                                <b>{d.title}</b>
+                                <small>
+                                    {d.days === 0 ? 'Today' : d.days === 1 ? 'Tomorrow' : `In ${d.days} days`}
+                                    {d.turns ? (d.kind === 'birthday' ? ` · turns ${d.turns}` : ` · ${d.turns} years`) : ''}
+                                </small>
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+                {people.catchUps.map((c) => (
+                    <li key={`c${c.personId}`}>
+                        <Link href={`/people?person=${c.personId}`}>
+                            <Icon name="message" className="ic-sm" />
+                            <span>
+                                <b>Catch up with {c.name}</b>
+                                <small>{c.late === 0 ? 'Today' : `${c.late} ${c.late === 1 ? 'day' : 'days'} late`}</small>
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+            <div className="card-foot">
+                <Link className="card-link" href="/people?view=attention">
+                    Open People
+                    <Icon name="arrowR" className="ic-xs" />
+                </Link>
+            </div>
         </section>
     );
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArchiveController;
+use App\Http\Controllers\CatchUpController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FocusController;
 use App\Http\Controllers\FypController;
@@ -11,6 +12,9 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MilestoneController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\NoteFileController;
+use App\Http\Controllers\PersonController;
+use App\Http\Controllers\PersonDateController;
+use App\Http\Controllers\PersonLinkController;
 use App\Http\Controllers\PlannerBlockController;
 use App\Http\Controllers\PlannerController;
 use App\Http\Controllers\ProjectController;
@@ -112,6 +116,28 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('routines/{routine}', [RoutineController::class, 'update'])->name('routines.update');
         Route::delete('routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');
         Route::post('routines/{id}/restore', [RoutineController::class, 'restore'])->whereNumber('id')->name('routines.restore');
+
+        Route::get('people', [PersonController::class, 'index'])->name('people.index');
+        Route::post('people', [PersonController::class, 'store'])->name('people.store');
+        Route::patch('people/{person}', [PersonController::class, 'update'])->name('people.update');
+        Route::put('people/{person}/about', [PersonController::class, 'about'])->name('people.about');
+        Route::post('people/{person}/archive', [PersonController::class, 'archive'])->name('people.archive');
+        Route::post('people/{person}/unarchive', [PersonController::class, 'unarchive'])->name('people.unarchive');
+        Route::delete('people/{person}', [PersonController::class, 'destroy'])->name('people.destroy');
+        Route::post('people/{id}/restore', [PersonController::class, 'restore'])->whereNumber('id')->name('people.restore');
+        Route::post('people/{person}/dates', [PersonDateController::class, 'store'])->name('person-dates.store');
+        Route::patch('person-dates/{date}', [PersonDateController::class, 'update'])->name('person-dates.update');
+        Route::delete('person-dates/{date}', [PersonDateController::class, 'destroy'])->name('person-dates.destroy');
+        Route::post('person-dates/{id}/restore', [PersonDateController::class, 'restore'])->whereNumber('id')->name('person-dates.restore');
+        Route::post('people/{person}/catch-ups', [CatchUpController::class, 'store'])->name('catch-ups.store');
+        Route::delete('catch-ups/{catchUp}', [CatchUpController::class, 'destroy'])->name('catch-ups.destroy');
+        Route::post('catch-ups/{id}/restore', [CatchUpController::class, 'restore'])->whereNumber('id')->name('catch-ups.restore');
+        Route::post('people/{person}/link', [PersonLinkController::class, 'link'])->name('people.link');
+        Route::post('people/{person}/unlink', [PersonLinkController::class, 'unlink'])->name('people.unlink');
+        Route::post('people/{person}/new-task', [PersonLinkController::class, 'newTask'])->name('people.new-task');
+        Route::patch('person-groups/{group}', [PersonLinkController::class, 'renameGroup'])->name('person-groups.update');
+        Route::delete('person-groups/{group}', [PersonLinkController::class, 'destroyGroup'])->name('person-groups.destroy');
+        Route::post('person-groups/{id}/restore', [PersonLinkController::class, 'restoreGroup'])->whereNumber('id')->name('person-groups.restore');
         Route::get('planner', [PlannerController::class, 'index'])->name('planner.index');
         Route::post('planner/plan', [PlannerBlockController::class, 'plan'])->name('planner.plan');
         Route::post('planner/unplan', [PlannerBlockController::class, 'unplan'])->name('planner.unplan');

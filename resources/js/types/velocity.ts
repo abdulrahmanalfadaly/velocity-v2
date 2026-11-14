@@ -71,6 +71,9 @@ export type TaskDetail = BaseTask &
         files: TaskFileInfo[];
         /** Notes linked to the task (Notes › Link task, or New note here). */
         linkedNotes?: { id: number; title: string }[];
+        /** People the task is about or waiting on. */
+        people?: { id: number; name: string }[];
+        peopleChoices?: { id: number; name: string }[];
         focused: { seconds: number; sessions: number };
         goal: { id: number; title: string; color: number } | null;
     };

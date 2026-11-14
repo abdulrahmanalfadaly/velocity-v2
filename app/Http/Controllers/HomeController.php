@@ -7,6 +7,7 @@ use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Services\HabitStats;
 use App\Services\HabitTimes;
+use App\Services\PeopleInfo;
 use App\Services\RankingService;
 use App\Services\TaskPresenter;
 use Illuminate\Http\Request;
@@ -61,6 +62,11 @@ class HomeController extends Controller
             // Deadlines in the next seven days, in time order.
             'upcoming' => collect($all)->filter(fn ($t) => $t['dueAt'] && $t['days'] <= 7)->sortBy('dueAt')->take(7)->values(),
             'habits' => $habits->filter(fn ($h) => $h['dueToday'])->values(),
+            // Birthdays and dates this week, and catch-ups that are due.
+            'people' => [
+                'dates' => PeopleInfo::upcoming($user, $today, PeopleInfo::SOON),
+                'catchUps' => PeopleInfo::catchUpsDue($user, $today),
+            ],
             // Routines with something on today: "Morning 2 / 3".
             'routines' => $user->routines()->with('habits:id')->get()->map(fn ($r) => [
                 'id' => $r->id,

@@ -2,6 +2,7 @@ import { StartFocus } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
 import { HabitDialog } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
+import { Picker } from '@/components/velocity/pick';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Check, HabitButton, Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
@@ -32,6 +33,8 @@ interface Props extends VelocityShared {
         archived: boolean;
     };
     stats: { done: number; total: number; pct: number; bestRank: number | null; focusedWeek: number };
+    people: { id: number; name: string; initials: string; relationship: string | null }[];
+    peopleChoices: { id: number; name: string }[];
     milestones: { id: number; title: string; dueDate: string | null; done: boolean }[];
     tasks: RankedTask[];
     totalRanked: number;
@@ -522,6 +525,60 @@ export default function ProjectShow() {
                         )}
                     </div>
                     <div className="col">
+                        {view === 'overview' && (
+                            <section className="card" aria-labelledby="ppl-title">
+                                <div className="card-head">
+                                    <h2 className="card-title" id="ppl-title">
+                                        <Icon name="people" />
+                                        People
+                                    </h2>
+                                    <Picker
+                                        label="Add person"
+                                        find="Find a person"
+                                        none="No one matches. Add people in People."
+                                        options={props.peopleChoices.map((p) => ({ id: p.id, title: p.name }))}
+                                        taken={props.people.map((p) => p.id)}
+                                        onPick={(id) =>
+                                            router.post(
+                                                route('people.link', id),
+                                                { type: 'project', id: project.id },
+                                                { preserveScroll: true, preserveState: true },
+                                            )
+                                        }
+                                    />
+                                </div>
+                                {props.people.length === 0 ? (
+                                    <p className="card-empty">No one yet.</p>
+                                ) : (
+                                    <ul className="proj-people">
+                                        {props.people.map((p) => (
+                                            <li key={p.id}>
+                                                <Link href={`/people?person=${p.id}`}>
+                                                    <span className="pp-av">{p.initials}</span>
+                                                    <span>
+                                                        <b>{p.name}</b>
+                                                        {p.relationship && <small>{p.relationship}</small>}
+                                                    </span>
+                                                </Link>
+                                                <button
+                                                    className="note-task-x"
+                                                    aria-label={`Take ${p.name} off this project`}
+                                                    onClick={() =>
+                                                        router.post(
+                                                            route('people.unlink', p.id),
+                                                            { type: 'project', id: project.id },
+                                                            { preserveScroll: true, preserveState: true },
+                                                        )
+                                                    }
+                                                >
+                                                    <Icon name="x" className="ic-xs" />
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </section>
+                        )}
                         {show('habits') && (
                             <section className="card" aria-labelledby="phab-title">
                                 <div className="card-head">

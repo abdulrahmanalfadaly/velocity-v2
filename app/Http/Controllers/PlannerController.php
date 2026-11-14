@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Services\HabitTimes;
+use App\Services\PeopleInfo;
 use App\Services\PlanBuilder;
 use App\Services\RankedList;
 use App\Services\RankingService;
@@ -59,6 +60,7 @@ class PlannerController extends Controller
                 ->map(fn (PlannerBlock $b) => self::block($b, $list)),
             'habitTimes' => HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
                 ->map(fn ($o) => HabitTimes::present($o))->values(),
+            'personDates' => PeopleInfo::between($user, $first, $first->addDays($count)),
             'unbooked' => $this->builder->unbooked($user, $days->all(), $list),
             'hours' => PlanBuilder::hours($user),
             'dayLimit' => $user->weights()->hours_per_day,

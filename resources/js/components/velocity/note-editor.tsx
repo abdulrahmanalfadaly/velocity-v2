@@ -9,6 +9,7 @@ import { type Editor, EditorContent, type JSONContent, useEditor, useEditorState
 import StarterKit from '@tiptap/starter-kit';
 import { type DragEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
+import { Picker } from './pick';
 import { fileSize } from './task-files';
 
 export interface NoteFileInfo extends TaskFileInfo {
@@ -27,6 +28,7 @@ export interface NoteDetail {
     event: { id: number; title: string; calendar: 'class' | 'work' | 'personal'; date: string; gone: boolean } | null;
     tasks: { id: number; title: string; status: string; rank: number | null }[];
     files: NoteFileInfo[];
+    people: { id: number; name: string }[];
     updatedAt: string | null;
     createdAt: string | null;
 }
@@ -52,6 +54,7 @@ export function NoteEditor({
     note,
     projects,
     taskOptions,
+    personOptions,
     clock,
     journalNav,
     onSaved,
@@ -61,6 +64,7 @@ export function NoteEditor({
     note: NoteDetail;
     projects: { id: number; name: string }[];
     taskOptions: { id: number; title: string }[];
+    personOptions: { id: number; name: string }[];
     clock: Clock;
     journalNav?: { prev?: string; next?: string };
     onSaved: (s: Saved) => void;
@@ -377,7 +381,36 @@ export function NoteEditor({
                         </button>
                     </span>
                 ))}
-                <TaskPicker noteId={note.id} options={taskOptions} linked={note.tasks.map((t) => t.id)} />
+                <Picker
+                    label="Link task"
+                    find="Find a task"
+                    none="No open tasks match."
+                    options={taskOptions}
+                    taken={note.tasks.map((t) => t.id)}
+                    onPick={(id) => router.post(route('notes.link', note.id), { task_id: id }, keep)}
+                />
+                {note.people.map((p) => (
+                    <span key={`p${p.id}`} className="note-task">
+                        <Link href={`/people?person=${p.id}`} className="note-task-open" title="Open">
+                            <Icon name="person" className="ic-xs" />
+                            <span>{p.name}</span>
+                        </Link>
+                        <button
+                            className="note-task-x"
+                            aria-label={`Unlink “${p.name}”`}
+                            onClick={() => router.post(route('people.unlink', p.id), { type: 'note', id: note.id }, keep)}
+                        >
+                            <Icon name="x" className="ic-xs" />
+                        </button>
+                    </span>
+                ))}
+                <Picker
+                    label="Link person"
+                    find="Find a person"
+                    options={personOptions.map((p) => ({ id: p.id, title: p.name }))}
+                    taken={note.people.map((p) => p.id)}
+                    onPick={(id) => router.post(route('people.link', id), { type: 'note', id: note.id }, keep)}
+                />
             </div>
 
             {editor && <Toolbar editor={editor} onPicture={(f) => void upload(f)} busy={uploading} />}
@@ -575,71 +608,6 @@ function MakeTask({ editor, noteId }: { editor: Editor; noteId: number }) {
                 <Icon name="plus" />
                 Make task
             </button>
-        </div>
-    );
-}
-
-/** Link the note to any open task: type a few letters, pick it. */
-function TaskPicker({ noteId, options, linked }: { noteId: number; options: { id: number; title: string }[]; linked: number[] }) {
-    const [open, setOpen] = useState(false);
-    const [q, setQ] = useState('');
-    const [hi, setHi] = useState(0);
-    const box = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (!open) return;
-        const onDown = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-        document.addEventListener('pointerdown', onDown, true);
-        return () => document.removeEventListener('pointerdown', onDown, true);
-    }, [open]);
-    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    const matches = options.filter((o) => !linked.includes(o.id) && words.every((w) => o.title.toLowerCase().includes(w))).slice(0, 8);
-    const pick = (id: number) => {
-        router.post(route('notes.link', noteId), { task_id: id }, keep);
-        setOpen(false);
-        setQ('');
-    };
-    return (
-        <div className="note-pick" ref={box}>
-            <button className="note-add" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-                <Icon name="plus" className="ic-xs" />
-                Link task
-            </button>
-            {open && (
-                <div className="note-pick-pop" role="dialog" aria-label="Link a task">
-                    <input
-                        className="input"
-                        autoFocus
-                        value={q}
-                        placeholder="Find a task"
-                        aria-label="Find a task"
-                        onChange={(e) => {
-                            setQ(e.target.value);
-                            setHi(0);
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                                e.stopPropagation();
-                                return setOpen(false);
-                            }
-                            if (e.key === 'ArrowDown') setHi((h) => Math.min(h + 1, matches.length - 1));
-                            else if (e.key === 'ArrowUp') setHi((h) => Math.max(h - 1, 0));
-                            else if (e.key === 'Enter' && matches[hi]) pick(matches[hi].id);
-                            else return;
-                            e.preventDefault();
-                        }}
-                    />
-                    <ul role="listbox" aria-label="Tasks">
-                        {matches.length === 0 && <li className="note-pick-none">No open tasks match.</li>}
-                        {matches.map((m, i) => (
-                            <li key={m.id} role="option" aria-selected={i === hi}>
-                                <button className={i === hi ? 'is-hi' : ''} onMouseEnter={() => setHi(i)} onClick={() => pick(m.id)}>
-                                    {m.title}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
         </div>
     );
 }

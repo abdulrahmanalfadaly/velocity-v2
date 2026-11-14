@@ -99,6 +99,16 @@ class User extends Authenticatable
         return $this->hasMany(Routine::class)->orderBy('name');
     }
 
+    public function people(): HasMany
+    {
+        return $this->hasMany(Person::class);
+    }
+
+    public function personGroups(): HasMany
+    {
+        return $this->hasMany(PersonGroup::class)->orderBy('name');
+    }
+
     public function weightProfile(): HasOne
     {
         return $this->hasOne(WeightProfile::class);

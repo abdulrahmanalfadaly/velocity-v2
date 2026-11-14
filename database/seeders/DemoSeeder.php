@@ -114,7 +114,7 @@ class DemoSeeder extends Seeder
         $t['t12']->update(['parent_id' => $t['t1']->id]);
 
         // Not ready yet: waiting, blocked, and not available until later.
-        $this->task(['title' => 'Revise Chapter 3 after feedback', 'importance' => 4, 'urgency' => 3, 'est_hours' => 3, 'project_id' => $p['fyp']->id,
+        $revise = $this->task(['title' => 'Revise Chapter 3 after feedback', 'importance' => 4, 'urgency' => 3, 'est_hours' => 3, 'project_id' => $p['fyp']->id,
             'status' => 'waiting', 'waiting_for' => 'Dr. Lim’s feedback since Thu'], $now->subDays(6)->utc());
         $pilot = $this->task(['title' => 'Pilot the survey with 5 friends', 'importance' => 4, 'urgency' => 3, 'est_hours' => 2, 'project_id' => $p['fyp']->id,
             'due_at' => $this->at(9, '17:00')], $now->subDays(5)->utc());
@@ -164,6 +164,24 @@ class DemoSeeder extends Seeder
         $water->update(['unit' => 'glasses']);
         $water->entries()->create(['day' => $this->today->toDateString(), 'count' => 3]);
         $this->user->routines()->create(['name' => 'Morning'])->habits()->sync([$water->id => ['position' => 0], $revision->id => ['position' => 1]]);
+
+        // People: a supervisor to keep in touch with, a teammate, a birthday coming up.
+        $lim = $this->user->people()->create(['name' => 'Dr. Lim Wei', 'relationship' => 'FYP supervisor', 'organisation' => 'Faculty of Computing', 'catch_up_days' => 14]);
+        $lim->contacts()->create(['kind' => 'email', 'value' => 'lim.wei@university.test', 'label' => 'Work', 'position' => 0]);
+        $lim->catchUps()->create(['on' => $this->today->subDays(16)->toDateString(), 'kind' => 'met', 'note' => 'Went through chapter 2']);
+        $lim->tasks()->attach($revise->id);
+        $lim->projects()->attach($p['fyp']->id);
+        $team = $this->user->personGroups()->create(['name' => 'FYP team']);
+        $family = $this->user->personGroups()->create(['name' => 'Family']);
+        $lim->groups()->attach($team->id);
+        $daniel = $this->user->people()->create(['name' => 'Daniel Tan', 'relationship' => 'Teammate', 'organisation' => 'Data Mining group']);
+        $daniel->groups()->attach($team->id);
+        $daniel->projects()->attach($p['dm']->id);
+        $sara = $this->user->people()->create(['name' => 'Sara', 'relationship' => 'Sister', 'catch_up_days' => 7, 'about' => 'Gift idea: the bookshop voucher she mentioned.']);
+        $sara->groups()->attach($family->id);
+        $soon = $this->today->addDays(4);
+        $sara->dates()->create(['kind' => 'birthday', 'month' => $soon->month, 'day' => $soon->day, 'year' => $soon->year - 19, 'remind_days' => 1]);
+        $sara->catchUps()->create(['on' => $this->today->subDays(3)->toDateString(), 'kind' => 'call']);
     }
 
     private function at(int $days, string $time): CarbonImmutable

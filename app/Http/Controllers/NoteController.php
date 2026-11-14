@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\Note;
+use App\Models\Person;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\RankingService;
@@ -32,7 +33,7 @@ class NoteController extends Controller
         $user = $request->user();
         $in = (string) $request->query('in', 'all');
         $q = trim((string) $request->query('q', ''));
-        $open = $request->integer('note') ? $user->notes()->with(['tasks', 'files' => fn ($f) => $f->where('inline', false), 'event'])->find($request->integer('note')) : null;
+        $open = $request->integer('note') ? $user->notes()->with(['tasks', 'people', 'files' => fn ($f) => $f->where('inline', false), 'event'])->find($request->integer('note')) : null;
 
         // A safety net for notes left empty when the window was closed: gone after a day.
         $user->notes()->blank()->where('updated_at', '<', $this->ranking->now()->subDay())->when($open, fn ($b) => $b->whereKeyNot($open->id))
@@ -55,6 +56,7 @@ class NoteController extends Controller
             'projects' => $user->projects()->whereNull('archived_at')->orderBy('name')->get(['id', 'name'])
                 ->when($open?->project && $open->project->archived_at, fn ($c) => $c->push($open->project->only(['id', 'name'])))->values(),
             'taskOptions' => $open ? $user->tasks()->open()->orderBy('title')->limit(400)->get(['id', 'title']) : [],
+            'personOptions' => $open ? $user->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']) : [],
             'journalDays' => $in === 'journal' ? $user->notes()->whereNotNull('journal_date')->orderBy('journal_date')->pluck('journal_date')->map(fn ($d) => $d->toDateString())->values() : [],
         ]);
     }
@@ -66,17 +68,22 @@ class NoteController extends Controller
         $data = $request->validate([
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'task_id' => ['nullable', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)],
+            'person_id' => ['nullable', 'integer', Rule::exists('people', 'id')->where('user_id', $user->id)],
             'title' => ['nullable', 'string', 'max:200'],
             'in' => ['nullable', 'string', 'max:20'],
         ]);
         $task = isset($data['task_id']) ? Task::find($data['task_id']) : null;
+        $person = isset($data['person_id']) ? Person::find($data['person_id']) : null;
         $note = $user->notes()->create([
             'project_id' => $data['project_id'] ?? $task?->project_id,
-            'title' => $data['title'] ?? ($task ? Str::limit($task->title, 200, '') : ''),
+            'title' => $data['title'] ?? Str::limit($task->title ?? $person->name ?? '', 200, ''),
             'body_text' => '',
         ]);
         if ($task) {
             $note->tasks()->attach($task->id, ['created_at' => now()]);
+        }
+        if ($person) {
+            $note->people()->attach($person->id);
         }
         $in = $note->project_id ? "p{$note->project_id}" : (($data['in'] ?? null) === 'loose' ? 'loose' : 'all');
 
@@ -280,6 +287,7 @@ class NoteController extends Controller
             ] : null,
             'tasks' => $n->tasks->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status, 'rank' => $list->rankOf($t->id)])->values(),
             'files' => $n->files->map(fn ($f) => $f->present())->values(),
+            'people' => $n->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'updatedAt' => $n->updated_at?->toIso8601ZuluString(),
             'createdAt' => $n->created_at?->toIso8601ZuluString(),
         ];

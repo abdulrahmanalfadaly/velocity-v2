@@ -103,6 +103,12 @@ class Task extends Model
         return $this->hasOne(Task::class, 'repeated_from_id');
     }
 
+    /** People this task is about or waiting on. */
+    public function people(): BelongsToMany
+    {
+        return $this->belongsToMany(Person::class, 'person_task')->orderBy('name');
+    }
+
     /** Notes linked to this task (the task's own short notes are the `notes` column). */
     public function linkedNotes(): BelongsToMany
     {

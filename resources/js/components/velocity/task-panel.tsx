@@ -4,6 +4,7 @@ import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { StartFocus } from './focus';
 import { Icon } from './icon';
+import { Picker } from './pick';
 import { askToNotify, notifyState } from './reminders';
 import { TaskFiles } from './task-files';
 import { Check, Dots } from './ui';
@@ -396,6 +397,45 @@ export function TaskPanel({
                         </select>
                     </div>
                 </div>
+
+                <section className="p-section">
+                    <div className="p-section-head">
+                        <h3 className="p-section-title">People</h3>
+                    </div>
+                    <div className="p-linked">
+                        {task.people?.map((p) => (
+                            <span key={p.id} className="note-task">
+                                <Link className="note-task-open" href={`/people?person=${p.id}`}>
+                                    <Icon name="person" className="ic-xs" />
+                                    <span>{p.name}</span>
+                                </Link>
+                                <button
+                                    className="note-task-x"
+                                    aria-label={`Unlink “${p.name}”`}
+                                    onClick={() =>
+                                        router.post(
+                                            route('people.unlink', p.id),
+                                            { type: 'task', id: task.id },
+                                            { preserveScroll: true, preserveState: true },
+                                        )
+                                    }
+                                >
+                                    <Icon name="x" className="ic-xs" />
+                                </button>
+                            </span>
+                        ))}
+                        <Picker
+                            label={task.status === 'waiting' ? 'Waiting on…' : 'Add person'}
+                            find="Find a person"
+                            options={(task.peopleChoices ?? []).map((p) => ({ id: p.id, title: p.name }))}
+                            taken={task.people?.map((p) => p.id) ?? []}
+                            none="No one matches. Add people in People."
+                            onPick={(id) =>
+                                router.post(route('people.link', id), { type: 'task', id: task.id }, { preserveScroll: true, preserveState: true })
+                            }
+                        />
+                    </div>
+                </section>
 
                 <TaskFiles taskId={task.id} files={task.files} />
 

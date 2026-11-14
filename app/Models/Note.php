@@ -47,6 +47,11 @@ class Note extends Model
         return $this->belongsToMany(Task::class)->withPivot('created_at')->orderByPivot('created_at');
     }
 
+    public function people(): BelongsToMany
+    {
+        return $this->belongsToMany(Person::class, 'person_note')->orderBy('name');
+    }
+
     public function files(): HasMany
     {
         return $this->hasMany(NoteFile::class);
@@ -56,7 +61,7 @@ class Note extends Model
     public function scopeBlank(Builder $q): void
     {
         $q->where('title', '')->where(fn ($q) => $q->whereNull('body_text')->orWhere('body_text', ''))
-            ->doesntHave('files')->doesntHave('tasks');
+            ->doesntHave('files')->doesntHave('tasks')->doesntHave('people');
     }
 
     /** The name shown everywhere: the title, or what the note is for. */

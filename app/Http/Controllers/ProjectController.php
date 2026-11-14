@@ -95,7 +95,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
         $this->own($project, $user);
-        $project->load(['goal', 'area', 'milestones', 'notes', 'habits.entries', 'habits.project']);
+        $project->load(['goal', 'area', 'milestones', 'notes', 'habits.entries', 'habits.project', 'people']);
 
         $list = $ranking->rank($user);
         $open = $list->toArray(fn (Task $t) => $t->project_id === $project->id);
@@ -134,6 +134,8 @@ class ProjectController extends Controller
             'notReady' => $notReady,
             'done' => $done->map(fn ($t) => TaskPresenter::base($t))->values(),
             'habits' => $project->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
+            'people' => $project->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'initials' => $p->initials(), 'relationship' => $p->relationship])->values(),
+            'peopleChoices' => $request->user()->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'notes' => $project->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
             // The task panel opens right here (?task=id), as on the Tasks pages.
             'selected' => fn () => app(TaskController::class)->detailFor($request),
