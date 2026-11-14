@@ -9,6 +9,8 @@ export type ToastState = { text: string; undo: Undo | null } | null;
 const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route: string }> = {
     reopen: { method: 'post', route: 'tasks.reopen' },
     'cancel-task': { method: 'post', route: 'tasks.cancel' },
+    'delete-reminder': { method: 'delete', route: 'reminders.destroy' },
+    'restore-reminder': { method: 'post', route: 'reminders.restore' },
     'archive-task': { method: 'post', route: 'tasks.archive-one' },
     'unarchive-task': { method: 'post', route: 'tasks.unarchive' },
     complete: { method: 'post', route: 'tasks.complete' },

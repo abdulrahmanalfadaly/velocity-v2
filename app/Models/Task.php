@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Reminders;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -33,7 +34,7 @@ class Task extends Model
 
     protected $fillable = [
         'project_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
-        'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion', 'reminder_at', 'reminder_sent_at',
+        'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion',
         'repeat_unit', 'repeat_every', 'repeat_day', 'repeated_from_id',
         'follow_up_on', 'waiting_since', 'cancelled_at', 'cancel_reason', 'archived_at', 'unarchived_at',
     ];
@@ -48,8 +49,6 @@ class Task extends Model
             'due_at' => 'datetime',
             'available_from' => 'datetime',
             'completed_at' => 'datetime',
-            'reminder_at' => 'datetime',
-            'reminder_sent_at' => 'datetime',
             'repeat_every' => 'integer',
             'repeat_day' => 'integer',
             'follow_up_on' => 'date',
@@ -83,6 +82,22 @@ class Task extends Model
     public function steps(): HasMany
     {
         return $this->hasMany(TaskStep::class)->orderBy('position');
+    }
+
+    /** Its reminders: at a time, before the due date, or "Bug me". */
+    public function reminders(): HasMany
+    {
+        return $this->hasMany(TaskReminder::class)->orderBy('id');
+    }
+
+    protected static function booted(): void
+    {
+        // "Before due" reminders move with the due date, however it was changed (panel, board, bulk, Undo, API).
+        static::updated(function (Task $task) {
+            if ($task->wasChanged('due_at')) {
+                Reminders::dueMoved($task);
+            }
+        });
     }
 
     public function focusSessions(): HasMany

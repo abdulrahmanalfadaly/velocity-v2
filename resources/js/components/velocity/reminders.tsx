@@ -1,10 +1,17 @@
 import { Clock } from '@/lib/velocity';
 import { router } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { DatePick } from './date-pick';
 import { Icon } from './icon';
+import { Select } from './select';
+
+/** Tomorrow's date in the user's time zone ("2026-11-16"). */
+const tomorrow = (clock: Clock) => clock.localInput(new Date(clock.now.getTime() + 864e5).toISOString()).slice(0, 10);
 
 interface Reminder {
     id: number;
+    taskId: number;
+    kind: 'at' | 'before' | 'bug';
     title: string;
     remindAt: string;
     dueAt: string | null;
@@ -79,11 +86,11 @@ export function Reminders({ clock, onOpen }: { clock: Clock; onOpen: (taskId: nu
                         body: r.dueAt
                             ? `Due ${clock.date(r.dueAt, { weekday: 'short', day: 'numeric', month: 'short' })}, ${clock.time(r.dueAt)}`
                             : 'Reminder',
-                        tag: `velocity-${r.id}`,
+                        tag: `velocity-${r.taskId}`,
                     });
                     n.onclick = () => {
                         window.focus();
-                        onOpen(r.id);
+                        onOpen(r.taskId);
                         n.close();
                     };
                 });
@@ -154,39 +161,67 @@ export function Reminders({ clock, onOpen }: { clock: Clock; onOpen: (taskId: nu
                                 className="btn btn-primary btn-sm"
                                 onClick={() => {
                                     drop(r.id);
-                                    onOpen(r.id);
+                                    onOpen(r.taskId);
                                 }}
                             >
                                 Open
                             </button>
-                            <button
+                            <Select
                                 className="btn btn-secondary btn-sm"
-                                onClick={() => {
+                                label="Snooze"
+                                value=""
+                                placeholder="Snooze"
+                                search={false}
+                                onChange={(v) => {
                                     drop(r.id);
-                                    router.post(route('tasks.snooze', r.id), { minutes: 10 }, keep);
+                                    router.post(
+                                        route('reminders.snooze', r.id),
+                                        v === 'tomorrow' ? { until: `${tomorrow(clock)}T09:00` } : { minutes: Number(v) },
+                                        keep,
+                                    );
                                 }}
-                            >
-                                10 min
-                            </button>
-                            <button
+                                options={[
+                                    { value: '10', label: '10 min' },
+                                    { value: '30', label: '30 min' },
+                                    { value: '60', label: '1 hour' },
+                                    { value: '180', label: '3 hours' },
+                                    { value: 'tomorrow', label: 'Tomorrow, 9:00 am' },
+                                ]}
+                            />
+                            <DatePick
+                                mode="datetime"
                                 className="btn btn-secondary btn-sm"
-                                onClick={() => {
+                                label="Snooze until"
+                                placeholder="Pick a time…"
+                                defaultTime="09:00"
+                                value=""
+                                onChange={(v) => {
+                                    if (!v) return;
                                     drop(r.id);
-                                    router.post(route('tasks.snooze', r.id), { minutes: 60 }, keep);
+                                    router.post(route('reminders.snooze', r.id), { until: v }, keep);
                                 }}
-                            >
-                                1 hour
-                            </button>
+                            />
                             <button
                                 className="btn btn-ghost btn-sm"
                                 onClick={() => {
                                     drop(r.id);
-                                    router.post(route('tasks.complete', r.id), {}, keep);
+                                    router.post(route('tasks.complete', r.taskId), {}, keep);
                                 }}
                             >
                                 <Icon name="check" className="ic-sm" />
                                 Done
                             </button>
+                            {r.kind === 'bug' && (
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => {
+                                        drop(r.id);
+                                        router.delete(route('reminders.destroy', r.id), keep);
+                                    }}
+                                >
+                                    Stop bugging
+                                </button>
+                            )}
                         </div>
                     </div>
                     <button className="icon-btn reminder-close" aria-label="Dismiss" title="Dismiss" onClick={() => drop(r.id)}>

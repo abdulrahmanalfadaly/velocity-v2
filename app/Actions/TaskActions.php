@@ -10,6 +10,7 @@ use App\Models\TaskEvent;
 use App\Models\User;
 use App\Services\QuickAddParser;
 use App\Services\RankingService;
+use App\Services\Reminders;
 use App\Services\Repeat;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -98,9 +99,10 @@ class TaskActions
             $this->setDependencies($task, $data['depends_on']);
             unset($data['depends_on']);
         }
-        // A new reminder time pops up again, even if an earlier one was already shown.
+        // The single "reminder_at" field (the API's): one "at a time" reminder then, or none.
         if (array_key_exists('reminder_at', $data)) {
-            $data['reminder_sent_at'] = null;
+            Reminders::setAt($task, $data['reminder_at'] ? CarbonImmutable::instance($data['reminder_at']) : null, $this->ranking->now());
+            unset($data['reminder_at']);
         }
         // A new due date or repeat rule sets a new day of the month to keep to.
         if (array_key_exists('due_at', $data) || array_key_exists('repeat_unit', $data)) {
@@ -276,7 +278,6 @@ class TaskActions
             'due_at' => $due,
             'est_hours' => $task->est_hours,
             'available_from' => $shift($task->available_from),
-            'reminder_at' => $shift($task->reminder_at),
             'repeat_unit' => $task->repeat_unit,
             'repeat_every' => $task->repeat_every,
             'repeat_day' => $day,
@@ -285,6 +286,7 @@ class TaskActions
         foreach ($task->steps as $step) {
             $next->steps()->create(['title' => $step->title, 'position' => $step->position]);
         }
+        Reminders::copy($task, $next, $due->getTimestamp() - $base->getTimestamp());
         $next->events()->create(['user_id' => $user->id, 'type' => 'created', 'snapshot' => ['repeatOf' => $task->id]]);
 
         return $next;

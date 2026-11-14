@@ -34,7 +34,6 @@ export interface BaseTask {
     availableFrom: string | null;
     completedAt: string | null;
     scoreAtCompletion: number | null;
-    reminderAt: string | null;
     /** A day to check on it ("YYYY-MM-DD"); never changes the order. */
     followUpOn: string | null;
     waitingSince: string | null;
@@ -81,6 +80,7 @@ export type TaskDetail = BaseTask &
         events: { type: string; at: string | null; via?: string | null }[];
         candidates: { id: number; title: string }[];
         files: TaskFileInfo[];
+        reminders: TaskReminderInfo[];
         /** Notes linked to the task (Notes › Link task, or New note here). */
         linkedNotes?: { id: number; title: string }[];
         /** People the task is about or waiting on. */
@@ -105,6 +105,18 @@ export type TaskDetail = BaseTask &
             stale: boolean;
         } | null;
     };
+
+/** One reminder: at a time, before the due date (moves with it), or "Bug me" every so often. */
+export interface TaskReminderInfo {
+    id: number;
+    kind: 'at' | 'before' | 'bug';
+    at: string | null;
+    minutesBefore: number | null;
+    daysBefore: number | null;
+    atTime: string | null;
+    everyMinutes: number | null;
+    nextAt: string | null;
+}
 
 export interface TaskFileInfo {
     id: number;

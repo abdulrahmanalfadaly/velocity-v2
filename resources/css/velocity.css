@@ -1476,6 +1476,10 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .reminder-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .reminder-close { flex: none; width: 28px; height: 28px; }
 .p-reminder { flex-wrap: wrap; gap: 6px; padding-top: 4px; padding-bottom: 4px; }
+.p-reminders { flex-wrap: wrap; gap: 6px; padding-top: 4px; padding-bottom: 4px; }
+.p-reminders .p-reminder { display: inline-flex; padding: 0; }
+.p-after-chip.is-waiting { color: var(--text-3); }
+.p-after-chip > .ic { flex: none; margin-right: 2px; }
 .p-notify { font-size: 12.5px; }
 @media (max-width: 767px) { .reminders { right: 12px; bottom: 76px; } }
 

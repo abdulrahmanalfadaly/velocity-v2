@@ -90,7 +90,7 @@ class TaskController extends Controller
             return null;
         }
         $user = $request->user();
-        $task = Task::with(['project.goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'people', 'githubLinks', 'events' => fn ($q) => $q->limit(8)])
+        $task = Task::with(['project.goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'people', 'githubLinks', 'reminders', 'events' => fn ($q) => $q->limit(8)])
             ->where('user_id', $user->id)->find($id);
         if (! $task) {
             return null;
@@ -105,6 +105,7 @@ class TaskController extends Controller
             'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
             // Open tasks this one could be set to start after.
             'files' => $task->files->map(fn ($f) => $f->present())->values(),
+            'reminders' => $task->reminders->map(fn ($r) => $r->present())->values(),
             'linkedNotes' => $task->linkedNotes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
             'people' => $task->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'peopleChoices' => $user->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),

@@ -438,7 +438,15 @@ leave Up next; only finished or cancelled tasks can be archived.
       after 1, 7 or 30 days (a task taken out stays out until finished again).
       Delete now has a bin icon. `FollowUps`, `AutoArchive`,
       `TaskActions::cancel / archive`
-- [ ] ★3 Reminders: several per task, before-due ones that move, Bug me, more snooze
+- [x] ★3 Reminders: up to 5 per task in the panel's Reminders row: at a time,
+      before due (15 min / 1 h / 3 h before, the due day, 1 / 2 / 7 days before
+      at 9:00 am; they move with the due date however it changes and wait
+      while there is none), or Bug me every 15 / 30 / 60 / 120 min (one per
+      task; missed ones never pile up) until done or "Stop bugging". The card:
+      Open, Snooze (10 / 30 min, 1 / 3 h, tomorrow 9:00 am, or a time picked),
+      Done, Stop bugging. Finished tasks' reminders wait; reopen brings them
+      back. Repeat copies bring them along. Old single reminders moved over;
+      the API's `reminder_at` still sets one. `TaskReminder`, `Reminders`
 - [ ] ★4 Focus: Pomodoro and settings, any length, intention and note, Task done, history
 - [ ] ★5 Planner: resize and exact times, overlap warning, settings, free time
 - [ ] ★6 Habits: minutes / limit / avoid, monthly and every-N-days, pause, check-in notes

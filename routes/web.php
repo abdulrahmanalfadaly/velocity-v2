@@ -168,7 +168,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('focus/{session}/undo-stop', [FocusController::class, 'undoStop'])->name('focus.undo-stop');
         Route::post('focus/{session}/cancel', [FocusController::class, 'cancel'])->name('focus.cancel');
         Route::get('reminders/due', [ReminderController::class, 'due'])->name('reminders.due');
-        Route::post('tasks/{task}/snooze', [ReminderController::class, 'snooze'])->name('tasks.snooze');
+        Route::post('tasks/{task}/reminders', [ReminderController::class, 'store'])->name('reminders.store');
+        Route::delete('reminders/{reminder}', [ReminderController::class, 'destroy'])->name('reminders.destroy');
+        Route::post('reminders/{id}/restore', [ReminderController::class, 'restore'])->whereNumber('id')->name('reminders.restore');
+        Route::post('reminders/{reminder}/snooze', [ReminderController::class, 'snooze'])->name('reminders.snooze');
         Route::get('search', SearchController::class)->name('search');
         Route::get('search/all', [SearchController::class, 'all'])->name('search.all');
 

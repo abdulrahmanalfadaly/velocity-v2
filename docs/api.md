@@ -87,7 +87,7 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 | `GET /tasks/{id}` | one task, with what it starts after, notes, people, minutes focused, history |
 | `POST /tasks` | `{"text": "Ethics essay outline fri 3h #fyp"}` like quick add (optional `importance`, `urgency`, `project_id`), or fields: `title`, `importance`, `urgency`, `due_at`, `est_hours`, `notes`, `project_id`, `depends_on` … |
 | `POST /tasks/preview` | where a task would land, without saving: `{"text": …}` or `importance`, `urgency`, `due_at`, `est_hours` → `rank`, `of`, `score` |
-| `PATCH /tasks/{id}` | any of: `title`, `notes`, `importance`, `urgency`, `due_at`, `est_hours`, `status` (todo / doing / waiting), `waiting_for`, `project_id`, `repeat_unit`, `repeat_every`, `available_from`, `reminder_at`, `depends_on` |
+| `PATCH /tasks/{id}` | any of: `title`, `notes`, `importance`, `urgency`, `due_at`, `est_hours`, `status` (todo / doing / waiting), `waiting_for`, `project_id`, `repeat_unit`, `repeat_every`, `available_from`, `reminder_at` (one "at a time" reminder; `null` removes them), `follow_up_on` (YYYY-MM-DD), `depends_on` |
 | `POST /tasks/{id}/complete` | done; a repeating task's next copy is in `meta.next` |
 | `POST /tasks/{id}/reopen` | not done again |
 | `DELETE /tasks/{id}` · `POST /tasks/{id}/restore` | delete, and bring back |

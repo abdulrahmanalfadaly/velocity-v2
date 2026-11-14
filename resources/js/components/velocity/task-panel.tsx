@@ -1,5 +1,5 @@
 import { Clock, fmt1, fmtHours, goalVar, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
-import type { RankedTask, RepeatRule, TaskDetail } from '@/types/velocity';
+import type { RankedTask, RepeatRule, TaskDetail, TaskReminderInfo } from '@/types/velocity';
 import { Link, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
@@ -381,35 +381,59 @@ export function TaskPanel({
                     )}
                     <div className="prop-label">
                         <Icon name="bell" />
-                        Reminder
+                        Reminders
                     </div>
-                    <div className="prop-value p-reminder">
-                        <DatePick
-                            mode="datetime"
-                            className="prop-input"
-                            label="Reminder"
-                            placeholder="No reminder"
-                            defaultTime="09:00"
-                            value={clock.localInput(task.reminderAt)}
-                            onChange={(v) => patch(task.id, { reminder_at: v || null })}
-                        />
-                        {task.dueAt && !done && (
-                            <Select
-                                className="prop-input"
-                                label="Quick reminder"
-                                value=""
-                                placeholder="Before due…"
-                                onChange={(v) => {
-                                    const at = new Date(new Date(task.dueAt!).getTime() - Number(v) * 60_000).toISOString();
-                                    patch(task.id, { reminder_at: clock.localInput(at) });
-                                }}
-                                options={[
-                                    { value: '15', label: '15 min before' },
-                                    { value: '60', label: '1 hour before' },
-                                    { value: '180', label: '3 hours before' },
-                                    { value: '1440', label: '1 day before' },
-                                ]}
-                            />
+                    <div className="prop-value p-reminders">
+                        {task.reminders.map((r) => (
+                            <span key={r.id} className={`p-after-chip${r.kind === 'before' && !task.dueAt ? ' is-waiting' : ''}`}>
+                                <Icon name={r.kind === 'bug' ? 'zap' : 'bell'} className="ic-xs" />
+                                {reminderText(r, clock)}
+                                <button
+                                    type="button"
+                                    aria-label={r.kind === 'bug' ? 'Stop bugging' : `Remove reminder “${reminderText(r, clock)}”`}
+                                    title={r.kind === 'bug' ? 'Stop bugging' : 'Remove'}
+                                    onClick={() => router.delete(route('reminders.destroy', r.id), { preserveScroll: true, preserveState: true })}
+                                >
+                                    <Icon name="x" className="ic-xs" />
+                                </button>
+                            </span>
+                        ))}
+                        {!finished && task.reminders.length < 5 && (
+                            <span className="p-reminder">
+                                <DatePick
+                                    mode="datetime"
+                                    className="prop-input"
+                                    label="Remind me at"
+                                    placeholder="At a time…"
+                                    defaultTime="09:00"
+                                    value=""
+                                    onChange={(v) => v && addReminder(task.id, { kind: 'at', at: v })}
+                                />
+                                <Select
+                                    className="prop-input"
+                                    label="Add a reminder"
+                                    value=""
+                                    placeholder="Before due / Bug me…"
+                                    onChange={(v) =>
+                                        addReminder(
+                                            task.id,
+                                            v.startsWith('bug') ? { kind: 'bug', every: Number(v.slice(3)) } : { kind: 'before', before: v },
+                                        )
+                                    }
+                                    options={[
+                                        ...BEFORE.filter(([key]) => !task.reminders.some((r) => r.kind === 'before' && beforeKey(r) === key)).map(
+                                            ([value, label]) => ({
+                                                value,
+                                                label,
+                                                group: task.dueAt ? 'Before it’s due' : 'Before it’s due (once it has a date)',
+                                            }),
+                                        ),
+                                        ...(task.reminders.some((r) => r.kind === 'bug')
+                                            ? []
+                                            : EVERY.map(([m, label]) => ({ value: `bug${m}`, label: `Bug me ${label}`, group: 'Until it’s done' }))),
+                                    ]}
+                                />
+                            </span>
                         )}
                         <NotifyHint />
                     </div>
@@ -679,6 +703,33 @@ function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }
         </Modal>
     );
 }
+
+const BEFORE: [string, string][] = [
+    ['15m', '15 min before'],
+    ['1h', '1 hour before'],
+    ['3h', '3 hours before'],
+    ['0d', 'Due day, 9:00 am'],
+    ['1d', '1 day before, 9:00 am'],
+    ['2d', '2 days before, 9:00 am'],
+    ['7d', '1 week before, 9:00 am'],
+];
+const EVERY: [number, string][] = [
+    [15, 'every 15 min'],
+    [30, 'every 30 min'],
+    [60, 'every hour'],
+    [120, 'every 2 hours'],
+];
+const beforeKey = (r: TaskReminderInfo) => (r.minutesBefore != null ? { 15: '15m', 60: '1h', 180: '3h' }[r.minutesBefore] : `${r.daysBefore}d`);
+
+/** "Tue 17 Nov, 9:00 am", "1 day before, 9:00 am", "Bug me every hour". */
+function reminderText(r: TaskReminderInfo, clock: Clock): string {
+    if (r.kind === 'at' && r.at) return `${clock.date(r.at, { weekday: 'short', day: 'numeric', month: 'short' })}, ${clock.time(r.at)}`;
+    if (r.kind === 'bug') return `Bug me ${EVERY.find(([m]) => m === r.everyMinutes)?.[1] ?? `every ${r.everyMinutes} min`}`;
+    return BEFORE.find(([k]) => k === beforeKey(r))?.[1] ?? 'Before it’s due';
+}
+
+const addReminder = (taskId: number, data: Record<string, string | number>) =>
+    router.post(route('reminders.store', taskId), data, { preserveScroll: true, preserveState: true });
 
 /** Asks once for Windows notifications, so reminders also pop up outside the app window. */
 function NotifyHint() {
