@@ -54,6 +54,14 @@ the same tasks and the same report formula, so the order is always the same.
    search, minimap, outline view. Dots flow out from you along every branch in
    its goal's colour; the path to #1 keeps its brighter white sparks (user's
    request, 9 Nov).
+5. Clock times read "6:00 pm" everywhere (15 Nov). Native date and time boxes
+   follow the computer's own setting.
+6. One dropdown everywhere: Velocity's own (`components/velocity/select.tsx`),
+   never the browser's plain one; a search box when the list is long (15 Nov).
+7. Saving stays as it is: dialogs with Add/Save where fields only make sense
+   together (an event's day and times, a habit's schedule), autosave for single
+   fields (15 Nov).
+8. The Goals map stays under Tasks (15 Nov).
 
 **Pending feedback from the user:** small changes to how the side menus are
 organised (to be given later – ask before Phase 2 is finished).

@@ -1,10 +1,11 @@
-import type { Clock } from '@/lib/velocity';
+import { type Clock, hm12 } from '@/lib/velocity';
 import type { HabitDay, HabitToday } from '@/types/velocity';
 import { Link, router, useForm } from '@inertiajs/react';
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
 import { Icon } from './icon';
+import { Select } from './select';
 
 export type HabitRow = HabitToday & { days: HabitDay[] };
 
@@ -47,7 +48,7 @@ export function habitSub(h: HabitToday): string {
     if (h.week) parts.push(`${h.week.done} of ${h.week.need} this week`);
     else if (h.target > 1) parts.push(`${h.today} of ${h.target}${h.unit ? ` ${h.unit}` : ''}`);
     if (!h.week) parts.push(h.label);
-    if (h.time) parts.push(h.time);
+    if (h.time) parts.push(hm12(h.time));
     if (h.detail) parts.push(h.detail);
     return parts.join(' · ');
 }
@@ -411,18 +412,13 @@ export function HabitDialog({
                     )}
                     {data.schedule === 'weekly' && (
                         <div className="hb-inline">
-                            <select
-                                className="input"
-                                value={data.per_week}
-                                onChange={(e) => setData('per_week', e.target.value)}
-                                aria-label="Times a week"
-                            >
-                                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                                    <option key={n} value={n}>
-                                        {n}
-                                    </option>
-                                ))}
-                            </select>
+                            <Select
+                                className="input hb-per-week"
+                                value={String(data.per_week)}
+                                onChange={(v) => setData('per_week', v)}
+                                label="Times a week"
+                                options={[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: String(n), label: String(n) }))}
+                            />
                             <span>{data.per_week === '1' ? 'time a week, any day' : 'times a week, any days'}</span>
                         </div>
                     )}
@@ -493,14 +489,12 @@ export function HabitDialog({
                         maxLength={120}
                     />
                     <Field id="h-project" label="Project" error={errors.project_id}>
-                        <select id="h-project" className="input" value={data.project_id} onChange={(e) => setData('project_id', e.target.value)}>
-                            <option value="">No project</option>
-                            {projects.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            id="h-project"
+                            value={String(data.project_id)}
+                            onChange={(v) => setData('project_id', v)}
+                            options={[{ value: '', label: 'No project' }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+                        />
                     </Field>
                 </div>
                 <div className="vform-foot">

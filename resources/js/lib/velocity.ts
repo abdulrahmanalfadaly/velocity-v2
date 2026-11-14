@@ -18,6 +18,11 @@ export function fmtHours(h: number): string {
     const min = Math.round((h - whole) * 60);
     return min ? `${whole} h ${min} min` : `${whole} h`;
 }
+/** "18:00" → "6:00 pm": clock times always read the same way across Velocity. */
+export const hm12 = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+};
 export const fmtDays = (d: number) => (d < 1 ? `${Math.round(d * 24)} h` : `${round1(d)} days`);
 
 /** "Every day", "Every weekday", "Every 2 weeks" … (same wording as App\Services\Repeat::label). */

@@ -7,6 +7,7 @@ import { TaskGitHub } from './github-parts';
 import { Icon } from './icon';
 import { Picker } from './pick';
 import { askToNotify, notifyState } from './reminders';
+import { Select } from './select';
 import { TaskFiles } from './task-files';
 import { Check, Dots } from './ui';
 
@@ -244,19 +245,16 @@ export function TaskPanel({
                         Project
                     </div>
                     <div className="prop-value">
-                        <select
+                        <Select
                             className="prop-input"
-                            value={task.project?.id ?? ''}
-                            aria-label="Project"
-                            onChange={(e) => patch(task.id, { project_id: e.target.value ? Number(e.target.value) : null })}
-                        >
-                            <option value="">Inbox (no project)</option>
-                            {projectChoices.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
+                            value={String(task.project?.id ?? '')}
+                            label="Project"
+                            onChange={(v) => patch(task.id, { project_id: v ? Number(v) : null })}
+                            options={[
+                                { value: '', label: 'Inbox (no project)' },
+                                ...projectChoices.map((p) => ({ value: String(p.id), label: p.name })),
+                            ]}
+                        />
                     </div>
                     <div className="prop-label">
                         <Icon name="target" />
@@ -277,25 +275,22 @@ export function TaskPanel({
                         Repeats
                     </div>
                     <div className="prop-value">
-                        <select
+                        <Select
                             className="prop-input"
                             value={repeatKey(task.repeat)}
-                            aria-label="Repeats"
-                            onChange={(e) => {
-                                const [every, unit] = e.target.value.split('-'); // "" = doesn't repeat
+                            label="Repeats"
+                            onChange={(v) => {
+                                const [every, unit] = v.split('-'); // "" = doesn't repeat
                                 patch(task.id, { repeat_unit: unit ?? null, repeat_every: Number(every) || 1 });
                             }}
-                        >
-                            <option value="">Doesn’t repeat</option>
-                            {[
-                                ...REPEAT_CHOICES,
-                                ...(task.repeat && !REPEAT_CHOICES.some((r) => repeatKey(r) === repeatKey(task.repeat)) ? [task.repeat] : []),
-                            ].map((r) => (
-                                <option key={repeatKey(r)} value={repeatKey(r)}>
-                                    {repeatText(r)}
-                                </option>
-                            ))}
-                        </select>
+                            options={[
+                                { value: '', label: 'Doesn’t repeat' },
+                                ...[
+                                    ...REPEAT_CHOICES,
+                                    ...(task.repeat && !REPEAT_CHOICES.some((r) => repeatKey(r) === repeatKey(task.repeat)) ? [task.repeat] : []),
+                                ].map((r) => ({ value: repeatKey(r), label: repeatText(r) })),
+                            ]}
+                        />
                     </div>
                     {task.focused.seconds > 0 && (
                         <>
@@ -343,23 +338,22 @@ export function TaskPanel({
                             className="prop-input"
                         />
                         {task.dueAt && !done && (
-                            <select
+                            <Select
                                 className="prop-input"
-                                aria-label="Quick reminder"
+                                label="Quick reminder"
                                 value=""
-                                onChange={(e) => {
-                                    const before = Number(e.target.value);
-                                    if (!before) return;
-                                    const at = new Date(new Date(task.dueAt!).getTime() - before * 60_000).toISOString();
+                                placeholder="Before due…"
+                                onChange={(v) => {
+                                    const at = new Date(new Date(task.dueAt!).getTime() - Number(v) * 60_000).toISOString();
                                     patch(task.id, { reminder_at: clock.localInput(at) });
                                 }}
-                            >
-                                <option value="">Before due…</option>
-                                <option value="15">15 min before</option>
-                                <option value="60">1 hour before</option>
-                                <option value="180">3 hours before</option>
-                                <option value="1440">1 day before</option>
-                            </select>
+                                options={[
+                                    { value: '15', label: '15 min before' },
+                                    { value: '60', label: '1 hour before' },
+                                    { value: '180', label: '3 hours before' },
+                                    { value: '1440', label: '1 day before' },
+                                ]}
+                            />
                         )}
                         {task.reminderAt && (
                             <button
@@ -406,21 +400,14 @@ export function TaskPanel({
                                 </button>
                             </span>
                         ))}
-                        <select
+                        <Select
                             className="prop-input"
                             value=""
-                            aria-label="Add a task it starts after"
-                            onChange={(e) => e.target.value && patch(task.id, { depends_on: [...waitsFor, Number(e.target.value)] })}
-                        >
-                            <option value="">{task.dependsOn.length ? 'Add another…' : 'Nothing – pick a task…'}</option>
-                            {task.candidates
-                                .filter((c) => !waitsFor.includes(c.id))
-                                .map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.title}
-                                    </option>
-                                ))}
-                        </select>
+                            label="Add a task it starts after"
+                            placeholder={task.dependsOn.length ? 'Add another…' : 'Nothing – pick a task…'}
+                            onChange={(v) => patch(task.id, { depends_on: [...waitsFor, Number(v)] })}
+                            options={task.candidates.filter((c) => !waitsFor.includes(c.id)).map((c) => ({ value: String(c.id), label: c.title }))}
+                        />
                     </div>
                 </div>
 

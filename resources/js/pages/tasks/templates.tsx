@@ -1,6 +1,7 @@
 import { Field, TextField } from '@/components/velocity/field';
 import { Modal } from '@/components/velocity/forms';
 import { Icon } from '@/components/velocity/icon';
+import { Select } from '@/components/velocity/select';
 import { Dots } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { fmtHours, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
@@ -187,26 +188,25 @@ function TemplateDialog({ template, projects, onClose }: { template?: Template; 
                         error={errors.est_hours}
                     />
                     <Field id="t-project" label="Project" error={errors.project_id}>
-                        <select id="t-project" className="input" value={data.project_id} onChange={(e) => setData('project_id', e.target.value)}>
-                            <option value="">No project</option>
-                            {projects.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            id="t-project"
+                            value={String(data.project_id)}
+                            onChange={(v) => setData('project_id', v)}
+                            options={[{ value: '', label: 'No project' }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+                        />
                     </Field>
                 </div>
                 <div className="vform-row">
                     <Field id="t-repeat" label="Repeats" error={errors.repeat_unit}>
-                        <select id="t-repeat" className="input" value={data.repeat} onChange={(e) => setData('repeat', e.target.value)}>
-                            <option value="">Doesn’t repeat</option>
-                            {REPEAT_CHOICES.map((r) => (
-                                <option key={repeatKey(r)} value={repeatKey(r)}>
-                                    {repeatText(r)}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            id="t-repeat"
+                            value={data.repeat}
+                            onChange={(v) => setData('repeat', v)}
+                            options={[
+                                { value: '', label: 'Doesn’t repeat' },
+                                ...REPEAT_CHOICES.map((r) => ({ value: repeatKey(r), label: repeatText(r) })),
+                            ]}
+                        />
                     </Field>
                 </div>
                 <Field id="t-steps" label="Steps (one per line)" error={errors.steps}>
@@ -272,14 +272,12 @@ function UseDialog({ template, projects, onClose }: { template: Template; projec
                         error={errors.due_at}
                     />
                     <Field id="u-project" label="Project" error={errors.project_id}>
-                        <select id="u-project" className="input" value={data.project_id} onChange={(e) => setData('project_id', e.target.value)}>
-                            <option value="">No project</option>
-                            {projects.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            id="u-project"
+                            value={String(data.project_id)}
+                            onChange={(v) => setData('project_id', v)}
+                            options={[{ value: '', label: 'No project' }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+                        />
                     </Field>
                 </div>
                 <div className="vform-foot">

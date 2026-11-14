@@ -10,6 +10,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { type DragEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 import { Picker } from './pick';
+import { Select } from './select';
 import { fileSize } from './task-files';
 
 export interface NoteFileInfo extends TaskFileInfo {
@@ -347,24 +348,16 @@ export function NoteEditor({
                         </Link>
                     ))}
                 {!note.journalDate && (
-                    <label className="note-project">
+                    <span className="note-project">
                         <Icon name="folder" className="ic-sm" />
-                        <select
-                            value={note.projectId ?? ''}
-                            aria-label="Project"
-                            onChange={(e) =>
-                                router.patch(route('notes.update', note.id), { project_id: e.target.value ? Number(e.target.value) : null }, keep)
-                            }
-                        >
-                            <option value="">No project</option>
-                            {projects.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
-                        <Icon name="chevD" className="ic-xs" />
-                    </label>
+                        <Select
+                            className="note-project-sel"
+                            value={String(note.projectId ?? '')}
+                            label="Project"
+                            onChange={(v) => router.patch(route('notes.update', note.id), { project_id: v ? Number(v) : null }, keep)}
+                            options={[{ value: '', label: 'No project' }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+                        />
+                    </span>
                 )}
                 {note.tasks.map((t) => (
                     <span key={t.id} className={`note-task${t.status === 'done' ? ' is-done' : ''}`}>

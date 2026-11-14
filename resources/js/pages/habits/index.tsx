@@ -14,6 +14,7 @@ import {
     Streak,
 } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
+import { Select } from '@/components/velocity/select';
 import { HabitButton } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock } from '@/lib/velocity';
@@ -632,21 +633,13 @@ function RoutineDialog({ routine, choices, onClose }: { routine: Props['routine'
                             ))}
                         </ol>
                     )}
-                    <select
+                    <Select
                         id="r-add"
-                        className="input"
                         value=""
-                        onChange={(e) => e.target.value && setData('habit_ids', [...ids, Number(e.target.value)])}
-                    >
-                        <option value="">Add a habit…</option>
-                        {choices
-                            .filter((c) => !ids.includes(c.id))
-                            .map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                </option>
-                            ))}
-                    </select>
+                        placeholder="Add a habit…"
+                        onChange={(v) => setData('habit_ids', [...ids, Number(v)])}
+                        options={choices.filter((c) => !ids.includes(c.id)).map((c) => ({ value: String(c.id), label: c.name }))}
+                    />
                 </Field>
                 <div className="vform-foot">
                     <span />

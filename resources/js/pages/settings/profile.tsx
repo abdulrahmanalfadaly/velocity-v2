@@ -1,4 +1,5 @@
 import { Field } from '@/components/velocity/field';
+import { Select } from '@/components/velocity/select';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout, { SaveRow, SettingsCard } from '@/layouts/settings/layout';
 import { type SharedData } from '@/types';
@@ -92,23 +93,14 @@ export default function Profile({ mustVerifyEmail, status, timezones }: Props) {
                         )}
 
                         <Field id="timezone" label="Time zone" error={errors.timezone}>
-                            <select
+                            <Select
                                 id="timezone"
-                                className="input"
                                 value={data.timezone}
-                                onChange={(e) => setData('timezone', e.target.value)}
-                                aria-describedby={errors.timezone ? 'timezone-error' : undefined}
-                            >
-                                {groups.map(([region, zones]) => (
-                                    <optgroup key={region} label={region}>
-                                        {zones.map(([id, offset]) => (
-                                            <option key={id} value={id}>
-                                                {placeName(id)} ({offsetText(offset)})
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                ))}
-                            </select>
+                                onChange={(v) => setData('timezone', v)}
+                                options={groups.flatMap(([region, zones]) =>
+                                    zones.map(([id, offset]) => ({ value: id, label: `${placeName(id)} (${offsetText(offset)})`, group: region })),
+                                )}
+                            />
                             {device && device !== data.timezone && (
                                 <button type="button" className="link settings-device-tz" onClick={() => setData('timezone', device)}>
                                     Use this device’s time zone ({placeName(device)})

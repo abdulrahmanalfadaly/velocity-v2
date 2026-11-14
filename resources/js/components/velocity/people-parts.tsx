@@ -5,6 +5,7 @@ import { Field, TextField } from './field';
 import { Modal } from './forms';
 import { Pop } from './habit-parts';
 import { Icon } from './icon';
+import { Select } from './select';
 
 export type ContactKind = 'email' | 'phone' | 'link' | 'other';
 export type DateKind = 'birthday' | 'anniversary' | 'other';
@@ -242,18 +243,12 @@ export function PersonDialog({
                     <div className="pp-contacts-edit">
                         {data.contacts.map((c, i) => (
                             <div key={i} className="pp-contact-row">
-                                <select
-                                    className="input"
+                                <Select
                                     value={c.kind}
-                                    aria-label="Kind"
-                                    onChange={(e) => setContact(i, { kind: e.target.value as ContactKind })}
-                                >
-                                    {(Object.keys(CONTACT_LABEL) as ContactKind[]).map((k) => (
-                                        <option key={k} value={k}>
-                                            {CONTACT_LABEL[k]}
-                                        </option>
-                                    ))}
-                                </select>
+                                    label="Kind"
+                                    onChange={(v) => setContact(i, { kind: v as ContactKind })}
+                                    options={(Object.keys(CONTACT_LABEL) as ContactKind[]).map((k) => ({ value: k, label: CONTACT_LABEL[k] }))}
+                                />
                                 <input
                                     id={`pp-contact-${i}`}
                                     className="input"
@@ -362,24 +357,20 @@ export function PersonDialog({
                 </Field>
                 <Field id="pp-every" label="Keep in touch" error={errors.catch_up_days}>
                     <div className="hb-inline">
-                        <select
+                        <Select
                             id="pp-every"
                             className="input pp-every"
-                            value={customOn ? 'custom' : data.every}
-                            onChange={(e) => {
-                                const v = e.target.value;
+                            value={customOn ? 'custom' : String(data.every)}
+                            onChange={(v) => {
                                 setCustomOn(v === 'custom');
                                 setData('every', v === 'custom' ? data.every || '21' : v);
                             }}
-                        >
-                            <option value="">No reminder to catch up</option>
-                            {EVERY.map(([d, label]) => (
-                                <option key={d} value={d}>
-                                    {label}
-                                </option>
-                            ))}
-                            <option value="custom">Every … days</option>
-                        </select>
+                            options={[
+                                { value: '', label: 'No reminder to catch up' },
+                                ...EVERY.map(([d, label]) => ({ value: String(d), label })),
+                                { value: 'custom', label: 'Every … days' },
+                            ]}
+                        />
                         {customOn && (
                             <input
                                 className="input"
@@ -467,28 +458,24 @@ export function DateDialog({ personId, date, onClose }: { personId: number; date
                 )}
                 <div className="pd-when">
                     <Field id="pd-day" label="Day" error={errors.day}>
-                        <select id="pd-day" className="input" value={data.day} onChange={(e) => setData('day', e.target.value)} required>
-                            <option value="" disabled>
-                                Day
-                            </option>
-                            {Array.from({ length: 31 }, (_, i) => (
-                                <option key={i} value={i + 1}>
-                                    {i + 1}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            id="pd-day"
+                            value={String(data.day)}
+                            placeholder="Day"
+                            search={false}
+                            onChange={(v) => setData('day', v)}
+                            options={Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                        />
                     </Field>
                     <Field id="pd-month" label="Month" error={errors.month}>
-                        <select id="pd-month" className="input" value={data.month} onChange={(e) => setData('month', e.target.value)} required>
-                            <option value="" disabled>
-                                Month
-                            </option>
-                            {MONTHS.map((m, i) => (
-                                <option key={m} value={i + 1}>
-                                    {m}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            id="pd-month"
+                            value={String(data.month)}
+                            placeholder="Month"
+                            search={false}
+                            onChange={(v) => setData('month', v)}
+                            options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+                        />
                     </Field>
                     <Field id="pd-year" label={data.kind === 'other' && !data.yearly ? 'Year' : 'Year (if known)'} error={errors.year}>
                         <input
@@ -509,13 +496,12 @@ export function DateDialog({ personId, date, onClose }: { personId: number; date
                     </label>
                 )}
                 <Field id="pd-remind" label="Remind me" error={errors.remind_days}>
-                    <select id="pd-remind" className="input" value={data.remind} onChange={(e) => setData('remind', e.target.value)}>
-                        {REMIND.map(([v, label]) => (
-                            <option key={v} value={v}>
-                                {label}
-                            </option>
-                        ))}
-                    </select>
+                    <Select
+                        id="pd-remind"
+                        value={String(data.remind)}
+                        onChange={(v) => setData('remind', v)}
+                        options={REMIND.map(([v, label]) => ({ value: String(v), label }))}
+                    />
                 </Field>
                 <div className="vform-foot">
                     {date ? (

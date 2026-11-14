@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 import { notifyState } from './reminders';
+import { Select } from './select';
 
 const keep = { preserveScroll: true, preserveState: true };
 export const FOCUS_LENGTHS: [number | null, string][] = [
@@ -128,20 +129,15 @@ export function StartFocus({
                 <Icon name="play" />
                 {compact ? 'Focus' : 'Start focus'}
             </button>
-            <select
+            <Select
                 className="start-focus-len"
-                aria-label="Focus for how long"
+                label="Focus for how long"
                 title="Other lengths"
                 value=""
-                onChange={(e) => e.target.value && start(e.target.value === 'open' ? null : Number(e.target.value))}
-            >
-                <option value="">▾</option>
-                {FOCUS_LENGTHS.map(([m, label]) => (
-                    <option key={label} value={m ?? 'open'}>
-                        {label}
-                    </option>
-                ))}
-            </select>
+                trigger={<Icon name="chevD" className="ic-xs" />}
+                options={FOCUS_LENGTHS.map(([m, label]) => ({ value: m == null ? 'open' : String(m), label }))}
+                onChange={(v) => start(v === 'open' ? null : Number(v))}
+            />
         </span>
     );
 }

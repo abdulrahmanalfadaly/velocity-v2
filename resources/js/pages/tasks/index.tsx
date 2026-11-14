@@ -1,4 +1,5 @@
 import { Icon } from '@/components/velocity/icon';
+import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Board, Timeline } from '@/components/velocity/task-views';
 import { Check } from '@/components/velocity/ui';
@@ -490,21 +491,18 @@ export default function TasksIndex() {
                         <Icon name="check" className="ic-sm" />
                         Done
                     </button>
-                    <select
+                    <Select
                         className="prop-input"
-                        aria-label="Move to project"
+                        label="Move to project"
                         value=""
+                        placeholder="Move to…"
                         disabled={!picked.length}
-                        onChange={(e) => e.target.value && bulk('move', { project_id: e.target.value === 'inbox' ? null : Number(e.target.value) })}
-                    >
-                        <option value="">Move to…</option>
-                        <option value="inbox">Inbox (no project)</option>
-                        {props.projects.map((p) => (
-                            <option key={p.id} value={p.id}>
-                                {p.name}
-                            </option>
-                        ))}
-                    </select>
+                        onChange={(v) => bulk('move', { project_id: v === 'inbox' ? null : Number(v) })}
+                        options={[
+                            { value: 'inbox', label: 'Inbox (no project)' },
+                            ...props.projects.map((p) => ({ value: String(p.id), label: p.name })),
+                        ]}
+                    />
                     <input
                         type="datetime-local"
                         className="prop-input"

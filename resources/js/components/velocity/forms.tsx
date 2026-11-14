@@ -4,6 +4,7 @@ import { useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, type ReactNode, useEffect, useRef } from 'react';
 import { Field, TextField } from './field';
 import { Icon } from './icon';
+import { Select } from './select';
 
 /** A dialog over the page: Escape or a click outside closes it, and focus starts in the first field. */
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -112,15 +113,16 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectValues; o
                 </Field>
                 <div className="vform-row">
                     <Field id="p-area" label="Area" error={errors.area_id || errors.new_area}>
-                        <select id="p-area" className="input" value={data.area} onChange={(e) => setData('area', e.target.value)}>
-                            <option value="">No area</option>
-                            {areas.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                    {a.name}
-                                </option>
-                            ))}
-                            <option value={NEW_AREA}>New area…</option>
-                        </select>
+                        <Select
+                            id="p-area"
+                            value={String(data.area)}
+                            onChange={(v) => setData('area', v)}
+                            options={[
+                                { value: '', label: 'No area' },
+                                ...areas.map((a) => ({ value: String(a.id), label: a.name })),
+                                { value: NEW_AREA, label: 'New area…' },
+                            ]}
+                        />
                     </Field>
                     {data.area === NEW_AREA && (
                         <TextField
@@ -135,14 +137,12 @@ export function ProjectDialog({ project, onClose }: { project?: ProjectValues; o
                 </div>
                 <div className="vform-row">
                     <Field id="p-goal" label="Goal" error={errors.goal_id}>
-                        <select id="p-goal" className="input" value={data.goal_id} onChange={(e) => setData('goal_id', e.target.value)}>
-                            <option value="">No goal</option>
-                            {goals.map((g) => (
-                                <option key={g.id} value={g.id}>
-                                    {g.title}
-                                </option>
-                            ))}
-                        </select>
+                        <Select
+                            id="p-goal"
+                            value={String(data.goal_id)}
+                            onChange={(v) => setData('goal_id', v)}
+                            options={[{ value: '', label: 'No goal' }, ...goals.map((g) => ({ value: String(g.id), label: g.title }))]}
+                        />
                     </Field>
                     <TextField
                         id="p-due"
