@@ -143,12 +143,12 @@ them after seeing this list.
 
 ## Mark's API and GitHub
 
-- [ ] ★12 A wider API: archive and cancel, bulk edits, dependencies, reminders, files, templates, editing habits, undo, stats, people details, pausing focus, editing the planner, areas. **Add**
-- [ ] ★12 More example Mark scripts (GPT had 16, v2 has 1). **Add**
-- [ ] A request id on every reply. **Add** (small)
+- [x] ★12 A wider API: archive and cancel, bulk edits, dependencies, reminders, files, templates, editing habits, undo, stats, people details, pausing focus, editing the planner, areas. **Add**
+- [x] ★12 More example Mark scripts (GPT had 16, v2 has 1). **Add**
+- [x] A request id on every reply. **Add** (small)
 - [ ] Version checks and "ask again" retries. **Skip**
 - [ ] Page-by-page lists with a "next" marker. **Low**
-- [ ] ★12 GitHub through the API (search, create issue, refresh, set a project's repo). **Add**
+- [x] ★12 GitHub through the API (search, create issue, refresh, set a project's repo). **Add**
 - [ ] A GitHub "Refresh" button, and a guard against posting the same issue twice. **Add**
 - [ ] Signing in with a GitHub App. **Can't** easily (needs a registered app and a public web address)
 

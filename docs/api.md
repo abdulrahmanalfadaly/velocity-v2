@@ -23,14 +23,14 @@ reads `VELOCITY_API_TOKEN` and `VELOCITY_BASE_URL` from the environment.
 
 | Area | Read | Write |
 |---|---|---|
-| `tasks` | the ranking, a task, the focus timer | add, change, done / not done, delete / restore, steps, start / stop focus |
-| `projects` | projects (with milestones), goals | add / change projects and goals, tick milestones |
-| `planner` | classes, events, booked time | add / change / remove events, plan a day or week |
-| `notes` | notes, the journal | write notes, add to the journal |
-| `habits` | how each habit stands | add, tick (or a count), skip |
-| `people` | people, dates, catch-ups due | add people, log a catch-up |
-| `review` | week / month numbers, weekly review | – |
-| `github` | a task's linked issues and pull requests | link and unlink them |
+| `tasks` | the ranking, a task, Next actions, reminders, templates, the focus timer and its history | add, change, done / not done, cancel, archive, delete / restore, steps, reminders, the selection bar's actions, templates, the focus timer (Pomodoro too) |
+| `projects` | projects (with milestones and their ranked tasks), goals, areas | add / change projects, goals and areas, project status and completing, tick milestones |
+| `planner` | classes, events, booked time, free time | add / change / remove events, book / move / resize / remove blocks, plan a day or week |
+| `notes` | notes (with their links), the journal | write notes, add to the journal, link notes to notes, goals and habits |
+| `habits` | how each habit stands, one habit in full | add, change, tick (or a count), set a day (with a note), skip, pause / resume, archive |
+| `people` | people, dates, catch-ups due | add and change people, log a catch-up, archive |
+| `review` | day / week / month numbers and what changed, weekly review | – |
+| `github` | a task's linked issues and pull requests, searching, a project's repository | link and unlink, create an issue, read again, set a project's repository |
 
 Each key may make 120 requests a minute. Changes made with a key are marked
 with its name ("via Mark") in a task's history.
@@ -49,6 +49,8 @@ with its name ("via Mark") in a task's history.
   due date means the end of that day.
 - Keys in answers are camelCase; fields you send are snake_case, as on the
   screens' forms.
+- Every answer has an `X-Request-Id` header: the one you sent (letters, digits
+  and dashes, 8–64 long), or a new one, for matching Mark's log to an answer.
 
 ## A task
 
@@ -92,7 +94,17 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 | `POST /tasks/{id}/reopen` | not done again |
 | `DELETE /tasks/{id}` · `POST /tasks/{id}/restore` | delete, and bring back |
 | `POST /tasks/{id}/steps` · `PATCH /steps/{id}` | add a step `{"title"}`; tick `{"done": true}` or rename |
-| `GET /focus` · `POST /focus` · `POST /focus/stop` | the running session; start `{"task_id"?, "minutes"?}`; stop (under a minute isn't kept: `counted: false`) |
+| `POST /tasks/{id}/cancel` | `{"reason"?, "skip"?}`: it won't be done; `skip` on a repeating task makes the next copy (in `next`) |
+| `POST /tasks/{id}/archive` · `/unarchive` | a done or cancelled task out of the lists (still in History and Review) |
+| `POST /tasks/bulk` | `{"ids": […≤100], "action": "complete"/"cancel"/"delete"/"move"/"due", "project_id"?, "due_at"?}` |
+| `GET /tasks/next` | Next actions: each project's best task by the formula (`rows`), and projects with nothing ready (`idle`, with `why`) |
+| `GET /tasks/{id}/reminders` · `POST /tasks/{id}/reminders` | up to 5: `{"kind": "at", "at": "2026-11-20 09:00"}`, `{"kind": "before", "before": "15m"/"1h"/"3h"/"0d"/"1d"/"2d"/"7d"}` (moves with the due date), `{"kind": "bug", "every": 15/30/60/120}` (until done) |
+| `DELETE /reminders/{id}` · `POST /reminders/{id}/snooze` | remove; snooze `{"minutes"}` or `{"until": "2026-11-12 09:00"}` |
+| `GET /templates` · `POST /templates/{id}/use` | the templates; a task from one `{"due_at"?, "project_id"?}` |
+| `GET /focus` | the timer now: a running session (`phase: "focus"`), a Pomodoro between rounds (`roundDone`, `break`, `breakOver`, with `breakEndsAt`), or `null` |
+| `POST /focus` · `POST /focus/stop` | start `{"task_id"?, "minutes"?, "mode"?: "timer"/"pomodoro", "intention"?}` (no minutes = no limit); stop (under a minute isn't kept: `counted: false`) |
+| `POST /focus/pause` · `/resume` · `/next` · `/end` | pause and go on; Pomodoro: the next round now, or done for now |
+| `GET /focus/history?range=week&date=` · `PATCH /focus/{id}` | sessions, focus by hour and weekday (`range`: week / month); the note after `{"note"}` |
 
 ### Projects and goals (`projects`)
 
@@ -100,7 +112,11 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 its open tasks in rank order if the key reads tasks) · `POST /projects`
 `{"name", "description"?, "due_date"?, "goal_id"?, "area_id"?}` ·
 `PATCH /projects/{id}` · `PATCH /milestones/{id}` `{"done": true}` ·
-`GET /goals` · `POST /goals` `{"title", "why"?, "target"?}` · `PATCH /goals/{id}`
+`GET /goals` · `POST /goals` `{"title", "why"?, "target"?, "target_date"?, "status"?, "progress_mode"?: "tasks"/"milestones"/"manual", "progress"?}` · `PATCH /goals/{id}` ·
+`POST /projects/{id}/status` `{"status": "planned"/"active"/"on_hold"}` (planned and on-hold tasks wait) ·
+`POST /projects/{id}/complete` `{"open": "cancel"/"keep"}` · `POST /projects/{id}/reopen` ·
+`GET /projects/{id}/tasks` (`ranked` in the one ranking's order, `notReady`) ·
+`GET /areas` · `POST /areas` `{"name", "icon"?}` · `PATCH /areas/{id}`
 
 ### Planner (`planner`)
 
@@ -111,6 +127,9 @@ its open tasks in rank order if the key reads tasks) · `POST /projects`
 | `POST /events` | `{"title", "calendar": "class"/"work"/"personal", "date", "start_time", "end_time"}` or `"all_day": true`; `location`, `notes`, `repeat_weekly`, `repeat_until` |
 | `PATCH /events/{id}` | any of the same fields |
 | `DELETE /events/{id}` | the whole event; with `{"date"}` only that week of a weekly one |
+| `GET /planner/free?date=&span=day` | free time in working hours from now on, around events, habit times and booked blocks: per day, `slots` and `minutes` (`span`: day / week) |
+| `POST /planner/blocks` | book a task `{"task_id", "date", "start": "14:00", "minutes"}`; the answer lists what it `overlaps` (a warning only) |
+| `PATCH /planner/blocks/{id}` · `DELETE /planner/blocks/{id}` | move or resize `{"date"?, "start"?, "minutes"?}`; remove |
 
 ### Notes (`notes`)
 
@@ -125,20 +144,26 @@ full document the editor uses.
 | `PATCH /notes/{id}` | `title`, `text` (replaces), `append` (adds lines at the end), `pinned`, `project_id` |
 | `GET /journal?date=` | that day's entry (today if no date), or `null` |
 | `POST /journal` | `{"text": "Chapter 3 approved.", "date"?}`: adds to the entry, starting it if needed |
+| `POST /notes/{id}/links` · `DELETE /notes/{id}/links/{linkId}` | link to a note, goal or habit `{"type": "goal", "id": 3}`; unlink |
 
 ### Habits (`habits`)
 
 `GET /habits?date=` (each habit's state that day, streak, due or not) ·
 `POST /habits` `{"name", "schedule": "daily"/"days"/"weekly", "days"?, "per_week"?, "target"?, "unit"?, "at_time"?, "minutes"?}` ·
 `POST /habits/{id}/check` `{"date"?, "count"?}` (no count = all of it, `0` = not
-done; not ahead of today) · `POST /habits/{id}/skip` `{"date"?}`
+done; not ahead of today) · `POST /habits/{id}/skip` `{"date"?}` ·
+`GET /habits/{id}` (streak, best, rate, 16 weeks, notes) · `PATCH /habits/{id}` (any field: `kind` do / minutes / limit / avoid,
+`schedule` daily / days / weekly / monthly / every with `per_month`, `every_days`, `starts_on` …) ·
+`PUT /habits/{id}/day` `{"date", "count", "skipped"?, "note"?}` · `POST /habits/{id}/pause` `{"until"?}` · `POST /habits/{id}/resume` ·
+`POST /habits/{id}/archive` (`{"undo": true}` brings it back)
 
 ### People (`people`)
 
 `GET /people?view=all` (`attention`: catch-up due or a date within a week;
 `dates`: dates in the next 60 days) · `GET /people/{id}` · `POST /people`
 `{"name", "relationship"?, "organisation"?, "catch_up_days"?, "contacts"?: [{"kind": "email", "value": "…"}]}` ·
-`POST /people/{id}/catch-ups` `{"kind": "message"/"call"/"met"/"other", "on"?, "note"?}`
+`POST /people/{id}/catch-ups` `{"kind": "message"/"call"/"met"/"other", "on"?, "note"?}` ·
+`PATCH /people/{id}` `{"name"?, "relationship"?, "organisation"?, "catch_up_days"?}` · `POST /people/{id}/archive` (`{"undo": true}` brings them back)
 
 ### GitHub (`github`)
 
@@ -149,6 +174,10 @@ GitHub must be connected in Settings → Integrations (a fine-grained token).
 | `GET /tasks/{id}/github` | the task's linked issues and pull requests: `repo`, `number`, `kind` (issue / pull), `title`, `state` (open / closed / merged / draft), `url`. Read again from GitHub when a few minutes old; `meta.error` says if GitHub couldn't be reached (what was known is still there). |
 | `POST /tasks/{id}/github` | `{"url": "https://github.com/owner/name/issues/42"}` (or `/pull/42`) |
 | `DELETE /tasks/{id}/github/{linkId}` | unlink (nothing changes on GitHub) |
+| `GET /tasks/{id}/github/search?q=` | issues and pull requests in the project's repository (or `repo=owner/name`) |
+| `POST /tasks/{id}/github/issue` | a new issue for the task, linked: `{"title", "body"?, "repo"?}` (the project's repository by default) |
+| `POST /tasks/{id}/github/refresh` | read the task's links again from GitHub now |
+| `GET /projects/{id}/github` · `PUT /projects/{id}/github` | the project's repository; set it `{"repo": "owner/name"}` (checked with GitHub) or `null` |
 
 GitHub problems answer with code `GITHUB`: `409` (not connected, or the token
 stopped working), `422` (not found, or the token can't see it), `503` (GitHub
@@ -156,11 +185,16 @@ can't be reached).
 
 ### Review (`review`)
 
-`GET /review?period=week&date=` (the week or month's numbers, compared with the
-same days before, as on the Review page) · `GET /review/weekly` (the weekly
-review's list for this week)
+`GET /review?period=week&date=` (`period`: day / week / month; the numbers,
+compared with the same days before, and `activity`: tasks added, cancelled,
+reopened, postponed, projects completed, goals achieved, milestones reached,
+blocks moved, each with its items; `events`: minutes by calendar, as on the
+Review page) · `GET /review/weekly` (the weekly review's list for this week)
 
 ## Example
 
 See [`examples/mark_velocity.py`](../examples/mark_velocity.py): Python, no
-packages to install.
+packages to install. Shorter scripts for each part use it: `mark_today.py`,
+`mark_tasks.py`, `mark_planner.py`, `mark_focus.py`, `mark_habits.py`,
+`mark_notes.py`, `mark_people.py`, `mark_review.py` (each reads only when run
+without a command).

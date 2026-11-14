@@ -43,6 +43,7 @@ class ApiPresent
             'name' => $p->name,
             'description' => $p->description,
             'dueDate' => $p->due_date?->toDateString(),
+            'status' => $p->status,
             'goal' => $p->goal ? ['id' => $p->goal->id, 'title' => $p->goal->title] : null,
             'area' => $p->area ? ['id' => $p->area->id, 'name' => $p->area->name] : null,
             'openTasks' => $p->open_tasks_count ?? null,
@@ -58,6 +59,10 @@ class ApiPresent
             'title' => $g->title,
             'why' => $g->why,
             'target' => $g->target,
+            'status' => $g->status,
+            'targetDate' => $g->target_date?->toDateString(),
+            'progressMode' => $g->progress_mode,
+            'progress' => $g->progressPct(),
             'color' => $g->color,
             'archived' => $g->archived_at !== null,
         ];
@@ -82,6 +87,7 @@ class ApiPresent
                 'doc' => $n->doc(),
                 'tasks' => $n->tasks->map(fn ($t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status])->values(),
                 'people' => $n->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
+                'links' => $n->links->map(fn ($l) => ['id' => $l->id, 'type' => $l->linkable_type, 'targetId' => $l->linkable_id])->values(),
                 'createdAt' => $n->created_at?->toIso8601ZuluString(),
             ];
         }

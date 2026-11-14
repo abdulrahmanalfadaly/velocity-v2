@@ -10,10 +10,12 @@ use App\Models\Task;
 use App\Services\HabitTimes;
 use App\Services\PeopleInfo;
 use App\Services\PlanBuilder;
+use App\Services\PlannerOverlaps;
 use App\Services\RankingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /** The Planner: classes and events, time booked for tasks, and "Plan my day / week". */
@@ -51,6 +53,66 @@ class PlannerApiController extends ApiController
             'due' => $user->tasks()->open()->whereBetween('due_at', [$first->utc(), $end->utc()])->orderBy('due_at')->get(['id', 'title', 'due_at'])
                 ->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'dueAt' => $t->due_at->toIso8601ZuluString()])->values(),
         ], meta: ['timezone' => $user->timezone]);
+    }
+
+    /** Free time in working hours, around events, habit times and booked blocks: ?date=2026-11-12&span=day|week. */
+    public function free(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $d = $request->validate(['date' => ['nullable', 'date_format:Y-m-d'], 'span' => ['nullable', Rule::in(['day', 'week'])]]);
+        $date = isset($d['date']) ? CarbonImmutable::parse($d['date'], $user->timezone) : $this->today($user);
+        $first = ($d['span'] ?? 'day') === 'week' ? $date->startOfWeek(CarbonImmutable::MONDAY) : $date;
+        $days = array_map(fn ($i) => $first->addDays($i)->toDateString(), range(0, ($d['span'] ?? 'day') === 'week' ? 6 : 0));
+
+        return $this->ok($this->builder->free($user, $days), meta: ['timezone' => $user->timezone]);
+    }
+
+    /** Book a task: {"task_id": 12, "date": "2026-11-12", "start": "14:00", "minutes": 90}. Answers with what it overlaps. */
+    public function storeBlock(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $d = $request->validate([
+            'task_id' => ['required', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereIn('status', Task::OPEN)->whereNull('deleted_at')],
+            'date' => ['required', 'date_format:Y-m-d'], 'start' => ['required', 'date_format:H:i'], 'minutes' => ['required', 'integer', 'min:5', 'max:720'],
+        ]);
+        $start = CarbonImmutable::parse("{$d['date']} {$d['start']}", $user->timezone);
+        $block = $user->plannerBlocks()->create(['task_id' => $d['task_id'], 'starts_at' => $start->utc(), 'ends_at' => $start->addMinutes($d['minutes'])->utc(), 'pinned' => true]);
+
+        return $this->ok($this->blockOut($block), 201);
+    }
+
+    /** Move or resize: any of date, start, minutes. */
+    public function updateBlock(Request $request, PlannerBlock $block): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($block, $user);
+        $d = $request->validate(['date' => ['nullable', 'date_format:Y-m-d'], 'start' => ['nullable', 'date_format:H:i'], 'minutes' => ['nullable', 'integer', 'min:5', 'max:720']]);
+        $local = $block->starts_at->timezone($user->timezone);
+        $start = CarbonImmutable::parse(($d['date'] ?? $local->toDateString()).' '.($d['start'] ?? $local->format('H:i')), $user->timezone);
+        $block->update(['starts_at' => $start->utc(), 'ends_at' => $start->addMinutes($d['minutes'] ?? $block->minutes())->utc(), 'pinned' => true]);
+        if ($block->wasChanged(['starts_at', 'ends_at'])) {
+            DB::table('planner_moves')->insert(['user_id' => $user->id, 'planner_block_id' => $block->id, 'moved_at' => $this->ranking->now()->utc()]);
+        }
+
+        return $this->ok($this->blockOut($block));
+    }
+
+    public function destroyBlock(Request $request, PlannerBlock $block): JsonResponse
+    {
+        $this->own($block, $request->user());
+        $block->delete();
+
+        return $this->ok(['deleted' => true]);
+    }
+
+    private function blockOut(PlannerBlock $block): array
+    {
+        $user = request()->user();
+        $overlaps = PlannerOverlaps::find($user, CarbonImmutable::instance($block->starts_at), CarbonImmutable::instance($block->ends_at), $block->id);
+
+        return PlannerController::block($block->fresh('task'), $this->ranking->rank($user)) + [
+            'overlaps' => array_map(fn ($o) => ['title' => $o['title'], 'start' => $o['start']->toIso8601ZuluString(), 'end' => $o['end']->toIso8601ZuluString()], $overlaps),
+        ];
     }
 
     /** "Plan my day / week": free time filled with tasks in rank order. {"span": "day"|"week", "date"?, "task_id"?} */

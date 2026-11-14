@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Task;
 use App\Models\TaskReminder;
 use Carbon\CarbonImmutable;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /** Adding, moving and copying a task's reminders. */
@@ -42,6 +43,23 @@ class Reminders
         $reminder->save();
 
         return $reminder;
+    }
+
+    /** The fields of a new reminder ("at" is a time in the user's own zone). */
+    public static function rules(): array
+    {
+        return [
+            'kind' => ['required', Rule::in(TaskReminder::KINDS)],
+            'at' => ['required_if:kind,at', 'nullable', 'date'],
+            'before' => ['required_if:kind,before', 'nullable', Rule::in(array_keys(TaskReminder::BEFORE))],
+            'every' => ['required_if:kind,bug', 'nullable', 'integer', Rule::in(TaskReminder::EVERY)],
+        ];
+    }
+
+    /** Show it again at a later time; an "at a time" reminder moves there, the others wait until then. */
+    public static function snooze(TaskReminder $reminder, CarbonImmutable $at): void
+    {
+        $reminder->update(['next_at' => $at] + ($reminder->kind === 'at' ? ['at' => $at] : []));
     }
 
     /** The old single "reminder_at" field (API): one "at a time" reminder at that time, or none. */

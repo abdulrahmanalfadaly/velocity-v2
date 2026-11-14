@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\NoteController;
 use App\Models\Note;
+use App\Models\NoteLink;
 use App\Support\ApiPresent;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -96,6 +97,26 @@ class NoteApiController extends ApiController
     }
 
     /** A day's journal entry (today if no date), or null if there isn't one. */
+    /** Link the note to a note, goal or habit: {"type": "goal", "id": 3}. */
+    public function link(Request $request, Note $note): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($note, $user);
+        $d = $request->validate(['type' => ['required', Rule::in(NoteLink::TYPES)], 'id' => ['required', 'integer']]);
+        $link = NoteLink::attach($user, $note, $d['type'], (int) $d['id']);
+
+        return $this->ok(['id' => $link->id, 'type' => $link->linkable_type, 'targetId' => $link->linkable_id], 201);
+    }
+
+    public function unlink(Request $request, Note $note, NoteLink $link): JsonResponse
+    {
+        $this->own($note, $request->user());
+        abort_unless($link->note_id === $note->id, 404);
+        $link->delete();
+
+        return $this->ok(['deleted' => true]);
+    }
+
     public function journal(Request $request): JsonResponse
     {
         $user = $request->user();

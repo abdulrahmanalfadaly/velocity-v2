@@ -63,6 +63,79 @@ class HabitApiController extends ApiController
         return $this->ok($this->row($user, $habit, CarbonImmutable::parse($date, $user->timezone)));
     }
 
+    /** Everything about one habit: streak, best, rate, 16 weeks of days, notes on check-ins. */
+    public function show(Request $request, Habit $habit): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($habit, $user);
+
+        return $this->ok((new HabitStats($habit->load(['entries', 'project', 'routines', 'pauses']), $this->today($user)))->detail());
+    }
+
+    /** Change any of the habit's fields (the rest stay as they are). */
+    public function update(Request $request, Habit $habit): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($habit, $user);
+        $request->merge(array_merge(HabitStats::form($habit), $request->all()));
+        $habit->update(HabitController::fields($request, $user));
+
+        return $this->ok($this->row($user, $habit->fresh(), $this->today($user)));
+    }
+
+    /** A day set exactly: {"date": "2026-11-10", "count": 1, "skipped"?: false, "note"?: "Ran 5 km"}. */
+    public function setDay(Request $request, Habit $habit): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($habit, $user);
+        $today = $this->today($user);
+        $d = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$today->toDateString()],
+            'count' => ['required', 'integer', 'between:0,10000'],
+            'skipped' => ['sometimes', 'boolean'],
+            'note' => ['sometimes', 'nullable', 'string', 'max:300'],
+        ], ['date.before_or_equal' => 'That day hasn’t happened yet.']);
+        $skipped = (bool) ($d['skipped'] ?? false);
+        HabitController::setDay($habit, $d['date'], $skipped ? 0 : (int) $d['count'], $skipped, array_key_exists('note', $d) ? (trim((string) $d['note']) ?: null) : false);
+
+        return $this->ok($this->row($user, $habit, CarbonImmutable::parse($d['date'], $user->timezone)));
+    }
+
+    /** Pause from today, {"until"?: "2026-11-20"}: paused days are neither due nor missed. */
+    public function pause(Request $request, Habit $habit): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($habit, $user);
+        $today = $this->today($user);
+        $until = $request->validate(['until' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.$today->toDateString()]])['until'] ?? null;
+        if (! $habit->pauseOn($today->toDateString())) {
+            $habit->pauses()->create(['from' => $today->toDateString(), 'until' => $until]);
+        }
+
+        return $this->ok($this->row($user, $habit->fresh(), $today));
+    }
+
+    public function resume(Request $request, Habit $habit): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($habit, $user);
+        $today = $this->today($user);
+        $pause = $habit->pauseOn($today->toDateString());
+        if ($pause) {
+            $pause->from->toDateString() === $today->toDateString() ? $pause->delete() : $pause->update(['until' => $today->subDay()->toDateString()]);
+        }
+
+        return $this->ok($this->row($user, $habit->fresh(), $today));
+    }
+
+    public function archive(Request $request, Habit $habit): JsonResponse
+    {
+        $this->own($habit, $request->user());
+        $habit->update(['archived_at' => $request->boolean('undo') ? null : now()]);
+
+        return $this->ok(['id' => $habit->id, 'archived' => $habit->archived_at !== null]);
+    }
+
     private function day(Request $request, User $user): CarbonImmutable
     {
         $date = $request->validate(['date' => ['nullable', 'date_format:Y-m-d']])['date'] ?? null;

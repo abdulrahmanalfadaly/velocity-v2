@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApiScope;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PersonalOnly;
+use App\Http\Middleware\RequestId;
 use App\Support\ApiErrors;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
         ]);
         $middleware->alias(['personal' => PersonalOnly::class, 'scope' => ApiScope::class]);
+        $middleware->api(prepend: [RequestId::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // The API always answers in JSON: {"error": {"code", "message", "fields"?}}.

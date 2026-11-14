@@ -206,14 +206,7 @@ class NoteController extends Controller
         $user = $request->user();
         $this->own($note, $user);
         $d = $request->validate(['type' => ['required', Rule::in(NoteLink::TYPES)], 'id' => ['required', 'integer']]);
-        $owner = match ($d['type']) {
-            'note' => $user->notes()->whereKey($d['id'])->exists() && (int) $d['id'] !== $note->id,
-            'goal' => $user->goals()->whereKey($d['id'])->exists(),
-            default => $user->habits()->whereKey($d['id'])->exists(),
-        };
-        abort_unless($owner, 404);
-        $note->links()->firstOrCreate(['linkable_type' => $d['type'], 'linkable_id' => $d['id']]);
-        $note->touch();
+        NoteLink::attach($user, $note, $d['type'], (int) $d['id']);
 
         return back();
     }

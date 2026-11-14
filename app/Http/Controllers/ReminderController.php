@@ -10,7 +10,6 @@ use App\Services\Reminders;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 /**
  * Reminders. Velocity runs on the user's own computer, so a reminder can only pop
@@ -75,12 +74,7 @@ class ReminderController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
-        $data = $request->validate([
-            'kind' => ['required', Rule::in(TaskReminder::KINDS)],
-            'at' => ['required_if:kind,at', 'nullable', 'date'],
-            'before' => ['required_if:kind,before', 'nullable', Rule::in(array_keys(TaskReminder::BEFORE))],
-            'every' => ['required_if:kind,bug', 'nullable', 'integer', Rule::in(TaskReminder::EVERY)],
-        ]);
+        $data = $request->validate(Reminders::rules());
         if ($data['kind'] === 'at') {
             $data['at'] = $this->fromLocal($data['at'], $user);
         }
@@ -120,8 +114,7 @@ class ReminderController extends Controller
         if ($at <= $now) {
             return back()->withErrors(['until' => 'Pick a time that hasn’t passed.']);
         }
-        // An "at a time" reminder moves to the new time; the others only wait until then.
-        $reminder->update(['next_at' => $at] + ($reminder->kind === 'at' ? ['at' => $at] : []));
+        Reminders::snooze($reminder, $at);
         $local = $at->timezone($user->timezone);
         $minutes = (int) round($now->diffInMinutes($at));
         $toast = $minutes < 60 ? "Reminder in {$minutes} min"

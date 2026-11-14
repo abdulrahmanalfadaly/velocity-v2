@@ -52,6 +52,30 @@ class PersonApiController extends ApiController
         return $this->ok(PeopleInfo::row($person->load(['dates', 'groups', 'catchUps']), $this->today($user)), 201);
     }
 
+    /** Change the basics: name, relationship ("who they are"), organisation ("where"), catch_up_days. */
+    public function update(Request $request, Person $person): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($person, $user);
+        $person->update($request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:120'],
+            'relationship' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'organisation' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'catch_up_days' => ['sometimes', 'nullable', 'integer', 'between:1,365'],
+        ]));
+
+        return $this->ok(PeopleInfo::row($person->fresh(['dates', 'groups', 'catchUps']), $this->today($user)));
+    }
+
+    /** Archive ({"undo": true} brings them back). */
+    public function archive(Request $request, Person $person): JsonResponse
+    {
+        $this->own($person, $request->user());
+        $person->update(['archived_at' => $request->boolean('undo') ? null : now()]);
+
+        return $this->ok(['id' => $person->id, 'archived' => $person->archived_at !== null]);
+    }
+
     /** Were in touch: {"kind": "call", "on"?: "2026-11-13", "note"?: "…"}. */
     public function catchUp(Request $request, Person $person): JsonResponse
     {

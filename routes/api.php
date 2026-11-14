@@ -7,7 +7,9 @@ use App\Http\Controllers\Api\OverviewController;
 use App\Http\Controllers\Api\PersonApiController;
 use App\Http\Controllers\Api\PlannerApiController;
 use App\Http\Controllers\Api\ProjectApiController;
+use App\Http\Controllers\Api\ProjectMoreApiController;
 use App\Http\Controllers\Api\TaskApiController;
+use App\Http\Controllers\Api\TaskMoreApiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,6 +29,10 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::get('tasks/{task}', [TaskApiController::class, 'show'])->whereNumber('task')->name('tasks.show');
             Route::post('tasks/preview', [TaskApiController::class, 'preview'])->name('tasks.preview');
             Route::get('focus', [TaskApiController::class, 'focus'])->name('focus.show');
+            Route::get('focus/history', [TaskMoreApiController::class, 'history'])->name('focus.history');
+            Route::get('tasks/next', [TaskMoreApiController::class, 'next'])->name('tasks.next');
+            Route::get('tasks/{task}/reminders', [TaskMoreApiController::class, 'reminders'])->whereNumber('task')->name('reminders.index');
+            Route::get('templates', [TaskMoreApiController::class, 'templates'])->name('templates.index');
         });
         Route::middleware('scope:tasks:write')->group(function () {
             Route::post('tasks', [TaskApiController::class, 'store'])->name('tasks.store');
@@ -39,12 +45,27 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::patch('steps/{step}', [TaskApiController::class, 'updateStep'])->whereNumber('step')->name('steps.update');
             Route::post('focus', [TaskApiController::class, 'startFocus'])->name('focus.start');
             Route::post('focus/stop', [TaskApiController::class, 'stopFocus'])->name('focus.stop');
+            Route::post('focus/pause', [TaskMoreApiController::class, 'pauseFocus'])->name('focus.pause');
+            Route::post('focus/resume', [TaskMoreApiController::class, 'resumeFocus'])->name('focus.resume');
+            Route::post('focus/next', [TaskMoreApiController::class, 'nextRound'])->name('focus.next');
+            Route::post('focus/end', [TaskMoreApiController::class, 'endPomodoro'])->name('focus.end');
+            Route::patch('focus/{session}', [TaskMoreApiController::class, 'updateSession'])->whereNumber('session')->name('focus.update');
+            Route::post('tasks/{task}/cancel', [TaskMoreApiController::class, 'cancel'])->whereNumber('task')->name('tasks.cancel');
+            Route::post('tasks/{task}/archive', [TaskMoreApiController::class, 'archive'])->whereNumber('task')->name('tasks.archive');
+            Route::post('tasks/{task}/unarchive', [TaskMoreApiController::class, 'unarchive'])->whereNumber('task')->name('tasks.unarchive');
+            Route::post('tasks/bulk', [TaskMoreApiController::class, 'bulk'])->name('tasks.bulk');
+            Route::post('tasks/{task}/reminders', [TaskMoreApiController::class, 'addReminder'])->whereNumber('task')->name('reminders.store');
+            Route::delete('reminders/{reminder}', [TaskMoreApiController::class, 'removeReminder'])->whereNumber('reminder')->name('reminders.destroy');
+            Route::post('reminders/{reminder}/snooze', [TaskMoreApiController::class, 'snoozeReminder'])->whereNumber('reminder')->name('reminders.snooze');
+            Route::post('templates/{template}/use', [TaskMoreApiController::class, 'useTemplate'])->whereNumber('template')->name('templates.use');
         });
 
         Route::middleware('scope:projects:read')->group(function () {
             Route::get('projects', [ProjectApiController::class, 'index'])->name('projects.index');
             Route::get('projects/{project}', [ProjectApiController::class, 'show'])->whereNumber('project')->name('projects.show');
             Route::get('goals', [ProjectApiController::class, 'goals'])->name('goals.index');
+            Route::get('projects/{project}/tasks', [ProjectMoreApiController::class, 'tasks'])->whereNumber('project')->name('projects.tasks');
+            Route::get('areas', [ProjectMoreApiController::class, 'areas'])->name('areas.index');
         });
         Route::middleware('scope:projects:write')->group(function () {
             Route::post('projects', [ProjectApiController::class, 'store'])->name('projects.store');
@@ -52,14 +73,25 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::patch('milestones/{milestone}', [ProjectApiController::class, 'updateMilestone'])->whereNumber('milestone')->name('milestones.update');
             Route::post('goals', [ProjectApiController::class, 'storeGoal'])->name('goals.store');
             Route::patch('goals/{goal}', [ProjectApiController::class, 'updateGoal'])->whereNumber('goal')->name('goals.update');
+            Route::post('projects/{project}/status', [ProjectMoreApiController::class, 'status'])->whereNumber('project')->name('projects.status');
+            Route::post('projects/{project}/complete', [ProjectMoreApiController::class, 'complete'])->whereNumber('project')->name('projects.complete');
+            Route::post('projects/{project}/reopen', [ProjectMoreApiController::class, 'reopen'])->whereNumber('project')->name('projects.reopen');
+            Route::post('areas', [ProjectMoreApiController::class, 'storeArea'])->name('areas.store');
+            Route::patch('areas/{area}', [ProjectMoreApiController::class, 'updateArea'])->whereNumber('area')->name('areas.update');
         });
 
-        Route::get('planner', [PlannerApiController::class, 'index'])->middleware('scope:planner:read')->name('planner.index');
+        Route::middleware('scope:planner:read')->group(function () {
+            Route::get('planner', [PlannerApiController::class, 'index'])->name('planner.index');
+            Route::get('planner/free', [PlannerApiController::class, 'free'])->name('planner.free');
+        });
         Route::middleware('scope:planner:write')->group(function () {
             Route::post('planner/plan', [PlannerApiController::class, 'plan'])->name('planner.plan');
             Route::post('events', [PlannerApiController::class, 'storeEvent'])->name('events.store');
             Route::patch('events/{event}', [PlannerApiController::class, 'updateEvent'])->whereNumber('event')->name('events.update');
             Route::delete('events/{event}', [PlannerApiController::class, 'destroyEvent'])->whereNumber('event')->name('events.destroy');
+            Route::post('planner/blocks', [PlannerApiController::class, 'storeBlock'])->name('blocks.store');
+            Route::patch('planner/blocks/{block}', [PlannerApiController::class, 'updateBlock'])->whereNumber('block')->name('blocks.update');
+            Route::delete('planner/blocks/{block}', [PlannerApiController::class, 'destroyBlock'])->whereNumber('block')->name('blocks.destroy');
         });
 
         Route::middleware('scope:notes:read')->group(function () {
@@ -71,13 +103,23 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::post('notes', [NoteApiController::class, 'store'])->name('notes.store');
             Route::patch('notes/{note}', [NoteApiController::class, 'update'])->whereNumber('note')->name('notes.update');
             Route::post('journal', [NoteApiController::class, 'writeJournal'])->name('journal.write');
+            Route::post('notes/{note}/links', [NoteApiController::class, 'link'])->whereNumber('note')->name('notes.links.store');
+            Route::delete('notes/{note}/links/{link}', [NoteApiController::class, 'unlink'])->whereNumber(['note', 'link'])->name('notes.links.destroy');
         });
 
-        Route::get('habits', [HabitApiController::class, 'index'])->middleware('scope:habits:read')->name('habits.index');
+        Route::middleware('scope:habits:read')->group(function () {
+            Route::get('habits', [HabitApiController::class, 'index'])->name('habits.index');
+            Route::get('habits/{habit}', [HabitApiController::class, 'show'])->whereNumber('habit')->name('habits.show');
+        });
         Route::middleware('scope:habits:write')->group(function () {
             Route::post('habits', [HabitApiController::class, 'store'])->name('habits.store');
             Route::post('habits/{habit}/check', [HabitApiController::class, 'check'])->whereNumber('habit')->name('habits.check');
             Route::post('habits/{habit}/skip', [HabitApiController::class, 'skip'])->whereNumber('habit')->name('habits.skip');
+            Route::patch('habits/{habit}', [HabitApiController::class, 'update'])->whereNumber('habit')->name('habits.update');
+            Route::put('habits/{habit}/day', [HabitApiController::class, 'setDay'])->whereNumber('habit')->name('habits.day');
+            Route::post('habits/{habit}/pause', [HabitApiController::class, 'pause'])->whereNumber('habit')->name('habits.pause');
+            Route::post('habits/{habit}/resume', [HabitApiController::class, 'resume'])->whereNumber('habit')->name('habits.resume');
+            Route::post('habits/{habit}/archive', [HabitApiController::class, 'archive'])->whereNumber('habit')->name('habits.archive');
         });
 
         Route::middleware('scope:people:read')->group(function () {
@@ -87,12 +129,21 @@ Route::prefix('v1')->name('api.')->group(function () {
         Route::middleware('scope:people:write')->group(function () {
             Route::post('people', [PersonApiController::class, 'store'])->name('people.store');
             Route::post('people/{person}/catch-ups', [PersonApiController::class, 'catchUp'])->whereNumber('person')->name('people.catch-up');
+            Route::patch('people/{person}', [PersonApiController::class, 'update'])->whereNumber('person')->name('people.update');
+            Route::post('people/{person}/archive', [PersonApiController::class, 'archive'])->whereNumber('person')->name('people.archive');
         });
 
-        Route::get('tasks/{task}/github', [GitHubApiController::class, 'index'])->whereNumber('task')->middleware('scope:github:read')->name('github.index');
+        Route::middleware('scope:github:read')->group(function () {
+            Route::get('tasks/{task}/github', [GitHubApiController::class, 'index'])->whereNumber('task')->name('github.index');
+            Route::get('tasks/{task}/github/search', [GitHubApiController::class, 'search'])->whereNumber('task')->name('github.search');
+            Route::get('projects/{project}/github', [GitHubApiController::class, 'projectRepo'])->whereNumber('project')->name('github.project');
+        });
         Route::middleware('scope:github:write')->group(function () {
             Route::post('tasks/{task}/github', [GitHubApiController::class, 'store'])->whereNumber('task')->name('github.store');
             Route::delete('tasks/{task}/github/{link}', [GitHubApiController::class, 'destroy'])->whereNumber(['task', 'link'])->name('github.destroy');
+            Route::post('tasks/{task}/github/issue', [GitHubApiController::class, 'createIssue'])->whereNumber('task')->name('github.issue');
+            Route::post('tasks/{task}/github/refresh', [GitHubApiController::class, 'refresh'])->whereNumber('task')->name('github.refresh');
+            Route::put('projects/{project}/github', [GitHubApiController::class, 'setProjectRepo'])->whereNumber('project')->name('github.set-project');
         });
 
         Route::middleware('scope:review:read')->group(function () {

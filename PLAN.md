@@ -81,7 +81,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 6 | People (contacts, dates, follow-ups) | done |
 | 7 | Home, Review charts, global search | done |
 | 8 | API for Mark (personal tokens with scopes) + GitHub | done |
-| 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | in progress |
+| 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | top picks done; the rest of the list next |
 
 ## Phase 0 / 1 checklist
 
@@ -536,7 +536,18 @@ leave Up next; only finished or cancelled tasks can be archived.
       shows the period before as "Last week 9 · +3". When you focus by hour
       and weekday is Review → Focus (★4). `ReviewService::activity`,
       `planner_moves`, `goals.achieved_at`
-- [ ] ★12 The API for all of it, request ids, Mark's example scripts
+- [x] ★12 The API for all of it (93 routes): cancel, archive, bulk, Next
+      actions, reminders (with snooze), templates, focus (Pomodoro phases,
+      pause / resume / next / end, history, the note after); project status,
+      completing, a project's ranked tasks, areas, goal status / date /
+      progress; free time and booked blocks (with what they overlap); a
+      habit in full, editing, a day with a note, pause / resume, archive;
+      editing and archiving people; note links; Review by day with "what
+      changed"; GitHub search, create an issue, read again, a project's
+      repository. Every answer has an `X-Request-Id`. The screens and the
+      API share the same code (`NextActions`, `ProjectActions`,
+      `Reminders`, `NoteLink::attach`). Mark's examples: eight short
+      scripts on top of `mark_velocity.py`; `docs/api.md` covers it all.
 
 ## Run it
 

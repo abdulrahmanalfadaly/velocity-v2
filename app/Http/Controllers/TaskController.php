@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\AutoArchive;
 use App\Services\FollowUps;
 use App\Services\GitHub;
+use App\Services\NextActions;
 use App\Services\RankingService;
 use App\Services\StudyLogger;
 use App\Services\TaskPresenter;
@@ -86,37 +87,9 @@ class TaskController extends Controller
      * one ranking), projects in the order of those tasks, and the projects with
      * nothing ready, with why.
      */
-    public function next(Request $request): Response
+    public function next(Request $request, NextActions $next): Response
     {
-        $user = $request->user();
-        $list = $this->ranking->rank($user);
-        $best = [];
-        foreach ($list->scored as $k => $s) {
-            $pid = (int) ($list->tasks[(int) $s->task->id]->project_id ?? 0);
-            $best[$pid] ??= $list->present($k);
-        }
-        $projects = $user->projects()->whereNull('archived_at')->with('goal:id,color')->orderBy('name')->get();
-        $notReady = $this->ranking->notReady($user)->groupBy(fn ($r) => (int) ($r['task']->project_id ?? 0));
-        $why = function (int $pid) use ($notReady): string {
-            $kinds = collect($notReady[$pid] ?? [])->countBy('kind');
-            $parts = array_filter([
-                $kinds['waiting'] ?? 0 ? ($kinds['waiting'].' waiting') : null,
-                $kinds['blocked'] ?? 0 ? ($kinds['blocked'].' after another task') : null,
-                $kinds['later'] ?? 0 ? ($kinds['later'].' starting later') : null,
-            ]);
-
-            return $parts ? implode(' · ', $parts) : 'No open tasks';
-        };
-
-        return Inertia::render('tasks/next', [
-            'rows' => collect($best)->map(fn ($task, $pid) => [
-                'project' => $pid ? $projects->firstWhere('id', $pid)?->only('id', 'name') + ['goalColor' => $projects->firstWhere('id', $pid)?->goal?->color] : null,
-                'task' => $task,
-            ])->filter(fn ($r, $pid) => $pid === 0 || $r['project'] !== null)->values(),
-            'idle' => $projects->filter(fn ($p) => ! isset($best[$p->id]))->map(fn ($p) => [
-                'id' => $p->id, 'name' => $p->name, 'goalColor' => $p->goal?->color, 'why' => $why($p->id),
-            ])->values(),
-        ]);
+        return Inertia::render('tasks/next', $next->for($request->user()));
     }
 
     /** Full details for the task panel (?task=id), including its place in the ranking. Also used by project pages. */

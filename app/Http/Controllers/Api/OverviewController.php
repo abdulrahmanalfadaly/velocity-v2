@@ -126,7 +126,7 @@ class OverviewController extends ApiController
     public function review(Request $request, ReviewService $review): JsonResponse
     {
         $user = $request->user();
-        $d = $request->validate(['period' => ['nullable', Rule::in(['week', 'month'])], 'date' => ['nullable', 'date_format:Y-m-d']]);
+        $d = $request->validate(['period' => ['nullable', Rule::in(['day', 'week', 'month'])], 'date' => ['nullable', 'date_format:Y-m-d']]);
         $today = $review->today($user);
         $day = isset($d['date']) ? CarbonImmutable::parse($d['date'], $user->timezone)->startOfDay() : $today;
 

@@ -19,6 +19,22 @@ class NoteLink extends Model
         return $this->belongsTo(Note::class);
     }
 
+    /** Links a note to the user's own note (not itself), goal or habit; anything else is "not found". */
+    public static function attach(User $user, Note $note, string $type, int $id): self
+    {
+        $owner = match ($type) {
+            'note' => $id !== $note->id && $user->notes()->whereKey($id)->exists(),
+            'goal' => $user->goals()->whereKey($id)->exists(),
+            'habit' => $user->habits()->whereKey($id)->exists(),
+            default => false,
+        };
+        abort_unless($owner, 404);
+        $link = $note->links()->firstOrCreate(['linkable_type' => $type, 'linkable_id' => $id]);
+        $note->touch();
+
+        return $link;
+    }
+
     /** Notes (of this user, not deleted) linked to a goal, habit or note, newest edit first. */
     public static function notesFor(User $user, string $type, int $id): array
     {

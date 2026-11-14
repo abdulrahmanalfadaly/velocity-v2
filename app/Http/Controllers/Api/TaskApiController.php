@@ -203,10 +203,10 @@ class TaskApiController extends ApiController
         return $this->ok(['id' => $step->id, 'title' => $step->title, 'done' => $step->done_at !== null]);
     }
 
-    /** The focus session running now, or null. */
+    /** The timer now: a running session (phase "focus"), a Pomodoro between rounds (roundDone, break, breakOver), or null. */
     public function focus(Request $request): JsonResponse
     {
-        return $this->ok(FocusActions::running($request->user())?->present());
+        return $this->ok($this->focus->state($request->user()));
     }
 
     /** {"task_id": 12, "minutes": 50}: both optional. A session already running is stopped first. */

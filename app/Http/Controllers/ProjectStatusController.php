@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\TaskActions;
+use App\Actions\ProjectActions;
 use App\Models\Project;
-use App\Models\Task;
-use App\Support\Clock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -17,14 +15,13 @@ use Illuminate\Validation\Rule;
  */
 class ProjectStatusController extends Controller
 {
-    public function __construct(private readonly TaskActions $tasks) {}
+    public function __construct(private readonly ProjectActions $projects) {}
 
     public function status(Request $request, Project $project): RedirectResponse
     {
         $this->own($project, $request->user());
         $status = $request->validate(['status' => ['required', Rule::in(['planned', 'active', 'on_hold'])]])['status'];
-        $before = $project->status;
-        $project->update(['status' => $status, 'completed_at' => null]);
+        $before = $this->projects->setStatus($project, $status);
         $label = ['planned' => 'Planned', 'active' => 'Active', 'on_hold' => 'On hold'][$status];
 
         return back()->with('toast', "“{$project->name}”: {$label}")->with('undo', $this->undo('project-status', $project->id, ['status' => $before]));
@@ -40,14 +37,7 @@ class ProjectStatusController extends Controller
             return back();
         }
         $before = $project->status;
-        $cancelled = [];
-        if ($open === 'cancel') {
-            foreach ($project->tasks()->whereIn('status', Task::OPEN)->get() as $task) {
-                $this->tasks->cancel($task, $user, 'Project completed');
-                $cancelled[] = $task->id;
-            }
-        }
-        $project->update(['status' => 'completed', 'completed_at' => app(Clock::class)->now()]);
+        $cancelled = $this->projects->complete($project, $user, $open === 'cancel');
         $more = $cancelled ? ' · '.count($cancelled).' open '.(count($cancelled) === 1 ? 'task' : 'tasks').' cancelled' : '';
 
         return back()->with('toast', "Completed “{$project->name}”{$more}")
@@ -60,10 +50,7 @@ class ProjectStatusController extends Controller
         $user = $request->user();
         $this->own($project, $user);
         $d = $request->validate(['status' => ['nullable', Rule::in(['planned', 'active', 'on_hold'])], 'tasks' => ['nullable', 'array'], 'tasks.*' => ['integer']]);
-        $project->update(['status' => $d['status'] ?? 'active', 'completed_at' => null]);
-        foreach ($project->tasks()->whereIn('id', $d['tasks'] ?? [])->where('status', Task::CANCELLED)->get() as $task) {
-            $this->tasks->reopen($task, $user);
-        }
+        $this->projects->reopen($project, $user, $d['status'] ?? null, $d['tasks'] ?? []);
 
         return back()->with('toast', "“{$project->name}” is open again");
     }
