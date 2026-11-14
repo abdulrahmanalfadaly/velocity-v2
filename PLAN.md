@@ -81,6 +81,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 6 | People (contacts, dates, follow-ups) | done |
 | 7 | Home, Review charts, global search | done |
 | 8 | API for Mark (personal tokens with scopes) + GitHub | done |
+| 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | planning |
 
 ## Phase 0 / 1 checklist
 
