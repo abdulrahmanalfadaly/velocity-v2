@@ -48,7 +48,7 @@ class QuickAddTest extends TestCase
     public function test_an_event_line_gives_its_day_times_and_calendar(): void
     {
         $this->assertSame(
-            ['title' => 'Dentist', 'date' => '2026-11-12', 'start' => '15:00', 'end' => '16:00', 'allDay' => false, 'calendar' => 'personal', 'weekly' => false],
+            ['title' => 'Dentist', 'date' => '2026-11-12', 'start' => '15:00', 'end' => '16:00', 'allDay' => false, 'calendar' => 'personal', 'weekly' => false, 'until' => null],
             array_diff_key($this->event('Dentist tomorrow 3-4pm #personal'), ['picked' => 1]),
         );
         $quiz = $this->event('Quiz fri 9-10am #class');

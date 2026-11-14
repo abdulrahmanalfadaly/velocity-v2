@@ -81,6 +81,7 @@ class QuickAddParser
             'allDay' => $start === null,
             'calendar' => $s['calendar'],
             'weekly' => $s['repeat'] !== null,
+            'until' => $s['repeat']['until'] ?? null,
             'picked' => $s['picked'],
         ];
     }
@@ -103,6 +104,7 @@ class QuickAddParser
         $hoursAt = null; // where the last "2h" was, so "1h 30m" adds up
         $projectId = null;
         $calendar = null;
+        $until = null;
         $repeat = null;
         $repeatDay = null;
         $picked = [];
@@ -120,9 +122,29 @@ class QuickAddParser
             // Repeats: only "every …" counts, so a title like "Weekly report" stays as it is.
             if ($lw === 'every' && $repeat === null && $repeatWord) {
                 if (isset(self::DAYS[$w1])) {
-                    $repeat = ['unit' => 'week', 'every' => 1];
-                    $repeatDay = self::DAYS[$w1];
-                    $picked[] = ['kind' => 'repeat', 'text' => $w.' '.$words[++$i]];
+                    $days = [self::DAYS[$w1]];
+                    $text = $w.' '.$words[++$i];
+                    // Tasks: more weekdays ("every mon and thu", "every mon, wed, fri"). Events repeat on their own day.
+                    while (! $event) {
+                        $n1 = mb_strtolower(rtrim($words[$i + 1] ?? '', ',.'));
+                        $n2 = mb_strtolower(rtrim($words[$i + 2] ?? '', ',.'));
+                        if (isset(self::DAYS[$n1])) {
+                            $days[] = self::DAYS[$n1];
+                            $text .= ' '.$words[++$i];
+                        } elseif (in_array($n1, ['and', '&'], true) && isset(self::DAYS[$n2])) {
+                            $days[] = self::DAYS[$n2];
+                            $text .= ' '.$words[++$i].' '.$words[++$i];
+                        } else {
+                            break;
+                        }
+                    }
+                    $days = array_values(array_unique($days));
+                    sort($days);
+                    $repeat = ['unit' => 'week', 'every' => 1] + (count($days) > 1 ? ['days' => $days] : []);
+                    // The first one is the soonest of those days (today counts).
+                    usort($days, fn ($a, $b) => (($a - $nowLocal->dayOfWeekIso + 7) % 7) <=> (($b - $nowLocal->dayOfWeekIso + 7) % 7));
+                    $repeatDay = $days[0];
+                    $picked[] = ['kind' => 'repeat', 'text' => $text];
                 } elseif (isset(self::UNITS[$w1])) {
                     $repeat = ['unit' => self::UNITS[$w1], 'every' => 1];
                     $picked[] = ['kind' => 'repeat', 'text' => $w.' '.$words[++$i]];
@@ -169,6 +191,11 @@ class QuickAddParser
             } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $lw, $m) && $this->realDate((int) $m[1], (int) $m[2])) {
                 $day = $this->dateInYear($nowLocal, (int) $m[1], (int) $m[2]);
                 $picked[] = ['kind' => 'due', 'text' => $w];
+            } elseif ($lw === 'until' && $repeat !== null && ($last = $this->dateAt($words, $i + 1, $nowLocal)) !== null) {
+                // "every mon until 20 dec": the last day it repeats.
+                $until = $last[0];
+                $picked[] = ['kind' => 'repeat', 'text' => implode(' ', array_slice($words, $i, $last[1] + 1))];
+                $i += $last[1];
             } elseif (($range = $this->rangeWord($lw)) !== null) {
                 [$time, $end] = $range; // "9-10am", "14:00-15:30"
                 $picked[] = ['kind' => 'time', 'text' => $w];
@@ -210,7 +237,28 @@ class QuickAddParser
         }
 
         return ['title' => trim(implode(' ', $keep)), 'day' => $day, 'time' => $time, 'end' => $end, 'hours' => $hours, 'projectId' => $projectId,
-            'calendar' => $calendar, 'repeat' => $repeat, 'repeatDay' => $repeatDay, 'picked' => $picked];
+            'calendar' => $calendar, 'repeat' => $repeat && $until ? $repeat + ['until' => $until->toDateString()] : $repeat, 'repeatDay' => $repeatDay, 'picked' => $picked];
+    }
+
+    /** A date at word $j for "until …": "20 dec", "dec 20", "20/12", a weekday. @return array{0: CarbonImmutable, 1: int}|null [day, words used] */
+    private function dateAt(array $words, int $j, CarbonImmutable $now): ?array
+    {
+        $a = mb_strtolower(rtrim($words[$j] ?? '', ',.'));
+        $b = mb_strtolower(rtrim($words[$j + 1] ?? '', ',.'));
+        if (preg_match('/^(\d{1,2})$/', $a, $m) && ($month = $this->month($b)) !== null && $this->realDate((int) $m[1], $month)) {
+            return [$this->dateInYear($now, (int) $m[1], $month), 2];
+        }
+        if (($month = $this->month($a)) !== null && preg_match('/^(\d{1,2})$/', $b, $m) && $this->realDate((int) $m[1], $month)) {
+            return [$this->dateInYear($now, (int) $m[1], $month), 2];
+        }
+        if (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $a, $m) && $this->realDate((int) $m[1], (int) $m[2])) {
+            return [$this->dateInYear($now, (int) $m[1], (int) $m[2]), 1];
+        }
+        if (isset(self::DAYS[$a])) {
+            return [$this->nextWeekday($now, self::DAYS[$a]), 1];
+        }
+
+        return null;
     }
 
     /** A month name or the start of one ("dec", "decem", "december"), not just any word that starts like one ("decks"). */

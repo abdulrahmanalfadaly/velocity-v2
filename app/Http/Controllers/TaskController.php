@@ -203,7 +203,7 @@ class TaskController extends Controller
             return back();
         }
         $deps = $event->snapshot['depends_on'] ?? null;
-        $changed = array_keys(array_diff_key($event->snapshot['after'] ?? [], ['repeat_day' => 1, 'repeat_every' => 1, 'reminder_sent_at' => 1]));
+        $changed = array_keys(array_diff_key($event->snapshot['after'] ?? [], ['repeat_day' => 1, 'repeat_every' => 1, 'repeat_anchor' => 1, 'reminder_sent_at' => 1, 'waiting_since' => 1]));
         $what = $deps ? 'Starts after' : (self::LABELS[$changed[0] ?? ''] ?? 'Task');
         $toast = $request->boolean('form') ? $this->placed($task, 'Saved') : "{$what} changed";
 
@@ -213,7 +213,7 @@ class TaskController extends Controller
     private const LABELS = [
         'title' => 'Title', 'notes' => 'Notes', 'importance' => 'Importance', 'urgency' => 'Urgency', 'due_at' => 'Due date',
         'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'follow_up_on' => 'Follow-up', 'project_id' => 'Project',
-        'repeat_unit' => 'Repeat', 'available_from' => 'Start date', 'reminder_at' => 'Reminder',
+        'repeat_unit' => 'Repeat', 'repeat_days' => 'Repeat', 'repeat_until' => 'Repeat', 'available_from' => 'Start date', 'reminder_at' => 'Reminder',
     ];
 
     /** Undo of one change in the task panel: put back what the saved event remembers. */

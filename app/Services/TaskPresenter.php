@@ -29,7 +29,10 @@ class TaskPresenter
             'cancelledAt' => $task->cancelled_at?->toIso8601ZuluString(),
             'cancelReason' => $task->cancel_reason,
             'archivedAt' => $task->archived_at?->toIso8601ZuluString(),
-            'repeat' => $task->repeat_unit ? ['unit' => $task->repeat_unit, 'every' => $task->repeat_every ?? 1] : null,
+            // Days and an end only when the repeat has them.
+            'repeat' => $task->repeat_unit ? ['unit' => $task->repeat_unit, 'every' => $task->repeat_every ?? 1] + array_filter([
+                'days' => $task->repeat_days ?: null, 'until' => $task->repeat_until?->toDateString(),
+            ]) : null,
             'project' => $project ? [
                 'id' => $project->id,
                 'name' => $project->name,

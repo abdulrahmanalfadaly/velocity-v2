@@ -331,10 +331,10 @@ export function TaskPanel({
                         <Icon name="habits" />
                         Repeats
                     </div>
-                    <div className="prop-value">
+                    <div className="prop-value p-repeat">
                         <Select
                             className="prop-input"
-                            value={repeatKey(task.repeat)}
+                            value={repeatKey(task.repeat ? { unit: task.repeat.unit, every: task.repeat.every } : null)}
                             label="Repeats"
                             onChange={(v) => {
                                 const [every, unit] = v.split('-'); // "" = doesn't repeat
@@ -344,10 +344,57 @@ export function TaskPanel({
                                 { value: '', label: 'Doesn’t repeat' },
                                 ...[
                                     ...REPEAT_CHOICES,
-                                    ...(task.repeat && !REPEAT_CHOICES.some((r) => repeatKey(r) === repeatKey(task.repeat)) ? [task.repeat] : []),
+                                    ...(task.repeat && !REPEAT_CHOICES.some((r) => repeatKey(r) === repeatKey(task.repeat))
+                                        ? [{ unit: task.repeat.unit, every: task.repeat.every }]
+                                        : []),
                                 ].map((r) => ({ value: repeatKey(r), label: repeatText(r) })),
                             ]}
                         />
+                        {task.repeat?.unit === 'week' && (
+                            <div className="hb-days p-weekdays" role="group" aria-label="On which days">
+                                {WEEK.map((w, i) => {
+                                    // Without named days a weekly repeat keeps to the due date's weekday.
+                                    const due = task.dueAt ? WEEK.indexOf(clock.weekday(task.dueAt)) + 1 : 0;
+                                    const days = task.repeat?.days?.length ? task.repeat.days : due ? [due] : [];
+                                    const on = days.includes(i + 1);
+                                    return (
+                                        <button
+                                            key={w}
+                                            type="button"
+                                            aria-pressed={on}
+                                            onClick={() => {
+                                                const next = on ? days.filter((d) => d !== i + 1) : [...days, i + 1].sort();
+                                                if (next.length) patch(task.id, { repeat_days: next.length > 1 || next[0] !== due ? next : null });
+                                            }}
+                                        >
+                                            {w.slice(0, 2)}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {task.repeat && (
+                            <span className="p-repeat-until">
+                                <DatePick
+                                    className="prop-input"
+                                    label="Repeats until"
+                                    placeholder="No end"
+                                    value={task.repeat.until ?? ''}
+                                    onChange={(v) => patch(task.id, { repeat_until: v || null })}
+                                />
+                                {!finished && (
+                                    <button
+                                        type="button"
+                                        className="link"
+                                        onClick={() =>
+                                            router.post(route('tasks.cancel', task.id), { skip: true }, { preserveScroll: true, preserveState: true })
+                                        }
+                                    >
+                                        Skip this one
+                                    </button>
+                                )}
+                            </span>
+                        )}
                     </div>
                     {task.focused.seconds > 0 && (
                         <>
@@ -703,6 +750,8 @@ function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }
         </Modal>
     );
 }
+
+const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const BEFORE: [string, string][] = [
     ['15m', '15 min before'],

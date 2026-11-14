@@ -28,6 +28,7 @@ interface EventParse {
     allDay: boolean;
     calendar: CalendarKey | null;
     weekly: boolean;
+    until: string | null;
 }
 
 interface EventFields {
@@ -37,6 +38,7 @@ interface EventFields {
     end_time: string;
     calendar: CalendarKey;
     repeat_weekly: boolean;
+    repeat_until: string | null;
 }
 
 type Mode = 'task' | 'event' | 'person';
@@ -79,6 +81,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         end_time: '',
         calendar: 'personal',
         repeat_weekly: false,
+        repeat_until: null,
     });
     const [evParsed, setEvParsed] = useState<{ text: string; parse: EventParse } | null>(null);
     const touched = useRef<Set<'date' | 'time' | 'calendar' | 'weekly'>>(new Set());
@@ -116,7 +119,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
             ...(own.has('date') ? {} : { date: parse.date }),
             ...(own.has('time') ? {} : { all_day: parse.allDay, start_time: parse.start ?? '', end_time: parse.end ?? '' }),
             ...(own.has('calendar') || !parse.calendar ? {} : { calendar: parse.calendar }),
-            ...(own.has('weekly') ? {} : { repeat_weekly: parse.weekly }),
+            ...(own.has('weekly') ? {} : { repeat_weekly: parse.weekly, repeat_until: parse.until }),
         }));
     };
     useEffect(() => {
@@ -185,7 +188,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                         ...(own.has('date') ? {} : { date: parse.date }),
                         ...(own.has('time') ? {} : { all_day: parse.allDay, start_time: parse.start ?? '', end_time: parse.end ?? '' }),
                         ...(own.has('calendar') || !parse.calendar ? {} : { calendar: parse.calendar }),
-                        ...(own.has('weekly') ? {} : { repeat_weekly: parse.weekly }),
+                        ...(own.has('weekly') ? {} : { repeat_weekly: parse.weekly, repeat_until: parse.until }),
                     };
                 }
             }
@@ -197,7 +200,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                 start_time: fields.all_day ? null : fields.start_time || null,
                 end_time: fields.all_day ? null : fields.end_time || null,
                 repeat_weekly: fields.repeat_weekly,
-                repeat_until: null,
+                repeat_until: fields.repeat_weekly ? fields.repeat_until : null,
                 location: null,
                 notes: null,
             });

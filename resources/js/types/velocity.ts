@@ -19,6 +19,10 @@ export type RepeatUnit = 'day' | 'weekday' | 'week' | 'month' | 'year';
 export interface RepeatRule {
     unit: RepeatUnit;
     every: number;
+    /** A weekly repeat's weekdays (1 = Monday), when it names them. */
+    days?: number[] | null;
+    /** The last day it repeats ("YYYY-MM-DD"). */
+    until?: string | null;
 }
 
 export interface BaseTask {

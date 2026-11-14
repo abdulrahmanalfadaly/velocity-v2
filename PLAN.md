@@ -485,7 +485,14 @@ leave Up next; only finished or cancelled tasks can be archived.
       check-in (the day editor), listed in the habit's panel. One "was this
       day met?" rule (`Habit::achieved`) for stats, Home, Review, projects,
       the Planner and the API. `HabitPause`, `HabitStats`
-- [ ] ★7 Repeats: several weekdays, until, skip one, moving one doesn't move the rest
+- [x] ★7 Repeats: a weekly repeat can name its days (Mo–Su buttons in the
+      task panel; "every Mon and Thu", "every mon, wed, fri"; "every 2 weeks
+      on Mon, Thu" skips the week between) and a last day ("until 20 Dec" in
+      the panel or quick add; no copy after it; events too). "Skip this one"
+      in the Repeats row. Each copy remembers the day it was meant for, so
+      moving one copy doesn't move the rest (older copies keep their series
+      the first time they're moved); a new rule starts the series again from
+      the task's due date. `Repeat::next` with days, `repeat_anchor`
 - [ ] ★8 Notes: tables, links to notes / goals / habits, linked from
 - [ ] ★9 Views in the Tasks menu and a Next actions page (formula order)
 - [ ] ★10 Areas menu, project status and Complete, All projects, goal status / date / progress

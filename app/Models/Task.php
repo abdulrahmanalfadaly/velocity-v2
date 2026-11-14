@@ -35,7 +35,7 @@ class Task extends Model
     protected $fillable = [
         'project_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
         'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion',
-        'repeat_unit', 'repeat_every', 'repeat_day', 'repeated_from_id',
+        'repeat_unit', 'repeat_every', 'repeat_days', 'repeat_until', 'repeat_anchor', 'repeat_day', 'repeated_from_id',
         'follow_up_on', 'waiting_since', 'cancelled_at', 'cancel_reason', 'archived_at', 'unarchived_at',
     ];
 
@@ -51,6 +51,9 @@ class Task extends Model
             'completed_at' => 'datetime',
             'repeat_every' => 'integer',
             'repeat_day' => 'integer',
+            'repeat_days' => 'array',
+            'repeat_until' => 'date',
+            'repeat_anchor' => 'datetime',
             'follow_up_on' => 'date',
             'waiting_since' => 'datetime',
             'cancelled_at' => 'datetime',

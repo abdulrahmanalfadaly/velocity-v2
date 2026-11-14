@@ -33,7 +33,7 @@ list only covers what's missing or partly there.
 - [ ] Dependencies: a "Blocks" list, stop finishing a task that is still blocked, warnings on cancel or reopen. **Partly**
 - [ ] Real subtasks, with "Complete anyway?" when some are still open. **Add**
 - [x] ★2 Archive a task, and auto-archive old finished ones. **Add**
-- [ ] ★7 Repeat on several weekdays (Mon + Thu), an end date, skip one, move one without moving the rest. **Partly**
+- [x] ★7 Repeat on several weekdays (Mon + Thu), an end date, skip one, move one without moving the rest. **Partly**
 - [ ] Templates with dates like "day 3 after start". **Add**
 - [ ] Bulk edit more fields, and bulk reopen. **Partly** (done, move, due date, delete exist)
 - [ ] This-or-That (pick between two tasks). **Add**, without changing the order

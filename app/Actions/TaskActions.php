@@ -46,6 +46,9 @@ class TaskActions
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
             'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
+            'repeat_days' => ['sometimes', 'nullable', 'array', 'max:7'],
+            'repeat_days.*' => ['integer', 'between:1,7', 'distinct'],
+            'repeat_until' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'available_from' => ['sometimes', 'nullable', 'date'],
             'reminder_at' => ['sometimes', 'nullable', 'date'],
             'depends_on' => ['sometimes', 'array', 'max:20'],
@@ -70,6 +73,9 @@ class TaskActions
             'project_id' => $projectId ?? $parsed['projectId'],
             'repeat_unit' => $parsed['repeat']['unit'] ?? null,
             'repeat_every' => $parsed['repeat']['every'] ?? 1,
+            'repeat_days' => $parsed['repeat']['days'] ?? null,
+            'repeat_until' => $parsed['repeat']['until'] ?? null,
+            'repeat_anchor' => $parsed['repeat'] ? $parsed['due']?->utc() : null,
         ]);
     }
 
@@ -104,9 +110,26 @@ class TaskActions
             Reminders::setAt($task, $data['reminder_at'] ? CarbonImmutable::instance($data['reminder_at']) : null, $this->ranking->now());
             unset($data['reminder_at']);
         }
-        // A new due date or repeat rule sets a new day of the month to keep to.
-        if (array_key_exists('due_at', $data) || array_key_exists('repeat_unit', $data)) {
+        // Repeats: a new rule starts the series again from this task's due date; a new due date on its own moves
+        // only this copy (the next one still comes when it was meant to).
+        if (array_key_exists('repeat_days', $data)) {
+            $days = array_values(array_unique(array_map('intval', $data['repeat_days'] ?? [])));
+            sort($days);
+            $data['repeat_days'] = $days ?: null;
+        }
+        if (array_intersect_key($data, array_flip(['repeat_unit', 'repeat_every', 'repeat_days'])) !== []) {
             $data['repeat_day'] = null;
+            $data['repeat_anchor'] = array_key_exists('due_at', $data) ? $data['due_at'] : $task->due_at;
+            $unit = array_key_exists('repeat_unit', $data) ? $data['repeat_unit'] : $task->repeat_unit;
+            if ($unit !== 'week') {
+                $data['repeat_days'] = null;
+            }
+            if ($unit === null) {
+                $data['repeat_until'] = null;
+                $data['repeat_anchor'] = null;
+            }
+        } elseif (array_key_exists('due_at', $data) && $task->repeat_unit && ! $task->repeat_anchor) {
+            $data['repeat_anchor'] = $task->due_at; // an older copy: the series stays where it was
         }
         // A done or cancelled task is opened again only through reopen, which also handles its repeat copy.
         if (in_array($task->status, Task::FINISHED, true)) {
@@ -262,10 +285,15 @@ class TaskActions
             return null;
         }
         $now = $this->ranking->now();
-        // A task with no due date repeats from the end of today.
-        $base = $task->due_at ? CarbonImmutable::instance($task->due_at) : $now->timezone($user->timezone)->setTime(23, 59);
+        // From when this copy was meant to be due (moving one doesn't move the rest); with no due date, the end of today.
+        $from = $task->repeat_anchor ?? $task->due_at;
+        $base = $from ? CarbonImmutable::instance($from) : $now->timezone($user->timezone)->setTime(23, 59);
         $day = $task->repeat_day ?? Repeat::anchorDay($base, $task->repeat_unit, $user->timezone);
-        $due = Repeat::next($base, $task->repeat_unit, $task->repeat_every, $user->timezone, $now, $day);
+        $due = Repeat::next($base, $task->repeat_unit, $task->repeat_every, $user->timezone, $now, $day, $task->repeat_days);
+        // The last one: no copy after the end date.
+        if ($task->repeat_until && $due->timezone($user->timezone)->toDateString() > $task->repeat_until->toDateString()) {
+            return null;
+        }
         $shift = fn ($at) => $at ? CarbonImmutable::instance($at)->addSeconds($due->getTimestamp() - $base->getTimestamp()) : null;
 
         $next = $user->tasks()->create([
@@ -280,6 +308,9 @@ class TaskActions
             'available_from' => $shift($task->available_from),
             'repeat_unit' => $task->repeat_unit,
             'repeat_every' => $task->repeat_every,
+            'repeat_days' => $task->repeat_days,
+            'repeat_until' => $task->repeat_until,
+            'repeat_anchor' => $due,
             'repeat_day' => $day,
             'repeated_from_id' => $task->id,
         ]);

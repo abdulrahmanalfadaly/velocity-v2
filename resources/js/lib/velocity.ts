@@ -59,8 +59,31 @@ export const hm12 = (hhmm: string) => {
 export const fmtDays = (d: number) => (d < 1 ? `${Math.round(d * 24)} h` : `${round1(d)} days`);
 
 /** "Every day", "Every weekday", "Every 2 weeks" … (same wording as App\Services\Repeat::label). */
-export const repeatText = (r: RepeatRule) =>
-    r.unit === 'weekday' ? 'Every weekday' : r.every > 1 ? `Every ${r.every} ${r.unit}s` : `Every ${r.unit}`;
+const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** "Every day", "Every 2 weeks", "Every Mon, Thu", "Every 2 weeks on Mon, Thu" (same wording as App\Services\Repeat::label), " until 20 Dec". */
+export const repeatText = (r: RepeatRule) => {
+    const names =
+        r.unit === 'week' && r.days?.length
+            ? [...r.days]
+                  .sort()
+                  .map((d) => WEEKDAY_NAMES[d - 1])
+                  .join(', ')
+            : null;
+    const base =
+        r.unit === 'weekday'
+            ? 'Every weekday'
+            : names
+              ? r.every > 1
+                  ? `Every ${r.every} weeks on ${names}`
+                  : `Every ${names}`
+              : r.every > 1
+                ? `Every ${r.every} ${r.unit}s`
+                : `Every ${r.unit}`;
+    const until = r.until
+        ? ` until ${new Date(`${r.until}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
+        : '';
+    return base + until;
+};
 /** The choices in the task panel; any other rule (from quick add) is shown as an extra choice. */
 export const REPEAT_CHOICES: RepeatRule[] = [
     { unit: 'day', every: 1 },
