@@ -2012,6 +2012,15 @@ a.pp-contact .pp-contact-value { color: var(--violet-ink); }
 .rv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .rv-tiles.is-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .fh-list { list-style: none; margin: 0; padding: 0; }
+/* Habits: limit / avoid buttons, notes. */
+.habit-btn.is-less { border-style: dashed; }
+.habit-btn.is-less.is-over { border-style: solid; background: var(--surface-3); color: var(--text); }
+.hb-note { display: flex; gap: 6px; padding: 4px 10px 8px; }
+.hb-note .input { flex: 1; min-width: 0; height: 32px; font-size: 13px; }
+.hb-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+.hb-notes li { display: grid; gap: 2px; }
+.hb-notes b { font-weight: 650; font-size: 12.5px; color: var(--text-2); }
+.hd.hd-paused { opacity: .45; border-style: dotted; }
 .fh-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
 .fh-row:first-child { border-top: 0; }
 .fh-when { display: grid; gap: 2px; font-size: 13px; color: var(--text-2); }

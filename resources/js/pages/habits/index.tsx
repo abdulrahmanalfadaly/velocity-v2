@@ -24,7 +24,8 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 type HabitDetail = HabitToday & {
     best: number;
-    rate: { done: number; of: number; unit: 'days' | 'weeks' };
+    rate: { done: number; of: number; unit: 'days' | 'weeks' | 'months' };
+    notes: { date: string; note: string; count: number; skipped: boolean }[];
     total: number;
     history: HabitDay[];
     since: string;
@@ -235,6 +236,16 @@ function ListView({ props, clock, rowProps, onNew, all }: { props: Props; clock:
                             ))}
                         </details>
                     )}
+                    {by('paused').length > 0 && (
+                        <details className="hb-off">
+                            <summary>
+                                Paused <span>{by('paused').length}</span>
+                            </summary>
+                            {by('paused').map((h) => (
+                                <Row key={h.id} h={h} {...rowProps} />
+                            ))}
+                        </details>
+                    )}
                 </section>
             )}
         </>
@@ -352,8 +363,8 @@ function Legend() {
 function RoutineView({ props, rowProps, onEdit }: { props: Props; rowProps: RowProps; onEdit: () => void }) {
     const routine = props.routine!;
     const steps = new Map(routine.habitIds.map((id, i) => [id, i + 1]));
-    const now = props.habits.filter((h) => h.group !== 'off');
-    const later = props.habits.filter((h) => h.group === 'off');
+    const now = props.habits.filter((h) => h.group !== 'off' && h.group !== 'paused');
+    const later = props.habits.filter((h) => h.group === 'off' || h.group === 'paused');
     const done = now.filter((h) => h.group === 'done').length;
     return (
         <>
@@ -442,7 +453,8 @@ function HabitPanel({
     onEdit: () => void;
     onCell: (h: HabitToday, d: HabitDay, el: HTMLElement) => void;
 }) {
-    const unit = (n: number) => (h.streakUnit === 'week' ? (n === 1 ? 'week' : 'weeks') : n === 1 ? 'day' : 'days');
+    const unit = (n: number) => `${h.streakUnit ?? 'day'}${n === 1 ? '' : 's'}`;
+    const less = h.kind === 'limit' || h.kind === 'avoid';
     return (
         <>
             <div className="panel-head">
@@ -450,6 +462,16 @@ function HabitPanel({
                     <span>{h.project?.name ?? 'Habits'}</span>
                 </div>
                 <div className="panel-tools">
+                    {!h.archived && (
+                        <button
+                            className="icon-btn"
+                            aria-label={h.pausedSince ? 'Resume habit' : 'Pause habit'}
+                            title={h.pausedSince ? 'Resume' : 'Pause (the streak waits)'}
+                            onClick={() => router.post(route(h.pausedSince ? 'habits.resume' : 'habits.pause', h.id), {}, keep)}
+                        >
+                            <Icon name={h.pausedSince ? 'play' : 'pause'} />
+                        </button>
+                    )}
                     <button className="icon-btn" aria-label="Edit habit" title="Edit" onClick={onEdit}>
                         <Icon name="sliders" />
                     </button>
@@ -494,16 +516,18 @@ function HabitPanel({
                         </dd>
                     </div>
                     <div>
-                        <dt>{h.rate.unit === 'weeks' ? 'Last 8 weeks' : 'Last 30 days'}</dt>
+                        <dt>{h.rate.unit === 'weeks' ? 'Last 8 weeks' : h.rate.unit === 'months' ? 'Last 6 months' : 'Last 30 days'}</dt>
                         <dd>
                             {h.rate.done}
                             <small> of {h.rate.of}</small>
                         </dd>
                     </div>
-                    <div>
-                        <dt>Times done</dt>
-                        <dd>{h.total}</dd>
-                    </div>
+                    {!less && (
+                        <div>
+                            <dt>Times done</dt>
+                            <dd>{h.total}</dd>
+                        </div>
+                    )}
                 </dl>
                 <section className="p-section">
                     <div className="p-section-head">
@@ -519,6 +543,21 @@ function HabitPanel({
                         <span>Today</span>
                     </div>
                 </section>
+                {h.notes.length > 0 && (
+                    <section className="p-section">
+                        <div className="p-section-head">
+                            <h3 className="p-section-title">Notes</h3>
+                        </div>
+                        <ul className="hb-notes">
+                            {h.notes.map((n) => (
+                                <li key={n.date}>
+                                    <b>{dayName(n.date, clock)}</b>
+                                    <span>{n.note}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
                 {h.routines.length > 0 && (
                     <section className="p-section">
                         <div className="p-section-head">

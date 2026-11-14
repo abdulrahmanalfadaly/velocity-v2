@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** One day of a habit: how many times (or how much) it was done, or that the day was skipped. */
 class HabitEntry extends Model
 {
-    protected $fillable = ['day', 'count', 'skipped'];
+    protected $fillable = ['day', 'count', 'skipped', 'note'];
 
     protected function casts(): array
     {

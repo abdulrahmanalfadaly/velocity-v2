@@ -472,7 +472,19 @@ leave Up next; only finished or cancelled tasks can be archived.
       working hours from now on around events, habit times and blocks (with
       the gap), the total, and "Copy free time". `PlannerOverlaps`,
       `PlannerSettings`, `PlanBuilder::free`
-- [ ] ★6 Habits: minutes / limit / avoid, monthly and every-N-days, pause, check-in notes
+- [x] ★6 Habits (left out in Phase 5, added at the user's choice): kinds Do it,
+      Minutes ("Read 20 min": a tap fills it, or an amount), Limit ("at most
+      2 cups": each tap adds one; over = missed) and Avoid ("It happened"
+      flips the day); a limit or avoid day with nothing logged is kept, today
+      counts once it's over. Schedules: N times a month (a month asks for its
+      share of the days it had: began 16 Oct → 3 of 4) and every N days from
+      a start date; limits and avoiding stay daily / set days / every N days,
+      with no Planner time. Pause (until resumed or a day) and Resume: paused
+      days are neither due nor missed, so the streak waits; paused habits
+      leave Today (a Paused fold) and the Planner. A note on any day's
+      check-in (the day editor), listed in the habit's panel. One "was this
+      day met?" rule (`Habit::achieved`) for stats, Home, Review, projects,
+      the Planner and the API. `HabitPause`, `HabitStats`
 - [ ] ★7 Repeats: several weekdays, until, skip one, moving one doesn't move the rest
 - [ ] ★8 Notes: tables, links to notes / goals / habits, linked from
 - [ ] ★9 Views in the Tasks menu and a Next actions page (formula order)

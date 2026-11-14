@@ -117,6 +117,9 @@ Route::middleware(['auth'])->group(function () {
         Route::put('habits/{habit}/day', [HabitController::class, 'day'])->name('habits.day');
         Route::post('habits/{habit}/skip', [HabitController::class, 'skip'])->name('habits.skip');
         Route::post('habits/{habit}/unskip', [HabitController::class, 'unskip'])->name('habits.unskip');
+        Route::post('habits/{habit}/pause', [HabitController::class, 'pause'])->name('habits.pause');
+        Route::post('habits/{habit}/resume', [HabitController::class, 'resume'])->name('habits.resume');
+        Route::post('habits/{habit}/put-pause', [HabitController::class, 'putPause'])->name('habits.put-pause');
         Route::post('routines', [RoutineController::class, 'store'])->name('routines.store');
         Route::patch('routines/{routine}', [RoutineController::class, 'update'])->name('routines.update');
         Route::delete('routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');

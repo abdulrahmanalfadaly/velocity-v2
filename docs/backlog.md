@@ -118,12 +118,12 @@ list only covers what's missing or partly there.
 Several of these were left out on purpose in Phase 5; the user chose to add
 them after seeing this list.
 
-- [ ] ★6 Minutes habits ("read 20 min"). **Add**
-- [ ] ★6 Limit habits ("at most 2 coffees") and avoid habits ("no smoking"). **Add**
-- [ ] ★6 "5 times a month" and "every 3 days". **Add**
+- [x] ★6 Minutes habits ("read 20 min"). **Add**
+- [x] ★6 Limit habits ("at most 2 coffees") and avoid habits ("no smoking"). **Add**
+- [x] ★6 "5 times a month" and "every 3 days". **Add**
 - [ ] Start and end dates, and a status. **Add**
-- [ ] ★6 Pause and resume. **Add**
-- [ ] ★6 A note on each check-in. **Add**
+- [x] ★6 Pause and resume. **Add**
+- [x] ★6 A note on each check-in. **Add**
 - [ ] Month view and deeper stats: date range, half credit, bounce-backs, trends, hardest weekday, averages. **Add**
 - [ ] Search and filters. **Add**
 - [ ] A description and a "why". **Add**

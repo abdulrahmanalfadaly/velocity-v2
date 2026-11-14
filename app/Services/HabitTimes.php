@@ -21,15 +21,15 @@ class HabitTimes
     public static function between(User $user, CarbonImmutable $from, CarbonImmutable $to): Collection
     {
         $tz = $user->timezone;
-        $habits = $user->habits()->whereNull('archived_at')->whereNotNull('at_time')->whereNotNull('minutes')->whereNull('per_week')
-            ->with(['entries' => fn ($q) => $q->where('day', '>=', $from->toDateString())->where('day', '<', $to->toDateString())])
+        $habits = $user->habits()->whereNull('archived_at')->whereNotNull('at_time')->whereNotNull('minutes')->whereNull('per_week')->whereNull('per_month')
+            ->with(['entries' => fn ($q) => $q->where('day', '>=', $from->toDateString())->where('day', '<', $to->toDateString()), 'pauses'])
             ->get();
 
         $out = collect();
         foreach ($habits as $h) {
             $entries = $h->entries->keyBy(fn ($e) => $e->day->toDateString());
             for ($d = $from; $d < $to; $d = $d->addDay()) {
-                if (! $h->isDue($d)) {
+                if (! $h->isDue($d) || $h->pausedOn($d->toDateString())) {
                     continue;
                 }
                 $e = $entries[$d->toDateString()] ?? null;
@@ -39,7 +39,7 @@ class HabitTimes
                     'date' => $d->toDateString(),
                     'start' => $start->utc(),
                     'end' => $start->addMinutes($h->minutes)->utc(),
-                    'done' => $e && ! $e->skipped && $e->count >= $h->target,
+                    'done' => $e && ! $e->skipped && $h->achieved($e->count),
                     'skipped' => (bool) $e?->skipped,
                     'count' => $e && ! $e->skipped ? $e->count : 0,
                 ]);

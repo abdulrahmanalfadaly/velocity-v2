@@ -12,10 +12,14 @@ export type HabitRow = HabitToday & { days: HabitDay[] };
 
 export interface HabitForm {
     name: string;
+    kind: HabitToday['kind'];
     detail: string | null;
-    schedule: 'daily' | 'days' | 'weekly';
+    schedule: 'daily' | 'days' | 'weekly' | 'monthly' | 'every';
     days: number[];
     per_week: number | null;
+    per_month: number | null;
+    every_days: number | null;
+    starts_on: string | null;
     target: number;
     unit: string | null;
     at_time: string | null;
@@ -32,10 +36,22 @@ export const dayName = (d: string, clock: Clock, opts: Intl.DateTimeFormatOption
 /** A habit as the edit dialog wants it. */
 export const formOf = (h: HabitToday): HabitForm => ({
     name: h.name,
+    kind: h.kind ?? 'do',
     detail: h.detail,
-    schedule: h.schedule.perWeek ? 'weekly' : h.schedule.days.length ? 'days' : 'daily',
+    schedule: h.schedule.perWeek
+        ? 'weekly'
+        : h.schedule.perMonth
+          ? 'monthly'
+          : h.schedule.everyDays
+            ? 'every'
+            : h.schedule.days.length
+              ? 'days'
+              : 'daily',
     days: h.schedule.days,
     per_week: h.schedule.perWeek,
+    per_month: h.schedule.perMonth,
+    every_days: h.schedule.everyDays,
+    starts_on: null,
     target: h.target,
     unit: h.unit,
     at_time: h.time,
@@ -46,21 +62,30 @@ export const formOf = (h: HabitToday): HabitForm => ({
 /** The line under a habit's name: progress, schedule, time. */
 export function habitSub(h: HabitToday): string {
     const parts: string[] = [];
-    if (h.week) parts.push(`${h.week.done} of ${h.week.need} this week`);
-    else if (h.target > 1) parts.push(`${h.today} of ${h.target}${h.unit ? ` ${h.unit}` : ''}`);
-    if (!h.week) parts.push(h.label);
+    if (h.pausedSince)
+        parts.push(
+            h.pausedUntil
+                ? `Paused until ${new Date(`${h.pausedUntil}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
+                : 'Paused',
+        );
+    if (h.kind === 'avoid') parts.push(h.overToday ? 'It happened today' : 'Kept so far today');
+    else if (h.kind === 'limit') parts.push(`${h.today} of at most ${h.target}${h.unit ? ` ${h.unit}` : ''}${h.overToday ? ' · over' : ''}`);
+    else if (h.week) parts.push(`${h.week.done} of ${h.week.need} this week`);
+    else if (h.month) parts.push(`${h.month.done} of ${h.month.need} this month`);
+    else if (h.target > 1 || h.kind === 'minutes') parts.push(`${h.today} of ${h.target}${h.unit ? ` ${h.unit}` : ''}`);
+    if (!h.week && !h.month) parts.push(h.label);
     if (h.time) parts.push(hm12(h.time));
     if (h.detail) parts.push(h.detail);
     return parts.join(' · ');
 }
 
 export function Streak({ habit }: { habit: HabitToday }) {
-    const unit = habit.streakUnit === 'week' ? 'week' : 'day';
+    const unit = habit.streakUnit ?? 'day';
     return (
         <span className="streak" title={`${habit.streak}-${unit} streak`} aria-label={`${habit.streak}-${unit} streak`}>
             <Icon name="flame" />
             {habit.streak}
-            {unit === 'week' && <small>w</small>}
+            {unit !== 'day' && <small>{unit === 'week' ? 'w' : 'm'}</small>}
         </span>
     );
 }
@@ -69,6 +94,7 @@ const STATE_TEXT: Record<HabitDay['state'], string> = {
     done: 'done',
     partial: 'partly done',
     skipped: 'skipped',
+    paused: 'paused',
     missed: 'missed',
     todo: 'not done yet',
     open: 'no run',
@@ -171,7 +197,7 @@ export function DayEditor({
     openHref,
     onClose,
 }: {
-    habit: Pick<HabitToday, 'id' | 'name' | 'target' | 'unit'>;
+    habit: Pick<HabitToday, 'id' | 'name' | 'target' | 'unit'> & { kind?: HabitToday['kind'] };
     day: HabitDay;
     x: number;
     y: number;
@@ -181,18 +207,33 @@ export function DayEditor({
     onClose: () => void;
 }) {
     const [count, setCount] = useState(day.state === 'skipped' ? 0 : day.count);
+    const [note, setNote] = useState(day.note ?? '');
+    const kind = habit.kind ?? 'do';
     const put = (c: number, skipped = false) => {
-        router.put(route('habits.day', habit.id), { date: day.date, count: c, skipped }, keep);
+        router.put(route('habits.day', habit.id), { date: day.date, count: c, skipped, note: note.trim() || null }, keep);
         onClose();
     };
     const future = day.state === 'future';
+    const counted = kind === 'minutes' || kind === 'limit' || (kind === 'do' && habit.target > 1);
     return (
         <Pop x={x} y={y} label={`${habit.name}, ${dayName(day.date, clock)}`} onClose={onClose}>
             <div className="bmenu-head">
                 <b>{habit.name}</b>
                 <span>{dayName(day.date, clock, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
             </div>
-            {!future && habit.target === 1 && (
+            {!future && kind === 'avoid' && (
+                <>
+                    <button className="bmenu-item" aria-pressed={day.count === 0 && day.state !== 'skipped'} onClick={() => put(0)}>
+                        <Icon name="check" />
+                        Kept
+                    </button>
+                    <button className="bmenu-item" aria-pressed={day.count > 0} onClick={() => put(1)}>
+                        <Icon name="x" />
+                        It happened
+                    </button>
+                </>
+            )}
+            {!future && kind === 'do' && habit.target === 1 && (
                 <>
                     <button className="bmenu-item" aria-pressed={day.state === 'done'} onClick={() => put(1)}>
                         <Icon name="check" />
@@ -208,7 +249,7 @@ export function DayEditor({
                     </button>
                 </>
             )}
-            {!future && habit.target > 1 && (
+            {!future && counted && (
                 <form
                     className="hb-count"
                     onSubmit={(e) => {
@@ -232,12 +273,35 @@ export function DayEditor({
                         <Icon name="plus" />
                     </button>
                     <span className="hb-count-of">
-                        of {habit.target}
-                        {habit.unit ? ` ${habit.unit}` : ''}
+                        {kind === 'limit' ? 'at most' : 'of'} {habit.target}
+                        {kind === 'minutes' ? ' min' : habit.unit ? ` ${habit.unit}` : ''}
                     </span>
                     <button type="submit" className="btn btn-primary btn-sm">
                         Save
                     </button>
+                </form>
+            )}
+            {!future && (
+                <form
+                    className="hb-note"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        put(day.state === 'skipped' ? 0 : day.count, day.state === 'skipped');
+                    }}
+                >
+                    <input
+                        className="input"
+                        value={note}
+                        maxLength={300}
+                        placeholder="Note (ran 5 km, knee okay)"
+                        aria-label="Note on this day"
+                        onChange={(e) => setNote(e.target.value)}
+                    />
+                    {note.trim() !== (day.note ?? '') && (
+                        <button type="submit" className="btn btn-secondary btn-sm">
+                            Save
+                        </button>
+                    )}
                 </form>
             )}
             {day.state === 'skipped' ? (
@@ -320,6 +384,17 @@ export function HabitMenu({
                     Skip
                 </button>
             </form>
+            {habit.pausedSince ? (
+                <button className="bmenu-item" onClick={done(() => router.post(route('habits.resume', habit.id), {}, keep))}>
+                    <Icon name="play" />
+                    Resume
+                </button>
+            ) : (
+                <button className="bmenu-item" onClick={done(() => router.post(route('habits.pause', habit.id), {}, keep))}>
+                    <Icon name="pause" />
+                    Pause
+                </button>
+            )}
             <button className="bmenu-item" onClick={done(onEdit)}>
                 <Icon name="sliders" />
                 Edit
@@ -346,10 +421,14 @@ export function HabitDialog({
 }) {
     const form = useForm({
         name: initial?.name ?? '',
+        kind: initial?.kind ?? 'do',
         detail: initial?.detail ?? '',
         schedule: initial?.schedule ?? 'daily',
         days: initial?.days?.length ? initial.days : [1, 3, 5],
         per_week: String(initial?.per_week ?? 3),
+        per_month: String(initial?.per_month ?? 8),
+        every_days: String(initial?.every_days ?? 3),
+        starts_on: initial?.starts_on ?? '',
         target: String(initial?.target ?? 1),
         unit: initial?.unit ?? '',
         at_time: initial?.at_time ?? '',
@@ -358,19 +437,26 @@ export function HabitDialog({
     });
     const { data, setData, processing } = form;
     const errors = form.errors as Record<string, string | undefined>;
-    const counted = Number(data.target) > 1;
+    const less = data.kind === 'limit' || data.kind === 'avoid';
+    const flexible = data.schedule === 'weekly' || data.schedule === 'monthly';
+    const counted = data.kind === 'limit' || (data.kind === 'do' && Number(data.target) > 1);
+    const timed = !flexible && !less;
     const submit = (e: FormEvent) => {
         e.preventDefault();
         form.transform((d) => ({
             name: d.name,
+            kind: d.kind,
             detail: d.detail || null,
             schedule: d.schedule,
             days: d.schedule === 'days' ? d.days : [],
             per_week: d.schedule === 'weekly' ? Number(d.per_week) : null,
-            target: Number(d.target) || 1,
-            unit: Number(d.target) > 1 ? d.unit || null : null,
-            at_time: d.schedule !== 'weekly' && d.at_time ? d.at_time : null,
-            minutes: d.schedule !== 'weekly' && d.at_time ? Number(d.minutes) : null,
+            per_month: d.schedule === 'monthly' ? Number(d.per_month) : null,
+            every_days: d.schedule === 'every' ? Number(d.every_days) : null,
+            starts_on: d.schedule === 'every' ? d.starts_on || null : null,
+            target: d.kind === 'avoid' ? 1 : Number(d.target) || 1,
+            unit: counted ? d.unit || null : null,
+            at_time: timed && d.at_time ? d.at_time : null,
+            minutes: timed && d.at_time ? Number(d.minutes) : null,
             project_id: d.project_id ? Number(d.project_id) : null,
         }));
         const opts = { ...keep, onSuccess: onClose };
@@ -391,20 +477,91 @@ export function HabitDialog({
                     required
                     maxLength={120}
                 />
-                <Field id="h-often" label="How often" error={errors.days || errors.per_week || errors.schedule}>
+                <Field id="h-kind" label="What kind" error={errors.kind}>
+                    <div className="seg hb-seg" role="radiogroup" aria-label="What kind" id="h-kind">
+                        {(
+                            [
+                                ['do', 'Do it'],
+                                ['minutes', 'Minutes'],
+                                ['limit', 'Limit'],
+                                ['avoid', 'Avoid'],
+                            ] as const
+                        ).map(([k, label]) => (
+                            <button
+                                key={k}
+                                type="button"
+                                role="radio"
+                                aria-checked={data.kind === k}
+                                onClick={() =>
+                                    setData((d) => ({
+                                        ...d,
+                                        kind: k,
+                                        // A limit or something to avoid is a matter of each day.
+                                        schedule:
+                                            (k === 'limit' || k === 'avoid') && (d.schedule === 'weekly' || d.schedule === 'monthly')
+                                                ? 'daily'
+                                                : d.schedule,
+                                        target: k === 'minutes' && Number(d.target) < 5 ? '20' : d.target,
+                                    }))
+                                }
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                </Field>
+                <Field
+                    id="h-often"
+                    label="How often"
+                    error={errors.days || errors.per_week || errors.per_month || errors.every_days || errors.schedule}
+                >
                     <div className="seg hb-seg" role="radiogroup" aria-label="How often" id="h-often">
                         {(
                             [
                                 ['daily', 'Every day'],
                                 ['days', 'Some days'],
-                                ['weekly', 'Times a week'],
+                                ['weekly', 'A week'],
+                                ['monthly', 'A month'],
+                                ['every', 'Every few days'],
                             ] as const
-                        ).map(([k, label]) => (
-                            <button key={k} type="button" role="radio" aria-checked={data.schedule === k} onClick={() => setData('schedule', k)}>
-                                {label}
-                            </button>
-                        ))}
+                        )
+                            .filter(([k]) => !less || (k !== 'weekly' && k !== 'monthly'))
+                            .map(([k, label]) => (
+                                <button key={k} type="button" role="radio" aria-checked={data.schedule === k} onClick={() => setData('schedule', k)}>
+                                    {label}
+                                </button>
+                            ))}
                     </div>
+                    {data.schedule === 'monthly' && (
+                        <div className="hb-inline">
+                            <input
+                                className="input hb-per-week"
+                                type="number"
+                                min={1}
+                                max={31}
+                                value={data.per_month}
+                                aria-label="Times a month"
+                                onChange={(e) => setData('per_month', e.target.value)}
+                            />
+                            <span>{data.per_month === '1' ? 'time a month, any day' : 'times a month, any days'}</span>
+                        </div>
+                    )}
+                    {data.schedule === 'every' && (
+                        <div className="hb-inline">
+                            <span>Every</span>
+                            <input
+                                className="input hb-per-week"
+                                type="number"
+                                min={2}
+                                max={365}
+                                value={data.every_days}
+                                aria-label="Every how many days"
+                                onChange={(e) => setData('every_days', e.target.value)}
+                            />
+                            <span>days, from</span>
+                            <DatePick label="Starting on" value={data.starts_on} onChange={(v) => setData('starts_on', v)} placeholder="Today" />
+                        </div>
+                    )}
                     {data.schedule === 'days' && (
                         <div className="hb-days" role="group" aria-label="Which days">
                             {WEEKDAYS.map((w, i) => (
@@ -427,33 +584,39 @@ export function HabitDialog({
                         </div>
                     )}
                 </Field>
-                <div className="vform-row">
-                    <Field id="h-target" label="How much a day" error={errors.target}>
-                        <input
+                {data.kind !== 'avoid' && (
+                    <div className="vform-row">
+                        <Field
                             id="h-target"
-                            className="input"
-                            type="number"
-                            min={1}
-                            max={1000}
-                            value={data.target}
-                            onChange={(e) => setData('target', e.target.value)}
-                        />
-                    </Field>
-                    {counted ? (
-                        <TextField
-                            id="h-unit"
-                            label="Of what"
-                            value={data.unit}
-                            onValue={(v) => setData('unit', v)}
-                            error={errors.unit}
-                            placeholder="glasses, pages, min"
-                            maxLength={24}
-                        />
-                    ) : (
-                        <span />
-                    )}
-                </div>
-                {data.schedule !== 'weekly' && (
+                            label={data.kind === 'minutes' ? 'Minutes a day' : data.kind === 'limit' ? 'At most a day' : 'How much a day'}
+                            error={errors.target}
+                        >
+                            <input
+                                id="h-target"
+                                className="input"
+                                type="number"
+                                min={1}
+                                max={data.kind === 'minutes' ? 1440 : 1000}
+                                value={data.target}
+                                onChange={(e) => setData('target', e.target.value)}
+                            />
+                        </Field>
+                        {counted ? (
+                            <TextField
+                                id="h-unit"
+                                label="Of what"
+                                value={data.unit}
+                                onValue={(v) => setData('unit', v)}
+                                error={errors.unit}
+                                placeholder="glasses, pages, min"
+                                maxLength={24}
+                            />
+                        ) : (
+                            <span />
+                        )}
+                    </div>
+                )}
+                {timed && (
                     <div className="vform-row">
                         <Field id="h-time" label="Time on the Planner" error={errors.at_time}>
                             <DatePick

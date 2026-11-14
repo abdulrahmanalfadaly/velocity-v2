@@ -129,26 +129,64 @@ export function Legend({ contrib }: { contrib: Record<CriterionKey, number> }) {
     );
 }
 
-/** Tap to check in a habit: once-a-day habits tick on and off; counted ones (8 glasses) go up by one, then back to 0. */
+/**
+ * Tap to check in a habit: once-a-day habits tick on and off; counted ones (8 glasses)
+ * go up by one, then back to 0; a minutes habit fills; a limit adds one; an avoid
+ * habit marks "it happened" (and back).
+ */
 export function HabitButton({ habit }: { habit: HabitToday }) {
+    const kind = habit.kind ?? 'do';
     const skipped = habit.skippedToday && !habit.doneToday;
-    const partial = habit.target > 1 && !habit.doneToday && !skipped;
+    const paused = !!habit.pausedSince;
+    const check = () => router.post(route('habits.check', habit.id), {}, { preserveScroll: true, preserveState: true });
+    if (kind === 'limit' || kind === 'avoid') {
+        const label =
+            kind === 'avoid'
+                ? `${habit.name}: ${habit.overToday ? 'it happened today' : 'kept so far today'}`
+                : `${habit.name}: ${habit.today} of at most ${habit.target} today`;
+        return (
+            <button
+                type="button"
+                className={`habit-btn is-less${habit.overToday ? ' is-over' : ''}${skipped ? ' is-skipped' : ''}`}
+                aria-label={label}
+                aria-pressed={kind === 'avoid' ? habit.overToday : undefined}
+                title={kind === 'avoid' ? (habit.overToday ? 'It didn’t happen after all' : 'It happened') : 'Add one'}
+                disabled={paused}
+                onClick={check}
+            >
+                {kind === 'limit' ? <span>{habit.today}</span> : <Icon name={habit.overToday ? 'x' : 'ban'} />}
+            </button>
+        );
+    }
+    const partial = (habit.target > 1 || kind === 'minutes') && !habit.doneToday && !skipped && habit.today > 0;
+    const counted = habit.target > 1 && kind === 'do';
     const label = skipped
         ? `${habit.name}, skipped today`
-        : habit.target > 1
-          ? `${habit.name}: ${habit.today} of ${habit.target} today`
+        : counted || kind === 'minutes'
+          ? `${habit.name}: ${habit.today} of ${habit.target}${kind === 'minutes' ? ' min' : ''} today`
           : `${habit.name}, ${habit.doneToday ? 'done today' : 'not done yet today'}`;
     return (
         <button
             type="button"
-            className={`habit-btn${habit.doneToday ? ' is-done' : ''}${partial ? ' is-partial' : ''}${skipped ? ' is-skipped' : ''}`}
-            style={partial ? { ['--p' as string]: (habit.today / habit.target) * 100 } : undefined}
+            className={`habit-btn${habit.doneToday ? ' is-done' : ''}${partial || (counted && !habit.doneToday && !skipped) ? ' is-partial' : ''}${skipped ? ' is-skipped' : ''}`}
+            style={partial || counted ? { ['--p' as string]: (habit.today / habit.target) * 100 } : undefined}
             aria-label={label}
             aria-pressed={habit.doneToday}
-            title={habit.target > 1 ? 'Add one' : habit.doneToday ? 'Mark not done' : 'Mark done today'}
-            onClick={() => router.post(route('habits.check', habit.id), {}, { preserveScroll: true, preserveState: true })}
+            title={
+                counted
+                    ? 'Add one'
+                    : kind === 'minutes'
+                      ? habit.doneToday
+                          ? 'Clear'
+                          : `Done all ${habit.target} min`
+                      : habit.doneToday
+                        ? 'Mark not done'
+                        : 'Mark done today'
+            }
+            disabled={paused}
+            onClick={check}
         >
-            {partial ? <span>{habit.today}</span> : <Icon name={skipped ? 'minus' : 'check'} />}
+            {(counted && !habit.doneToday && !skipped) || partial ? <span>{habit.today}</span> : <Icon name={skipped ? 'minus' : 'check'} />}
         </button>
     );
 }

@@ -138,34 +138,44 @@ export interface RankingSettings {
 export interface HabitToday {
     id: number;
     name: string;
+    /** do: reach the target; minutes: target minutes; limit: at most the target; avoid: none at all. */
+    kind: 'do' | 'minutes' | 'limit' | 'avoid';
     detail: string | null;
     target: number;
     unit: string | null;
-    /** Chosen weekdays (1 = Monday; empty = every day), or a number of times a week on any days. */
-    schedule: { days: number[]; perWeek: number | null };
+    /** Chosen weekdays (1 = Monday; empty = every day), times a week or a month on any days, or every N days. */
+    schedule: { days: number[]; perWeek: number | null; perMonth: number | null; everyDays: number | null };
     /** "Every day", "Mon, Wed, Fri", "3 times a week" */
     label: string;
     today: number;
     doneToday: boolean;
+    /** A limit gone over, or the thing to avoid happened, today. */
+    overToday: boolean;
     skippedToday: boolean;
     dueToday: boolean;
     /** Weekly habits: runs so far this week, and how many the week asks for. */
     week: { done: number; need: number } | null;
-    group: 'todo' | 'done' | 'skipped' | 'off';
+    /** Monthly habits: runs so far this month, and how many it asks for. */
+    month: { done: number; need: number } | null;
+    group: 'todo' | 'done' | 'skipped' | 'off' | 'paused';
+    pausedSince: string | null;
+    pausedUntil: string | null;
     streak: number;
-    streakUnit: 'day' | 'week';
+    streakUnit: 'day' | 'week' | 'month';
     time: string | null;
     minutes: number | null;
     project: { id: number; name: string } | null;
     archived: boolean;
 }
 
-export type HabitDayState = 'done' | 'partial' | 'skipped' | 'missed' | 'todo' | 'open' | 'off' | 'future' | 'before';
+export type HabitDayState = 'done' | 'partial' | 'skipped' | 'paused' | 'missed' | 'todo' | 'open' | 'off' | 'future' | 'before';
 
 export interface HabitDay {
     date: string;
     state: HabitDayState;
     count: number;
+    /** A note on that day's check-in. */
+    note?: string | null;
 }
 
 export interface NavProject {
