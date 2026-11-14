@@ -447,7 +447,20 @@ leave Up next; only finished or cancelled tasks can be archived.
       Done, Stop bugging. Finished tasks' reminders wait; reopen brings them
       back. Repeat copies bring them along. Old single reminders moved over;
       the API's `reminder_at` still sets one. `TaskReminder`, `Reminders`
-- [ ] ★4 Focus: Pomodoro and settings, any length, intention and note, Task done, history
+- [x] ★4 Focus: "Start focus" starts the way Settings → Focus says (Timer
+      or Pomodoro, the timer's length); its ▾ opens a box with "What will you
+      do?" and Pomodoro / 25 / 50 / 90 / any 1–240 / No limit. Pomodoro: a
+      round stops at its length (never counted past it, even with the window
+      closed), then a short break, or a long one every few rounds; the chip
+      shows "Round 2 · 18:42", "Break 3:12", "Break's over" with Take a break /
+      Skip break / Start round 3 / Done; left alone 2 hours it ends. Settings →
+      Focus: lengths, rounds before the long break, breaks / next round
+      starting by themselves, a soft chime. The plain timer still counts past
+      its time. Task done in the chip (focus kept, task ticked, Undo). The stop
+      card asks "What got done?". Review → Focus: a week or month by hour of
+      the day and by weekday (sessions spread over the hours they ran), every
+      session with its intention and note (editable; remove with Undo).
+      `FocusActions::state`, `FocusSettings`, `ReviewService::focus`
 - [ ] ★5 Planner: resize and exact times, overlap warning, settings, free time
 - [ ] ★6 Habits: minutes / limit / avoid, monthly and every-N-days, pause, check-in notes
 - [ ] ★7 Repeats: several weekdays, until, skip one, moving one doesn't move the rest

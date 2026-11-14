@@ -74,12 +74,12 @@ list only covers what's missing or partly there.
 
 ## Focus
 
-- [ ] ★4 Pomodoro breaks, and a Focus settings page (lengths, auto-start, sound). **Add**
-- [ ] ★4 Any length from 1 to 240 minutes, and a stopwatch. **Partly** (25 / 50 / 90 / no limit)
-- [ ] ★4 An intention before you start and a note after. **Add**
+- [x] ★4 Pomodoro breaks, and a Focus settings page (lengths, auto-start, sound). **Add**
+- [x] ★4 Any length from 1 to 240 minutes, and a stopwatch. **Partly** (25 / 50 / 90 / no limit)
+- [x] ★4 An intention before you start and a note after. **Add**
 - [ ] Focus on a project, goal, habit or note (not just a task). **Add**
-- [ ] ★4 Focus history, with charts by hour and weekday. **Add**
-- [ ] ★4 Finish the task from inside the timer. **Add**
+- [x] ★4 Focus history, with charts by hour and weekday. **Add**
+- [x] ★4 Finish the task from inside the timer. **Add**
 - [ ] At the planned end GPT stopped the timer; v2 keeps counting. **Your call**
 
 ## Home, Search and Quick add

@@ -22,6 +22,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'restore-step': { method: 'post', route: 'steps.restore' },
     'restore-file': { method: 'post', route: 'files.restore' },
     'focus-cancel': { method: 'post', route: 'focus.cancel' },
+    'focus-restore': { method: 'post', route: 'focus.restore' },
     'delete-event': { method: 'delete', route: 'events.destroy' },
     'restore-event': { method: 'post', route: 'events.restore' },
     'patch-event': { method: 'patch', route: 'events.update' },

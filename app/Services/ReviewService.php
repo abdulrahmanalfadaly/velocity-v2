@@ -93,6 +93,60 @@ class ReviewService
         ];
     }
 
+    /**
+     * Review → Focus: a week or a month of sessions, when in the day and the week
+     * the focus happened (a session is spread over the hours it ran, its pauses
+     * taken out evenly), and every session with its intention and note.
+     */
+    public function focus(User $user, string $range, CarbonImmutable $day): array
+    {
+        $tz = $user->timezone;
+        $today = $this->today($user);
+        $from = $range === 'month' ? $day->startOfMonth() : $day->startOfWeek(CarbonImmutable::MONDAY);
+        $to = $range === 'month' ? $from->addMonth() : $from->addWeek();
+        $sessions = $this->sessions($user, $from, $to)->sortByDesc('started_at')->values();
+        $hours = array_fill(0, 24, 0.0);
+        $weekdays = array_fill(0, 7, 0.0);
+        foreach ($sessions as $s) {
+            $t = $s->started_at->timezone($tz);
+            $end = $s->ended_at->timezone($tz);
+            $scale = $s->seconds / max(1, $end->getTimestamp() - $t->getTimestamp());
+            while ($t < $end) {
+                $next = $t->startOfHour()->addHour();
+                $next = $next < $end ? $next : $end;
+                $part = ($next->getTimestamp() - $t->getTimestamp()) * $scale;
+                $hours[$t->hour] += $part;
+                $weekdays[$t->dayOfWeekIso - 1] += $part;
+                $t = $next;
+            }
+        }
+        $minutes = fn (array $a) => array_map(fn ($sec) => (int) round($sec / 60), $a);
+
+        return [
+            'range' => $range,
+            'start' => $from->toDateString(),
+            'last' => $to->subDay()->toDateString(),
+            'isCurrent' => $from <= $today && $today < $to,
+            'total' => (int) round($sessions->sum('seconds') / 60),
+            'count' => $sessions->count(),
+            'longest' => (int) round(($sessions->max('seconds') ?? 0) / 60),
+            'hours' => $minutes($hours),
+            'weekdays' => $minutes($weekdays),
+            'sessions' => $sessions->take(300)->map(fn ($s) => [
+                'id' => $s->id,
+                'taskId' => $s->task_id,
+                'task' => $s->task?->title,
+                'startedAt' => $s->started_at->toIso8601ZuluString(),
+                'endedAt' => $s->ended_at->toIso8601ZuluString(),
+                'minutes' => (int) round($s->seconds / 60),
+                'mode' => $s->mode,
+                'round' => $s->round,
+                'intention' => $s->intention,
+                'note' => $s->note,
+            ])->values(),
+        ];
+    }
+
     /** The headline numbers for a stretch of days [from, to). */
     public function numbers(User $user, CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $today): array
     {

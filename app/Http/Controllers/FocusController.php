@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Actions\FocusActions;
+use App\Actions\TaskActions;
 use App\Models\FocusSession;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\RankingService;
+use App\Support\FocusSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,21 +36,36 @@ class FocusController extends Controller
         return FocusActions::running($user);
     }
 
-    /** The fields of "start focus": an optional task and planned minutes. */
+    /** The fields of "start focus": an optional task, a timer (minutes, or none = no limit) or a Pomodoro, and what you'll do. */
     public static function startRules(User $user): array
     {
         return [
             'task_id' => ['nullable', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
             'minutes' => ['nullable', 'integer', 'between:1,600'],
+            'mode' => ['nullable', Rule::in(['timer', 'pomodoro'])],
+            'intention' => ['nullable', 'string', 'max:240'],
         ];
+    }
+
+    /** Starts focus; with neither a length nor a mode it starts the way Settings → Focus says. */
+    public static function begin(FocusActions $actions, User $user, array $data): FocusSession
+    {
+        $task = isset($data['task_id']) ? Task::find($data['task_id']) : null;
+        if (! array_key_exists('minutes', $data) && empty($data['mode'])) {
+            $settings = FocusSettings::of($user);
+            $data['mode'] = $settings['mode'];
+            $data['minutes'] = $settings['length'];
+        }
+        $intention = trim($data['intention'] ?? '') ?: null;
+
+        return $actions->start($user, $task, $data['minutes'] ?? null, $data['mode'] ?? 'timer', $intention);
     }
 
     public function start(Request $request): RedirectResponse
     {
         $user = $request->user();
-        $data = $request->validate(self::startRules($user));
-        $task = isset($data['task_id']) ? Task::find($data['task_id']) : null;
-        $session = $this->actions->start($user, $task, $data['minutes'] ?? null);
+        $session = self::begin($this->actions, $user, $request->validate(self::startRules($user)));
+        $task = $session->task;
 
         return back()->with('toast', $task ? "Focus on “{$task->title}”" : 'Focus started')->with('undo', $this->undo('focus-cancel', $session->id));
     }
@@ -92,6 +109,7 @@ class FocusController extends Controller
 
         // Ask, never assume: the hours estimate feeds the formula's workload score.
         return $back->with('focusDone', [
+            'sessionId' => $session->id,
             'taskId' => $task->id,
             'title' => $task->title,
             'seconds' => $seconds,
@@ -122,9 +140,92 @@ class FocusController extends Controller
         if ($task && $session->was_status && $task->status === Task::DOING) {
             $task->update(['status' => $session->was_status]);
         }
-        $session->delete();
+        $session->forceDelete();
 
         return back()->with('toast', 'Focus cancelled');
+    }
+
+    /** Pomodoro: start the break now (when breaks don't start by themselves). */
+    public function takeBreak(Request $request, FocusSession $session): RedirectResponse
+    {
+        $this->own($session, $request->user());
+        if ($session->break_minutes && ! $session->break_started_at) {
+            $session->update(['break_started_at' => $this->now()]);
+        }
+
+        return back();
+    }
+
+    /** Pomodoro: the next round now ("Skip break", or "Start round 3" when the break is over). */
+    public function next(Request $request, FocusSession $session): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($session, $user);
+        if (! $session->break_minutes || self::running($user)) {
+            return back();
+        }
+        $next = $this->actions->nextRound($user, $session);
+
+        return back()->with('toast', "Round {$next->round}");
+    }
+
+    /** Pomodoro: done for now (no more rounds). */
+    public function end(Request $request, FocusSession $session): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($session, $user);
+        FocusActions::leaveBreaks($user);
+        $rounds = $session->round ?? 1;
+
+        return back()->with('toast', 'Pomodoro done · '.($rounds === 1 ? '1 round' : "{$rounds} rounds"));
+    }
+
+    /** "Task done" in the timer: the focus so far is kept and the task is ticked off (Undo opens it again). */
+    public function doneTask(Request $request, FocusSession $session, TaskActions $tasks): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($session, $user);
+        $task = $session->task;
+        if (! $task || ! $task->isOpen()) {
+            return back();
+        }
+        $seconds = $session->ended_at ? null : $this->actions->finish($session);
+        FocusActions::leaveBreaks($user);
+        $tasks->complete($task, $user);
+        $focused = $seconds !== null && $seconds >= self::MIN_SECONDS ? ' · focused '.self::duration($seconds) : '';
+
+        return back()->with('toast', "Done: “{$task->title}”{$focused}")->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+    }
+
+    /** The note after a session ("What got done?"), from the stop card or the history. */
+    public function update(Request $request, FocusSession $session): RedirectResponse
+    {
+        $this->own($session, $request->user());
+        $data = $request->validate(['note' => ['nullable', 'string', 'max:1000'], 'intention' => ['sometimes', 'nullable', 'string', 'max:240']]);
+        $session->update(array_map(fn ($v) => is_string($v) ? (trim($v) ?: null) : $v, $data));
+
+        return back()->with('toast', 'Saved');
+    }
+
+    /** Remove a session from the history (a mistake); Undo brings it back. */
+    public function destroy(Request $request, FocusSession $session): RedirectResponse
+    {
+        $this->own($session, $request->user());
+        if (! $session->ended_at) {
+            return back();
+        }
+        $session->delete();
+
+        return back()->with('toast', 'Session removed')->with('undo', $this->undo('focus-restore', $session->id));
+    }
+
+    public function restore(Request $request, int $id): RedirectResponse
+    {
+        $session = FocusSession::onlyTrashed()->findOrFail($id);
+        $this->own($session, $request->user());
+        $session->restore();
+
+        return back()->with('toast', 'Session back');
     }
 
     /** "1 h 20 min", "45 min". */

@@ -215,7 +215,7 @@ class TaskApiController extends ApiController
         $user = $request->user();
         $d = $request->validate(FocusController::startRules($user));
         $task = isset($d['task_id']) ? Task::find($d['task_id']) : null;
-        $session = $this->focus->start($user, $task, $d['minutes'] ?? null);
+        $session = $this->focus->start($user, $task, $d['minutes'] ?? null, $d['mode'] ?? 'timer', trim($d['intention'] ?? '') ?: null);
 
         return $this->ok($session->fresh('task')->present(), 201);
     }

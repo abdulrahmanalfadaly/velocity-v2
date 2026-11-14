@@ -167,6 +167,13 @@ Route::middleware(['auth'])->group(function () {
         Route::post('focus/{session}/stop', [FocusController::class, 'stop'])->name('focus.stop');
         Route::post('focus/{session}/undo-stop', [FocusController::class, 'undoStop'])->name('focus.undo-stop');
         Route::post('focus/{session}/cancel', [FocusController::class, 'cancel'])->name('focus.cancel');
+        Route::post('focus/{session}/break', [FocusController::class, 'takeBreak'])->name('focus.break');
+        Route::post('focus/{session}/next', [FocusController::class, 'next'])->name('focus.next');
+        Route::post('focus/{session}/end', [FocusController::class, 'end'])->name('focus.end');
+        Route::post('focus/{session}/done-task', [FocusController::class, 'doneTask'])->name('focus.done-task');
+        Route::patch('focus/{session}', [FocusController::class, 'update'])->name('focus.update');
+        Route::delete('focus/{session}', [FocusController::class, 'destroy'])->name('focus.destroy');
+        Route::post('focus/{id}/restore', [FocusController::class, 'restore'])->whereNumber('id')->name('focus.restore');
         Route::get('reminders/due', [ReminderController::class, 'due'])->name('reminders.due');
         Route::post('tasks/{task}/reminders', [ReminderController::class, 'store'])->name('reminders.store');
         Route::delete('reminders/{reminder}', [ReminderController::class, 'destroy'])->name('reminders.destroy');

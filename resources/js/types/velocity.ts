@@ -192,19 +192,29 @@ export interface VelocityShared {
         toast: string | null;
         undo: { action: string; id: number; data?: Record<string, unknown> | null } | null;
         /** After stopping focus on a task: asks whether to update its hours left. */
-        focusDone?: { taskId: number; title: string; seconds: number; estHours: number; hoursLeft: number } | null;
+        focusDone?: { sessionId: number; taskId: number; title: string; seconds: number; estHours: number; hoursLeft: number } | null;
     };
     /** The focus session that is running, if any (personal mode only). */
     focusSession?: FocusRunning | null;
     [key: string]: unknown;
 }
 
+/** The timer: a running session (focus), or a Pomodoro between rounds (its last round, with the break). */
 export interface FocusRunning {
     id: number;
     taskId: number | null;
     taskTitle: string | null;
+    taskOpen: boolean;
+    mode: 'timer' | 'pomodoro';
+    round: number | null;
+    intention: string | null;
     plannedMinutes: number | null;
     startedAt: string;
     pausedAt: string | null;
     pausedSeconds: number;
+    breakMinutes: number | null;
+    breakEndsAt: string | null;
+    phase: 'focus' | 'roundDone' | 'break' | 'breakOver';
+    sound: boolean;
+    every: number;
 }

@@ -17,7 +17,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     /** @var list<string> */
-    protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode', 'planner_hours', 'auto_archive_days'];
+    protected $fillable = ['name', 'email', 'password', 'timezone', 'fyp_mode', 'planner_hours', 'auto_archive_days', 'focus_settings'];
 
     /** @var list<string> */
     protected $hidden = ['password', 'remember_token', 'github_token'];
@@ -36,6 +36,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'fyp_mode' => 'boolean',
             'planner_hours' => 'array',
+            'focus_settings' => 'array',
             // Stored encrypted with the app key; never sent to the browser.
             'github_token' => 'encrypted',
         ];

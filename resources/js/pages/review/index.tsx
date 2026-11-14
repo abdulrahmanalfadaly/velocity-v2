@@ -2,7 +2,7 @@ import { BarChart, SplitBars } from '@/components/velocity/charts';
 import { DayMark } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock, fmt1 } from '@/lib/velocity';
+import { Clock, fmt1, hm12 } from '@/lib/velocity';
 import type { HabitDay, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 import { type ReactNode, useEffect, useRef } from 'react';
@@ -60,11 +60,36 @@ interface Weekly {
 }
 
 interface Props extends VelocityShared {
-    view: 'week' | 'month' | 'weeks' | 'weekly';
+    view: 'week' | 'month' | 'weeks' | 'weekly' | 'focus';
     today: string;
     report: Report | null;
     weeks: { start: string; done: number; onTime: number; withDue: number; focus: number }[];
     weekly: Weekly | null;
+    focus: FocusReport | null;
+}
+
+interface FocusReport {
+    range: 'week' | 'month';
+    start: string;
+    last: string;
+    isCurrent: boolean;
+    total: number;
+    count: number;
+    longest: number;
+    hours: number[];
+    weekdays: number[];
+    sessions: {
+        id: number;
+        taskId: number | null;
+        task: string | null;
+        startedAt: string;
+        endedAt: string;
+        minutes: number;
+        mode: 'timer' | 'pomodoro';
+        round: number | null;
+        intention: string | null;
+        note: string | null;
+    }[];
 }
 
 const keep = { preserveScroll: true, preserveState: true };
@@ -77,7 +102,7 @@ const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 
 export default function Review() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
-    const title = { week: 'This week', month: 'This month', weeks: '12 weeks', weekly: 'Weekly review' }[props.view];
+    const title = { week: 'This week', month: 'This month', weeks: '12 weeks', weekly: 'Weekly review', focus: 'Focus' }[props.view];
     return (
         <VelocityShell
             title={title}
@@ -89,6 +114,7 @@ export default function Review() {
                 {props.report && <LookBack r={props.report} clock={clock} />}
                 {props.view === 'weeks' && <Weeks weeks={props.weeks} clock={clock} />}
                 {props.weekly && <LookAhead w={props.weekly} clock={clock} />}
+                {props.focus && <FocusHistory f={props.focus} clock={clock} />}
             </div>
         </VelocityShell>
     );
@@ -563,6 +589,175 @@ function LookAhead({ w, clock }: { w: Weekly; clock: Clock }) {
     );
 }
 
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const hourLabel = (h: number) => (h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`);
+const hourText = (h: number) => hm12(`${String(h).padStart(2, '0')}:00`);
+
+/** Review → Focus: when the focus happened (by hour, by weekday) and every session, with its intention and note. */
+function FocusHistory({ f, clock }: { f: FocusReport; clock: Clock }) {
+    const go = (params: { range?: string; date?: string }) =>
+        router.get(route('review.index', { view: 'focus', range: f.range, ...params }), {}, keep);
+    const step = (n: number) => {
+        if (f.range === 'week') return shift(f.start, 7 * n);
+        const d = new Date(`${f.start}T12:00:00Z`);
+        d.setUTCMonth(d.getUTCMonth() + n);
+        return d.toISOString().slice(0, 10);
+    };
+    const heading =
+        f.range === 'month'
+            ? day(f.start, clock, { month: 'long', year: 'numeric' })
+            : f.isCurrent
+              ? 'This week'
+              : `Week of ${day(f.start, clock, { day: 'numeric', month: 'short' })}`;
+    const busiest = f.hours.indexOf(Math.max(...f.hours));
+    return (
+        <>
+            <header className="page-head">
+                <div>
+                    <h1 className="h1">Focus · {heading}</h1>
+                    <p className="page-sub">
+                        {day(f.start, clock, { day: 'numeric', month: 'short' })} –{' '}
+                        {day(f.last, clock, { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                </div>
+                <div className="page-actions">
+                    <div className="seg ev-seg" role="radiogroup" aria-label="Period">
+                        {(['week', 'month'] as const).map((r) => (
+                            <button
+                                key={r}
+                                type="button"
+                                role="radio"
+                                aria-checked={f.range === r}
+                                onClick={() => r !== f.range && go({ range: r, date: f.start })}
+                            >
+                                {r === 'week' ? 'Week' : 'Month'}
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        className="icon-btn"
+                        aria-label={f.range === 'week' ? 'Previous week' : 'Previous month'}
+                        onClick={() => go({ date: step(-1) })}
+                    >
+                        <Icon name="chevL" />
+                    </button>
+                    {!f.isCurrent && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => go({})}>
+                            {f.range === 'week' ? 'This week' : 'This month'}
+                        </button>
+                    )}
+                    <button
+                        className="icon-btn"
+                        aria-label={f.range === 'week' ? 'Next week' : 'Next month'}
+                        disabled={f.isCurrent}
+                        onClick={() => go({ date: step(1) })}
+                    >
+                        <Icon name="chevR" />
+                    </button>
+                </div>
+            </header>
+            <div className="rv-tiles is-four">
+                <div className="rv-tile">
+                    <span className="rv-tile-label">Focused</span>
+                    <b className="rv-tile-num">{hm(f.total)}</b>
+                </div>
+                <div className="rv-tile">
+                    <span className="rv-tile-label">Sessions</span>
+                    <b className="rv-tile-num">{f.count}</b>
+                </div>
+                <div className="rv-tile">
+                    <span className="rv-tile-label">Longest</span>
+                    <b className="rv-tile-num">{hm(f.longest)}</b>
+                </div>
+                <div className="rv-tile">
+                    <span className="rv-tile-label">Most focused hour</span>
+                    <b className="rv-tile-num">{f.total ? hourText(busiest) : '–'}</b>
+                </div>
+            </div>
+            <div className="rv-grid">
+                <section className="card rv-card">
+                    <h2 className="card-title">By hour of the day</h2>
+                    <BarChart
+                        empty="No focus yet"
+                        label="Minutes focused in each hour of the day"
+                        table={['Hour', 'Minutes']}
+                        bars={f.hours.map((m, h) => ({
+                            key: String(h),
+                            label: h % 3 === 0 ? hourLabel(h) : '',
+                            value: m,
+                            title: `${hourText(h)}: ${hm(m)}`,
+                        }))}
+                    />
+                </section>
+                <section className="card rv-card">
+                    <h2 className="card-title">By day of the week</h2>
+                    <BarChart
+                        empty="No focus yet"
+                        label="Minutes focused on each day of the week"
+                        table={['Day', 'Minutes']}
+                        bars={f.weekdays.map((m, i) => ({
+                            key: WEEKDAYS[i],
+                            label: WEEKDAYS[i].slice(0, 1),
+                            value: m,
+                            title: `${WEEKDAYS[i]}: ${hm(m)}`,
+                        }))}
+                    />
+                </section>
+            </div>
+            <section className="card rv-card">
+                <h2 className="card-title">Sessions</h2>
+                {f.sessions.length === 0 ? (
+                    <p className="card-empty">No sessions.</p>
+                ) : (
+                    <ul className="fh-list">
+                        {f.sessions.map((s) => (
+                            <li key={s.id} className="fh-row">
+                                <div className="fh-when">
+                                    <b>{clock.date(s.startedAt, { weekday: 'short', day: 'numeric', month: 'short' })}</b>
+                                    <span>
+                                        {clock.time(s.startedAt)}–{clock.time(s.endedAt)}
+                                    </span>
+                                </div>
+                                <div className="fh-main">
+                                    <div className="row-title">
+                                        {s.taskId && s.task ? <Link href={`/tasks?task=${s.taskId}`}>{s.task}</Link> : (s.task ?? 'Focus')}
+                                    </div>
+                                    <div className="row-sub">
+                                        {hm(s.minutes)}
+                                        {s.mode === 'pomodoro' ? ` · Pomodoro round ${s.round ?? 1}` : ''}
+                                        {s.intention ? ` · ${s.intention}` : ''}
+                                    </div>
+                                    <input
+                                        className="prop-input fh-note"
+                                        defaultValue={s.note ?? ''}
+                                        key={`${s.id}-${s.note}`}
+                                        maxLength={1000}
+                                        placeholder="What got done?"
+                                        aria-label="What got done"
+                                        onBlur={(e) =>
+                                            e.target.value.trim() !== (s.note ?? '') &&
+                                            router.patch(route('focus.update', s.id), { note: e.target.value }, keep)
+                                        }
+                                        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                                    />
+                                </div>
+                                <button
+                                    className="icon-btn"
+                                    aria-label="Remove this session"
+                                    title="Remove (you can undo)"
+                                    onClick={() => router.delete(route('focus.destroy', s.id), keep)}
+                                >
+                                    <Icon name="trash" />
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </section>
+        </>
+    );
+}
+
 function ReviewMenu({ view, autoFocus }: { view: Props['view']; autoFocus: boolean }) {
     const first = useRef<HTMLAnchorElement>(null);
     useEffect(() => {
@@ -588,6 +783,7 @@ function ReviewMenu({ view, autoFocus }: { view: Props['view']; autoFocus: boole
                 {item('week', 'calendar', 'This week', first)}
                 {item('month', 'planner', 'This month')}
                 {item('weeks', 'review', '12 weeks')}
+                {item('focus', 'focus', 'Focus')}
                 <div className="nav-label">Look ahead</div>
                 {item('weekly', 'check', 'Weekly review')}
             </nav>
