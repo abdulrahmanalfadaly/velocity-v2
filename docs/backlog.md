@@ -37,7 +37,7 @@ list only covers what's missing or partly there.
 - [ ] Templates with dates like "day 3 after start". **Add**
 - [x] Bulk edit more fields, and bulk reopen. **Partly** (done, move, due date, delete exist)
 - [ ] This-or-That (pick between two tasks). **Add**, without changing the order
-- [ ] Board and Timeline on project pages; Timeline by week, month or quarter. **Add** (Up next and Inbox have them)
+- [x] Board and Timeline on project pages; Timeline by week, month or quarter. **Add** (Up next and Inbox have them)
 - [x] ★9 Smart views like "Due today" or "Quick wins" in the side menu. **Partly** (Up next has Due this week, 1 hour or less, Overdue and No project as filters that reset when you leave); filters only, still in formula order
 - [ ] Other sorts, drag to reorder, pin a "Next action". **Your call** (breaks "one order")
 - [x] ★9 Next Actions page: the top task of each project. **Add** (the formula picks it)

@@ -7,12 +7,20 @@ import { Icon } from '@/components/velocity/icon';
 import { Picker } from '@/components/velocity/pick';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
+import { Board, Timeline } from '@/components/velocity/task-views';
 import { Check, HabitButton, Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmt1, fmtHours, goalVar } from '@/lib/velocity';
 import type { BaseTask, HabitToday, NotReadyTask, RankedTask, TaskDetail, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 import { type KeyboardEvent, useMemo, useState } from 'react';
+
+type Layout = 'list' | 'board' | 'timeline';
+const LAYOUTS: [Layout, string, string][] = [
+    ['list', 'List', 'list'],
+    ['board', 'Board', 'columns'],
+    ['timeline', 'Timeline', 'calendar'],
+];
 
 const keep = { preserveScroll: true, preserveState: true };
 /** Enter or Space on a focused row opens it, like a click. */
@@ -98,6 +106,16 @@ export default function ProjectShow() {
     const clock = Clock.from(props.clock);
     const { project, stats } = props;
     const [view, setView] = useState<View>('overview');
+    // In the Tasks tab: a list, a board or a timeline of this project's tasks (remembered on this device).
+    const [layout, setLayoutState] = useState<Layout>(() => {
+        const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('velocity.project-layout') : null;
+        return saved === 'board' || saved === 'timeline' ? saved : 'list';
+    });
+    const setLayout = (l: Layout) => {
+        setLayoutState(l);
+        localStorage.setItem('velocity.project-layout', l);
+    };
+    const wide = view === 'tasks' && layout !== 'list';
     const [open, setOpen] = useState<Record<number, boolean>>({ [props.tasks[0]?.id ?? 0]: true });
     const [text, setText] = useState('');
     const [editing, setEditing] = useState(false);
@@ -370,7 +388,18 @@ export default function ProjectShow() {
                                         <Icon name="tasks" />
                                         Tasks
                                     </h2>
-                                    <span className="card-sub">Same order as your Up next list</span>
+                                    {view === 'tasks' ? (
+                                        <div className="layout-seg" role="radiogroup" aria-label="Show as">
+                                            {LAYOUTS.map(([k, label, icon]) => (
+                                                <button key={k} role="radio" aria-checked={layout === k} onClick={() => setLayout(k)} title={label}>
+                                                    <Icon name={icon} className="ic-sm" />
+                                                    <span className="btn-label">{label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="card-sub">Same order as your Up next list</span>
+                                    )}
                                 </div>
                                 <form
                                     className="ptasks-add"
@@ -396,7 +425,25 @@ export default function ProjectShow() {
                                         <kbd>Enter</kbd>
                                     </label>
                                 </form>
-                                <ul className="ptree">
+                                {wide &&
+                                    (() => {
+                                        const View = layout === 'board' ? Board : Timeline;
+                                        return (
+                                            <div className="pviews">
+                                                <View
+                                                    tasks={props.tasks}
+                                                    notReady={props.notReady}
+                                                    doneToday={props.done.filter(
+                                                        (t) => t.status === 'done' && t.completedAt && clock.dayDiff(t.completedAt) === 0,
+                                                    )}
+                                                    clock={clock}
+                                                    selectedId={props.selected?.id ?? null}
+                                                    onOpen={(id) => select(props.selected?.id === id ? null : id)}
+                                                />
+                                            </div>
+                                        );
+                                    })()}
+                                <ul className="ptree" hidden={wide}>
                                     {topLevel.length === 0 && <li className="pt-empty">No open tasks. Add one above.</li>}
                                     {topLevel.map((t) => {
                                         const kids = childrenOf(t.id);
@@ -504,7 +551,7 @@ export default function ProjectShow() {
                                         );
                                     })}
                                 </ul>
-                                {props.notReady.length > 0 && (
+                                {!wide && props.notReady.length > 0 && (
                                     <>
                                         <div className="pt-group">Not ready yet</div>
                                         <ul className="ptree">
