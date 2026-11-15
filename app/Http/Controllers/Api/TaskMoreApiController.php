@@ -166,7 +166,10 @@ class TaskMoreApiController extends ApiController
         $task = $this->actions->create($user, [
             'title' => $template->title, 'notes' => $template->notes, 'importance' => $template->importance, 'urgency' => $template->urgency,
             'est_hours' => $template->est_hours, 'project_id' => array_key_exists('project_id', $d) ? $d['project_id'] : $template->project_id,
-            'due_at' => $this->at($d['due_at'] ?? null, $user, true), 'repeat_unit' => $template->repeat_unit, 'repeat_every' => $template->repeat_every,
+            // The template's own dates count from today, unless a due date is sent.
+            'due_at' => array_key_exists('due_at', $d) ? $this->at($d['due_at'], $user, true) : $template->datesFrom($this->today($user))['due']?->utc(),
+            'available_from' => $template->datesFrom($this->today($user))['start']?->utc(),
+            'repeat_unit' => $template->repeat_unit, 'repeat_every' => $template->repeat_every,
         ]);
         foreach ($template->steps ?? [] as $i => $title) {
             $task->steps()->create(['title' => $title, 'position' => $i]);

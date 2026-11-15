@@ -5,7 +5,7 @@ import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { Dots } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { fmtHours, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
+import { Clock, fmtHours, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
 import type { RepeatRule, VelocityShared } from '@/types/velocity';
 import { router, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, useState } from 'react';
@@ -18,6 +18,11 @@ interface Template {
     importance: number;
     urgency: number;
     estHours: number;
+    /** Due this many days after it is used, at this time (none: the end of that day). */
+    dueDays: number | null;
+    dueTime: string | null;
+    /** Can start this many days after it is used. */
+    startDays: number | null;
     project: { id: number; name: string } | null;
     repeat: RepeatRule | null;
     steps: string[];
@@ -30,6 +35,15 @@ interface Props extends VelocityShared {
 
 const keep = { preserveScroll: true, preserveState: true };
 const repeatKey = (r: RepeatRule | null) => (r ? `${r.every}-${r.unit}` : '');
+const daysAfter = (n: number) => (n === 0 ? 'the day it’s used' : n === 1 ? '1 day after use' : `${n} days after use`);
+/** "due 3 days after use, 17:00 · starts 1 day after use". */
+const whenText = (t: Template) =>
+    [
+        t.dueDays != null ? `due ${daysAfter(t.dueDays)}${t.dueTime ? `, ${t.dueTime}` : ''}` : '',
+        t.startDays ? `starts ${daysAfter(t.startDays)}` : '',
+    ]
+        .filter(Boolean)
+        .join(' · ');
 
 /** Templates: tasks to copy from. "Use" makes a new task with the template's steps. */
 export default function Templates() {
@@ -66,6 +80,7 @@ export default function Templates() {
                                     {t.project?.name ?? 'No project'} · {fmtHours(t.estHours)} · importance {LEVEL[t.importance].toLowerCase()} ·
                                     urgency {LEVEL[t.urgency].toLowerCase()}
                                     {t.repeat && ` · ${repeatText(t.repeat).toLowerCase()}`}
+                                    {whenText(t) && ` · ${whenText(t)}`}
                                     {t.steps.length > 0 && ` · ${t.steps.length} ${t.steps.length === 1 ? 'step' : 'steps'}`}
                                     {t.used > 0 && ` · used ${t.used}×`}
                                 </p>
@@ -115,6 +130,9 @@ function TemplateDialog({ template, projects, onClose }: { template?: Template; 
         project_id: template?.project ? String(template.project.id) : '',
         repeat: repeatKey(template?.repeat ?? null),
         steps: (template?.steps ?? []).join('\n'),
+        due_days: template?.dueDays != null ? String(template.dueDays) : '',
+        due_time: template?.dueTime ?? '',
+        start_days: template?.startDays ? String(template.startDays) : '',
     });
     const { data, setData, processing } = form;
     const errors = form.errors as Record<string, string | undefined>;
@@ -133,6 +151,9 @@ function TemplateDialog({ template, projects, onClose }: { template?: Template; 
                 repeat_unit: unit ?? null,
                 repeat_every: Number(every) || 1,
                 steps: d.steps.split('\n'),
+                due_days: d.due_days === '' ? null : Number(d.due_days),
+                due_time: d.due_days === '' ? null : d.due_time || null,
+                start_days: d.start_days === '' ? null : Number(d.start_days),
             };
         });
         const opts = { ...keep, onSuccess: onClose };
@@ -198,6 +219,39 @@ function TemplateDialog({ template, projects, onClose }: { template?: Template; 
                     </Field>
                 </div>
                 <div className="vform-row">
+                    <TextField
+                        id="t-due-days"
+                        label="Due (days after use)"
+                        type="number"
+                        min={0}
+                        max={365}
+                        placeholder="No due date"
+                        value={data.due_days}
+                        onValue={(v) => setData('due_days', v)}
+                        error={errors.due_days}
+                    />
+                    <Field id="t-due-time" label="At" error={errors.due_time}>
+                        <DatePick
+                            id="t-due-time"
+                            mode="time"
+                            value={data.due_time}
+                            onChange={(v) => setData('due_time', v)}
+                            placeholder="End of the day"
+                        />
+                    </Field>
+                    <TextField
+                        id="t-start-days"
+                        label="Can start (days after use)"
+                        type="number"
+                        min={0}
+                        max={365}
+                        placeholder="Right away"
+                        value={data.start_days}
+                        onValue={(v) => setData('start_days', v)}
+                        error={errors.start_days}
+                    />
+                </div>
+                <div className="vform-row">
                     <Field id="t-repeat" label="Repeats" error={errors.repeat_unit}>
                         <Select
                             id="t-repeat"
@@ -246,7 +300,19 @@ function TemplateDialog({ template, projects, onClose }: { template?: Template; 
 
 /** "Use": pick a due date (and project), then the new task opens in Up next. */
 function UseDialog({ template, projects, onClose }: { template: Template; projects: Props['projects']; onClose: () => void }) {
-    const form = useForm({ due_at: '', project_id: template.project ? String(template.project.id) : '' });
+    const { props } = usePage<Props>();
+    const clock = Clock.from(props.clock);
+    // The template's own due date, counted from today (you can change it here).
+    const today = clock.localInput(clock.now.toISOString()).slice(0, 10);
+    const plus = (n: number) => {
+        const d = new Date(`${today}T12:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + n);
+        return d.toISOString().slice(0, 10);
+    };
+    const form = useForm({
+        due_at: template.dueDays != null ? `${plus(template.dueDays)}T${template.dueTime ?? '23:59'}` : '',
+        project_id: template.project ? String(template.project.id) : '',
+    });
     const { data, setData, processing } = form;
     const errors = form.errors as Record<string, string | undefined>;
     return (
@@ -262,6 +328,7 @@ function UseDialog({ template, projects, onClose }: { template: Template; projec
                 <p className="tpl-use-title">
                     “{template.title}” · {fmtHours(template.estHours)}
                     {template.steps.length > 0 && ` · ${template.steps.length} steps`}
+                    {template.startDays ? ` · can start ${daysAfter(template.startDays)}` : ''}
                 </p>
                 <div className="vform-row">
                     <Field id="u-due" label="Due" error={errors.due_at}>

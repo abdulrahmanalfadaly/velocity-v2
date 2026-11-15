@@ -72,4 +72,27 @@ class TemplatesTest extends TestCase
         $this->patch(route('templates.update', $theirs), ['name' => 'Mine'])->assertNotFound();
         $this->get(route('templates.index'))->assertInertia(fn ($page) => $page->where('templates', []));
     }
+
+    public function test_template_dates_count_from_the_day_it_is_used(): void
+    {
+        // Wed 11 Nov: a task due Fri 13 Nov at 17:00 becomes "due 2 days after use, 17:00".
+        $task = $this->user->tasks()->create(['title' => 'Weekly report', 'importance' => 3, 'urgency' => 3, 'est_hours' => 1,
+            'due_at' => '2026-11-13 09:00', 'available_from' => '2026-11-11 16:00']);
+        $this->post(route('templates.store'), ['task_id' => $task->id]);
+        $template = TaskTemplate::firstOrFail();
+        $this->assertSame([2, '17:00', 1], [$template->due_days, $template->due_time, $template->start_days]);
+
+        // Used a week later with no date given (the API): due Fri 20 Nov 17:00, can start Thu 19 Nov.
+        $this->travelTo(now()->addWeek());
+        config(['velocity.fixed_now' => '2026-11-18 10:00']);
+        $this->post(route('templates.use', $template));
+        $new = Task::where('title', 'Weekly report')->latest('id')->firstOrFail();
+        $this->assertSame(['2026-11-20 17:00', '2026-11-19 00:00'], [
+            $new->due_at->timezone('Asia/Kuala_Lumpur')->format('Y-m-d H:i'), $new->available_from->timezone('Asia/Kuala_Lumpur')->format('Y-m-d H:i'),
+        ]);
+
+        // No due days: no due date, and the time goes too.
+        $this->patch(route('templates.update', $template), ['due_days' => null]);
+        $this->assertSame([null, null], [$template->fresh()->due_days, $template->fresh()->due_time]);
+    }
 }

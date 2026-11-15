@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Models\TaskTemplate;
 use App\Services\RankingService;
 use App\Services\Repeat;
+use App\Support\Clock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -31,7 +32,7 @@ class TemplateController extends Controller
         $user = $request->user();
         if ($request->filled('task_id')) {
             $task = Task::with('steps')->where('user_id', $user->id)->findOrFail($request->integer('task_id'));
-            $template = $user->templates()->create(TaskTemplate::fromTask($task));
+            $template = $user->templates()->create(TaskTemplate::fromTask($task, app(Clock::class)->now()->timezone($user->timezone)));
 
             return back()->with('toast', "Saved “{$template->name}” as a template")->with('undo', $this->undo('delete-template', $template->id));
         }
@@ -77,6 +78,8 @@ class TemplateController extends Controller
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
         ]);
 
+        // Its own dates count from today; a due date given in the dialog wins.
+        $dates = $template->datesFrom($ranking->now()->timezone($user->timezone));
         $task = $user->tasks()->create([
             'title' => $template->title,
             'notes' => $template->notes,
@@ -84,7 +87,8 @@ class TemplateController extends Controller
             'urgency' => $template->urgency,
             'est_hours' => $template->est_hours,
             'project_id' => array_key_exists('project_id', $data) ? $data['project_id'] : $template->project_id,
-            'due_at' => $this->fromLocal($data['due_at'] ?? null, $user),
+            'due_at' => array_key_exists('due_at', $data) ? $this->fromLocal($data['due_at'], $user) : $dates['due']?->utc(),
+            'available_from' => $dates['start']?->utc(),
             'repeat_unit' => $template->repeat_unit,
             'repeat_every' => $template->repeat_every,
         ]);
@@ -109,12 +113,18 @@ class TemplateController extends Controller
             'importance' => [...$s, 'required', 'integer', 'between:1,5'],
             'urgency' => [...$s, 'required', 'integer', 'between:1,5'],
             'est_hours' => [...$s, 'required', 'numeric', 'min:0.05', 'max:500'],
+            'due_days' => ['sometimes', 'nullable', 'integer', 'between:0,365'],
+            'due_time' => ['sometimes', 'nullable', 'date_format:H:i'],
+            'start_days' => ['sometimes', 'nullable', 'integer', 'between:0,365'],
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
             'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
             'steps' => ['sometimes', 'array', 'max:50'],
             'steps.*' => ['nullable', 'string', 'max:255'], // blank lines are dropped below
-        ], [], ['est_hours' => 'hours']);
+        ], [], ['est_hours' => 'hours', 'due_days' => 'days until due', 'start_days' => 'days until it can start']);
+        if (array_key_exists('due_days', $data) && $data['due_days'] === null) {
+            $data['due_time'] = null;
+        }
         if (isset($data['steps'])) {
             $data['steps'] = array_values(array_filter(array_map(fn ($x) => trim((string) $x), $data['steps']), fn ($x) => $x !== ''));
         } elseif (! $partial) {
@@ -134,6 +144,9 @@ class TemplateController extends Controller
             'importance' => $t->importance,
             'urgency' => $t->urgency,
             'estHours' => $t->est_hours,
+            'dueDays' => $t->due_days,
+            'dueTime' => $t->due_time,
+            'startDays' => $t->start_days,
             'project' => $t->project ? ['id' => $t->project->id, 'name' => $t->project->name] : null,
             'repeat' => $t->repeat_unit ? ['unit' => $t->repeat_unit, 'every' => $t->repeat_every] : null,
             'steps' => $t->steps,
