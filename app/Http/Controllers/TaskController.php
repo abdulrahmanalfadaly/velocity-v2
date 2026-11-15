@@ -133,6 +133,8 @@ class TaskController extends Controller
             'focused' => ['seconds' => (int) $task->focusSessions()->whereNotNull('ended_at')->sum('seconds'), 'sessions' => $task->focusSessions()->whereNotNull('ended_at')->count()],
             'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
             'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString(), 'via' => $e->via])->values(),
+            // Its history in plain words, newest first.
+            'activity' => TaskPresenter::activity($task, $user),
             // Linked GitHub issues and pull requests (as last read; the panel asks for a fresh look when they are old).
             'github' => $user->github_login || $task->githubLinks->isNotEmpty() ? [
                 'connected' => $user->github_login !== null,

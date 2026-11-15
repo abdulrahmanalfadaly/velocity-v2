@@ -832,6 +832,7 @@ export function TaskPanel({
                         )}
                     </section>
                 )}
+                <TaskActivity key={task.id} items={task.activity ?? []} clock={clock} />
             </div>
             <div className="panel-foot">
                 <button className="btn btn-primary btn-lg" onClick={toggleDone} disabled={busy}>
@@ -993,6 +994,35 @@ function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }
                 </div>
             </div>
         </Modal>
+    );
+}
+
+/** The task's history, newest first: the last few, or all of it. */
+function TaskActivity({ items, clock }: { items: NonNullable<TaskDetail['activity']>; clock: Clock }) {
+    const [all, setAll] = useState(false);
+    if (!items.length) return null;
+    return (
+        <section className="p-section">
+            <div className="p-section-head">
+                <h3 className="p-section-title">Activity</h3>
+            </div>
+            <ol className="p-activity">
+                {(all ? items : items.slice(0, 6)).map((a, i) => (
+                    <li key={i}>
+                        <span>{a.text}</span>
+                        <span className="muted">
+                            {a.at ? `${clock.date(a.at, { weekday: 'short', day: 'numeric', month: 'short' })}, ${clock.time(a.at)}` : ''}
+                            {a.via ? ` · via ${a.via}` : ''}
+                        </span>
+                    </li>
+                ))}
+            </ol>
+            {items.length > 6 && (
+                <button type="button" className="link" onClick={() => setAll(!all)}>
+                    {all ? 'Show less' : `Show all ${items.length}`}
+                </button>
+            )}
+        </section>
     );
 }
 

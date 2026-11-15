@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Task;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 
 /** The fields every screen needs about a task (ranked or not). Dates are UTC ISO strings. */
 class TaskPresenter
@@ -48,6 +50,59 @@ class TaskPresenter
                 ? $task->steps->map(fn ($s) => ['id' => $s->id, 'title' => $s->title, 'done' => $s->done_at !== null])->values()->all()
                 : [],
         ];
+    }
+
+    /**
+     * The task's history in plain words, newest first: "Due moved Wed 18 Nov → Fri 20 Nov",
+     * "Moved to “Chapter 3”", "Done", each with when and (for an access key) via whom.
+     */
+    public static function activity(Task $task, User $user, int $limit = 50): array
+    {
+        $events = $task->events()->limit($limit)->get();
+        $projects = $user->projects()->pluck('name', 'id');
+        $tz = $user->timezone;
+        $day = fn ($v) => $v ? CarbonImmutable::parse($v)->timezone($tz)->format('D j M') : null;
+        $level = fn ($v) => ['', 'very low', 'low', 'medium', 'high', 'very high'][(int) $v] ?? (string) $v;
+
+        $change = fn (string $key, $before, $after): ?string => match ($key) {
+            'due_at' => $after === null ? 'Due date cleared' : ($before === null ? 'Due '.$day($after) : 'Due moved '.$day($before).' → '.$day($after)),
+            'project_id' => $after === null ? 'Moved to the Inbox' : 'Moved to “'.($projects[$after] ?? 'a project').'”',
+            'goal_id' => $after === null ? 'Goal taken off' : 'Goal set',
+            'status' => 'Status: '.(['todo' => 'To do', 'doing' => 'Doing', 'waiting' => 'Waiting'][$after] ?? $after),
+            'importance' => 'Importance '.$level($after),
+            'urgency' => 'Urgency '.$level($after),
+            'est_hours' => 'Work '.rtrim(rtrim(number_format((float) $after, 2), '0'), '.').' h',
+            'title' => 'Renamed',
+            'notes' => 'Notes changed',
+            'available_from' => $after === null ? 'Can start now' : 'Can start '.$day($after),
+            'follow_up_on' => $after === null ? 'Follow-up cleared' : 'Follow up '.$day($after),
+            'waiting_for' => $after ? "Waiting for {$after}" : null,
+            'repeat_unit', 'repeat_days', 'repeat_until' => 'Repeat changed',
+            default => null,
+        };
+
+        return $events->map(function ($e) use ($change) {
+            $snap = $e->snapshot ?? [];
+            $text = match ($e->type) {
+                'created' => isset($snap['repeatOf']) ? 'Added (the next repeat)' : 'Added',
+                'promoted' => 'Made from a step',
+                'completed' => 'Done',
+                'cancelled' => 'Cancelled'.(! empty($snap['reason']) ? ': '.$snap['reason'] : ''),
+                'reopened' => 'Opened again',
+                'archived' => 'Archived',
+                'unarchived' => 'Out of the archive',
+                'deleted' => 'Deleted',
+                'restored' => 'Restored',
+                'reverted' => 'A change was undone',
+                'updated' => implode(' · ', array_values(array_unique(array_filter([
+                    ...array_map(fn ($k) => $change($k, $snap['before'][$k] ?? null, $snap['after'][$k] ?? null), array_keys($snap['after'] ?? [])),
+                    ! empty($snap['depends_on']) ? 'Starts after changed' : null,
+                ])))) ?: 'Changed',
+                default => ucfirst($e->type),
+            };
+
+            return ['text' => $text, 'at' => $e->created_at?->toIso8601ZuluString(), 'via' => $e->via];
+        })->values()->all();
     }
 
     /** A task that is open but not ranked, with the reason in plain words. */

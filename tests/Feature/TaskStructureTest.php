@@ -81,6 +81,24 @@ class TaskStructureTest extends TestCase
         $this->assertSame([$data->id], $chart->dependencies()->pluck('tasks.id')->all());
     }
 
+    public function test_the_activity_list_says_what_happened_in_plain_words(): void
+    {
+        $project = $this->user->projects()->create(['name' => 'Chapter 3']);
+        $this->post(route('tasks.store'), ['text' => 'Essay wed']);
+        $essay = Task::where('title', 'Essay')->sole();
+        $this->patch(route('tasks.update', $essay), ['due_at' => '2026-11-13 17:00']);
+        $this->patch(route('tasks.update', $essay), ['project_id' => $project->id]);
+        $this->patch(route('tasks.update', $essay), ['importance' => 5]);
+        $this->post(route('tasks.complete', $essay));
+
+        $this->get(route('tasks.index', ['task' => $essay->id]))->assertInertia(fn ($page) => $page
+            ->where('selected.activity.0.text', 'Done')
+            ->where('selected.activity.1.text', 'Importance very high')
+            ->where('selected.activity.2.text', 'Moved to “Chapter 3”')
+            ->where('selected.activity.3.text', 'Due moved Wed 11 Nov → Fri 13 Nov')
+            ->where('selected.activity.4.text', 'Added'));
+    }
+
     public function test_subtasks_are_tasks_of_their_own_and_the_parent_asks_about_them(): void
     {
         $report = $this->task(['title' => 'Write the report', 'importance' => 4, 'due_at' => '2026-11-20 09:00']);
