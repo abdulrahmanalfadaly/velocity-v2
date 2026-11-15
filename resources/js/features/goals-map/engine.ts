@@ -35,6 +35,8 @@ export interface MapGoal {
     color: number;
     icon: string | null;
     projects: MapProject[];
+    /** Tasks that belong straight to the goal (no project). */
+    tasks?: MapTask[];
     /** Notes linked to the goal. */
     notes?: MapNote[];
     status?: 'active' | 'paused' | 'achieved' | 'dropped';
@@ -284,7 +286,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             );
             return make('project', { id: `p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
         });
-        root.children.push(make('goal', { id: `g${g.id}`, title: g.title, goal: g, hue: g.color }, projects));
+        root.children.push(
+            make('goal', { id: `g${g.id}`, title: g.title, goal: g, hue: g.color }, [...projects, ...taskNodes(g.tasks ?? [], g.color)]),
+        );
     });
     if (data.inbox.length) root.children.push(make('inbox', { id: 'inbox', title: 'Inbox', hue: 0 }, taskNodes(data.inbox, 0)));
     (function link(n: MapNode, parent: MapNode | null, depth: number) {

@@ -331,6 +331,8 @@ export default function TasksIndex() {
                                                     >
                                                         Ready now
                                                     </button>
+                                                ) : kind === 'later' ? (
+                                                    <StartNow id={w.id} />
                                                 ) : (
                                                     <span />
                                                 )}
@@ -510,7 +512,7 @@ export default function TasksIndex() {
                                                         <span>{w.why}</span>
                                                     </div>
                                                 </div>
-                                                <span />
+                                                {w.kind === 'later' ? <StartNow id={w.id} /> : <span />}
                                             </div>
                                         ))}
                                     </details>
@@ -602,5 +604,20 @@ export default function TasksIndex() {
                 </div>
             )}
         </VelocityShell>
+    );
+}
+
+/** "Start now" on a task that starts later: it joins the ranking today. */
+function StartNow({ id }: { id: number }) {
+    return (
+        <button
+            className="btn btn-secondary btn-sm"
+            onClick={(e) => {
+                e.stopPropagation();
+                router.patch(route('tasks.update', id), { available_from: null }, { preserveScroll: true, preserveState: true });
+            }}
+        >
+            Start now
+        </button>
     );
 }

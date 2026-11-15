@@ -105,7 +105,7 @@ class TaskController extends Controller
             return null;
         }
         $user = $request->user();
-        $task = Task::with(['project.goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'people', 'githubLinks', 'reminders', 'events' => fn ($q) => $q->limit(8)])
+        $task = Task::with(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'people', 'githubLinks', 'reminders', 'events' => fn ($q) => $q->limit(8)])
             ->where('user_id', $user->id)->find($id);
         if (! $task) {
             return null;
@@ -126,7 +126,6 @@ class TaskController extends Controller
             'peopleChoices' => $user->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'focused' => ['seconds' => (int) $task->focusSessions()->whereNotNull('ended_at')->sum('seconds'), 'sessions' => $task->focusSessions()->whereNotNull('ended_at')->count()],
             'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
-            'goal' => $task->project?->goal ? ['id' => $task->project->goal->id, 'title' => $task->project->goal->title, 'color' => $task->project->goal->color] : null,
             'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString(), 'via' => $e->via])->values(),
             // Linked GitHub issues and pull requests (as last read; the panel asks for a fresh look when they are old).
             'github' => $user->github_login || $task->githubLinks->isNotEmpty() ? [
@@ -227,7 +226,7 @@ class TaskController extends Controller
 
     private const LABELS = [
         'title' => 'Title', 'notes' => 'Notes', 'importance' => 'Importance', 'urgency' => 'Urgency', 'due_at' => 'Due date',
-        'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'follow_up_on' => 'Follow-up', 'project_id' => 'Project',
+        'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'follow_up_on' => 'Follow-up', 'project_id' => 'Project', 'goal_id' => 'Goal',
         'repeat_unit' => 'Repeat', 'repeat_days' => 'Repeat', 'repeat_until' => 'Repeat', 'available_from' => 'Start date', 'reminder_at' => 'Reminder',
     ];
 

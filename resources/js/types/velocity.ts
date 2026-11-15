@@ -6,6 +6,8 @@ export interface ProjectRef {
     name: string;
     goalColor: number | null;
     goalTitle?: string | null;
+    /** The project's due date ("YYYY-MM-DD"). */
+    dueDate?: string | null;
 }
 
 export interface Step {
@@ -46,6 +48,8 @@ export interface BaseTask {
     archivedAt: string | null;
     repeat: RepeatRule | null;
     project: ProjectRef | null;
+    /** The project's goal, or the task's own when it has no project. */
+    goal?: { id: number; title: string; color: number } | null;
     parent: { id: number; title: string } | null;
     steps: Step[];
 }
@@ -91,7 +95,6 @@ export type TaskDetail = BaseTask &
         people?: { id: number; name: string }[];
         peopleChoices?: { id: number; name: string }[];
         focused: { seconds: number; sessions: number };
-        goal: { id: number; title: string; color: number } | null;
         /** Linked GitHub issues and pull requests; null when GitHub isn't connected and nothing is linked. */
         github?: {
             connected: boolean;

@@ -1393,6 +1393,9 @@ a.tl-block:hover { border-color: var(--line-strong); }
 .p-after .prop-input { max-width: 100%; }
 .p-after-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--surface-3); font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
 .p-after-chip.is-done { color: var(--text-3); text-decoration: line-through; }
+.p-warn { display: flex; align-items: center; gap: 5px; width: 100%; margin-top: 4px; color: var(--critical-ink); font-size: 12.5px; font-weight: 600; }
+.prop-value:has(.p-warn) { flex-wrap: wrap; }
+.p-start-now { margin-left: 8px; font-weight: 600; }
 .p-after-chip button { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: var(--text-3); }
 .p-after-chip button:hover { background: var(--hover); color: var(--text); }
 .p-goal { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; color: var(--text); }

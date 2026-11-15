@@ -10,6 +10,7 @@ class TaskPresenter
     public static function base(Task $task): array
     {
         $project = $task->project;
+        $goal = $project ? $project->goal : ($task->goal_id ? $task->goal : null);
 
         return [
             'id' => $task->id,
@@ -38,7 +39,10 @@ class TaskPresenter
                 'name' => $project->name,
                 'goalColor' => $project->goal?->color,
                 'goalTitle' => $project->goal?->title,
+                'dueDate' => $project->due_date?->toDateString(),
             ] : null,
+            // The project's goal, or the task's own when it has no project.
+            'goal' => $goal ? ['id' => $goal->id, 'title' => $goal->title, 'color' => $goal->color] : null,
             'parent' => $task->relationLoaded('parent') && $task->parent ? ['id' => $task->parent->id, 'title' => $task->parent->title] : null,
             'steps' => $task->relationLoaded('steps')
                 ? $task->steps->map(fn ($s) => ['id' => $s->id, 'title' => $s->title, 'done' => $s->done_at !== null])->values()->all()

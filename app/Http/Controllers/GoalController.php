@@ -113,10 +113,15 @@ class GoalController extends Controller
             return TaskPresenter::base($t) + ['kind' => 'done', 'why' => 'Done '.$t->completed_at?->toIso8601ZuluString()];
         };
 
-        $projectNode = function ($p) use ($taskNode, $todayLocal, $recentDone) {
-            // Open tasks, plus the three most recent finished ones (faded on the map, to show progress).
-            $recent = $p->tasks->filter(fn (Task $t) => $t->status === Task::DONE && $t->completed_at >= $recentDone)->sortByDesc('completed_at')->take(3);
-            $tasks = $p->tasks->filter(fn (Task $t) => $t->isOpen())->concat($recent)->values();
+        // Open tasks, plus the three most recent finished ones (faded on the map, to show progress).
+        $shown = function ($tasks) use ($recentDone) {
+            $recent = $tasks->filter(fn (Task $t) => $t->status === Task::DONE && $t->completed_at >= $recentDone)->sortByDesc('completed_at')->take(3);
+
+            return $tasks->filter(fn (Task $t) => $t->isOpen())->concat($recent)->values();
+        };
+
+        $projectNode = function ($p) use ($taskNode, $todayLocal, $shown) {
+            $tasks = $shown($p->tasks);
 
             return [
                 'id' => $p->id,
@@ -133,12 +138,15 @@ class GoalController extends Controller
         $other = $user->projects()->whereNull('archived_at')
             ->where(fn ($q) => $q->whereNull('goal_id')->orWhereHas('goal', fn ($g) => $g->whereNotNull('archived_at')))
             ->with(['notes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')])->get();
+        // Tasks that belong straight to a goal (no project).
+        $direct = $user->tasks()->whereNull('project_id')->whereIn('goal_id', $goals->pluck('id'))->with('steps')->get()->groupBy('goal_id');
         $branches = $goals->map(fn ($g) => [
             'id' => $g->id, 'title' => $g->title, 'why' => $g->why, 'target' => $g->target, 'color' => $g->color, 'icon' => $g->icon,
             'status' => $g->status, 'targetDate' => $g->target_date?->toDateString(), 'progressMode' => $g->progress_mode, 'progress' => $g->progress,
             // Milestones or by hand: the % the map shows instead of counting tasks.
             'progressPct' => $g->progressPct(),
             'projects' => $g->projects->map($projectNode)->values(),
+            'tasks' => $shown($direct->get($g->id, collect()))->map($taskNode)->values(),
             // Notes linked to the goal (a note's "Link" picker).
             'notes' => NoteLink::notesFor($user, 'goal', $g->id),
         ])->values();
@@ -148,9 +156,10 @@ class GoalController extends Controller
 
         return Inertia::render('goals/index', [
             'goals' => $branches,
-            // Open tasks with no project, or in an archived project.
+            // Open tasks with no project (and no goal on the map), or in an archived project.
             'inbox' => $user->tasks()->whereIn('status', Task::OPEN)
-                ->where(fn ($q) => $q->whereNull('project_id')->orWhereHas('project', fn ($p) => $p->whereNotNull('archived_at')))
+                ->where(fn ($q) => $q->where(fn ($q) => $q->whereNull('project_id')->where(fn ($g) => $g->whereNull('goal_id')->orWhereNotIn('goal_id', $goals->pluck('id'))))
+                    ->orWhereHas('project', fn ($p) => $p->whereNotNull('archived_at')))
                 ->with('steps')->get()->map($taskNode)->values(),
             'nextId' => $list->scored[0]->task->id ?? null,
             'totalRanked' => count($list),

@@ -26,10 +26,10 @@ list only covers what's missing or partly there.
 - [x] ★2 Cancel a task with a reason. **Add** (the data allows "Cancelled"; no way to set it yet)
 - [ ] A capture-only Inbox where new tasks wait unsorted and unranked. **Your call** (v2's Inbox is the ranked list of tasks with no project)
 - [ ] Target date and energy level. **Filter only** (GPT gave them score points)
-- [ ] Link a task straight to a goal; warn when a task is due after its project. **Add**
+- [x] Link a task straight to a goal; warn when a task is due after its project. **Add**
 - [ ] More quick-add words (start date, reminder, importance) and chips you can remove. **Partly** (due, project, hours, repeat work)
 - [x] ★2 Follow-up dates and a "Needs attention" group. **Add**
-- [ ] "Make available now" (clear the start date in one click). **Add**
+- [x] "Make available now" (clear the start date in one click). **Add**
 - [ ] Dependencies: a "Blocks" list, stop finishing a task that is still blocked, warnings on cancel or reopen. **Partly**
 - [ ] Real subtasks, with "Complete anyway?" when some are still open. **Add**
 - [x] ★2 Archive a task, and auto-archive old finished ones. **Add**
@@ -154,7 +154,7 @@ them after seeing this list.
 
 ## Settings and general
 
-- [ ] Task, Focus and Planner settings pages. **Add** (Focus and Planner come with ★4 and ★5)
+- [x] Task, Focus and Planner settings pages. **Add** (Focus and Planner come with ★4 and ★5)
 - [ ] Wallpapers. **Add**
 - [ ] A "skip to content" link and accessibility checks. **Add**
 - [ ] Export and import your data (neither version has it). **Add** (bonus)

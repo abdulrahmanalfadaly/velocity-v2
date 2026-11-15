@@ -33,7 +33,7 @@ class Task extends Model
     public const FINISHED = [self::DONE, self::CANCELLED];
 
     protected $fillable = [
-        'project_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
+        'project_id', 'goal_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
         'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion',
         'repeat_unit', 'repeat_every', 'repeat_days', 'repeat_until', 'repeat_anchor', 'repeat_day', 'repeated_from_id',
         'follow_up_on', 'waiting_since', 'cancelled_at', 'cancel_reason', 'archived_at', 'unarchived_at',
@@ -70,6 +70,12 @@ class Task extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /** A task with no project can belong straight to a goal; in a project it has the project's goal. */
+    public function goal(): BelongsTo
+    {
+        return $this->belongsTo(Goal::class);
     }
 
     public function parent(): BelongsTo

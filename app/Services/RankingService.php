@@ -48,7 +48,7 @@ class RankingService
     {
         $params ??= $user->weights()->parameters();
         $tasks = $this->eligibleQuery($user)
-            ->with(['project.goal', 'parent:id,title', 'steps'])
+            ->with(['project.goal', 'goal', 'parent:id,title', 'steps'])
             ->get()
             ->keyBy('id');
 
@@ -82,7 +82,7 @@ class RankingService
             ->where('user_id', $user->id)
             ->whereIn('status', Task::OPEN)
             ->when($projectId, fn (Builder $q) => $q->where('project_id', $projectId))
-            ->with(['project.goal', 'dependencies' => fn ($q) => $q->whereNotIn('status', [Task::DONE, Task::CANCELLED])])
+            ->with(['project.goal', 'goal', 'dependencies' => fn ($q) => $q->whereNotIn('status', [Task::DONE, Task::CANCELLED])])
             ->orderBy('created_at')
             ->get()
             ->reject(fn (Task $t) => $eligible->has($t->id))

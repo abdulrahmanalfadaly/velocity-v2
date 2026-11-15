@@ -50,7 +50,7 @@ function Card({
             tabIndex={0}
             role="button"
             aria-label={`${t.ready ? `#${t.rank}, ` : ''}${t.title}`}
-            style={{ ['--g' as string]: goalVar(t.project?.goalColor) }}
+            style={{ ['--g' as string]: goalVar(t.goal?.color ?? t.project?.goalColor) }}
             onDragStart={(e) => {
                 e.dataTransfer.setData('text/plain', String(t.id));
                 e.dataTransfer.effectAllowed = 'move';

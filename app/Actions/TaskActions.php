@@ -44,6 +44,7 @@ class TaskActions
             'waiting_for' => ['sometimes', 'nullable', 'string', 'max:160'],
             'follow_up_on' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            'goal_id' => ['sometimes', 'nullable', 'integer', Rule::exists('goals', 'id')->where('user_id', $user->id)->whereNull('archived_at')],
             'repeat_unit' => ['sometimes', 'nullable', Rule::in(Repeat::UNITS)],
             'repeat_every' => ['sometimes', 'integer', 'between:1,99'],
             'repeat_days' => ['sometimes', 'nullable', 'array', 'max:7'],
@@ -104,6 +105,13 @@ class TaskActions
             $deps = ['before' => $task->dependencies()->pluck('tasks.id')->all(), 'after' => array_map('intval', $data['depends_on'])];
             $this->setDependencies($task, $data['depends_on']);
             unset($data['depends_on']);
+        }
+        // A task in a project has the project's goal: moving it into one drops its own.
+        if (! empty($data['project_id']) && $task->goal_id) {
+            $data['goal_id'] = null;
+        }
+        if (! empty($data['goal_id']) && (array_key_exists('project_id', $data) ? $data['project_id'] : $task->project_id)) {
+            throw ValidationException::withMessages(['goal_id' => 'A task in a project has the project’s goal.']);
         }
         // The single "reminder_at" field (the API's): one "at a time" reminder then, or none.
         if (array_key_exists('reminder_at', $data)) {
@@ -298,6 +306,7 @@ class TaskActions
 
         $next = $user->tasks()->create([
             'project_id' => $task->project_id,
+            'goal_id' => $task->goal_id,
             'parent_id' => $task->parent_id,
             'title' => $task->title,
             'notes' => $task->notes,

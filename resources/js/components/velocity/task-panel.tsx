@@ -1,6 +1,6 @@
 import { Clock, fmt1, fmtHours, goalVar, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
-import type { RankedTask, RepeatRule, TaskDetail, TaskReminderInfo } from '@/types/velocity';
-import { Link, router } from '@inertiajs/react';
+import type { RankedTask, RepeatRule, TaskDetail, TaskReminderInfo, VelocityShared } from '@/types/velocity';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { StartFocus } from './focus';
@@ -53,6 +53,12 @@ export function TaskPanel({
         }
     }, [title]);
     const ranked = task.rank != null ? (task as RankedTask) : null;
+    const goals = usePage<VelocityShared>().props.nav?.goals ?? [];
+    // An archived goal the task still has stays in the list.
+    const goalChoices = task.goal && !goals.some((g) => g.id === task.goal!.id) ? [...goals, task.goal] : goals;
+    // Due after the project's own due date: a warning only.
+    const dueDay = task.dueAt ? clock.localInput(task.dueAt).slice(0, 10) : null;
+    const lateForProject = !!(dueDay && task.project?.dueDate && dueDay > task.project.dueDate);
     const done = task.status === 'done';
     const cancelled = task.status === 'cancelled';
     const finished = done || cancelled;
@@ -198,7 +204,14 @@ export function TaskPanel({
                     ) : task.dependsOn.some((d) => d.status !== 'done' && d.status !== 'cancelled') ? (
                         `After “${task.dependsOn.find((d) => d.status !== 'done' && d.status !== 'cancelled')!.title}”`
                     ) : task.availableFrom ? (
-                        `From ${clock.date(task.availableFrom, { weekday: 'short', day: 'numeric', month: 'short' })}`
+                        <>
+                            From {clock.date(task.availableFrom, { weekday: 'short', day: 'numeric', month: 'short' })}
+                            {!finished && (
+                                <button type="button" className="link p-start-now" onClick={() => patch(task.id, { available_from: null })}>
+                                    Start now
+                                </button>
+                            )}
+                        </>
                     ) : null}
                 </p>
 
@@ -272,6 +285,19 @@ export function TaskPanel({
                             value={clock.localInput(task.dueAt)}
                             onChange={(v) => patch(task.id, { due_at: v || null })}
                         />
+                        {lateForProject && (
+                            <span className="p-warn">
+                                <Icon name="alert" className="ic-xs" />
+                                After the project’s due date (
+                                {clock.date(`${task.project!.dueDate}T12:00:00Z`, {
+                                    weekday: 'short',
+                                    day: 'numeric',
+                                    month: 'short',
+                                    timeZone: 'UTC',
+                                })}
+                                )
+                            </span>
+                        )}
                     </div>
                     <div className="prop-label">
                         <Icon name="clock" />
@@ -318,13 +344,28 @@ export function TaskPanel({
                         Goal
                     </div>
                     <div className="prop-value">
-                        {task.goal ? (
-                            <Link className="p-goal" href={`/goals?focus=g${task.goal.id}`} style={{ ['--g' as string]: goalVar(task.goal.color) }}>
-                                <i />
-                                {task.goal.title}
-                            </Link>
+                        {task.project ? (
+                            task.goal ? (
+                                <Link
+                                    className="p-goal"
+                                    href={`/goals?focus=g${task.goal.id}`}
+                                    style={{ ['--g' as string]: goalVar(task.goal.color) }}
+                                >
+                                    <i />
+                                    {task.goal.title}
+                                </Link>
+                            ) : (
+                                <span className="muted">The project has no goal</span>
+                            )
                         ) : (
-                            <span className="muted">{task.project ? 'The project has no goal' : 'None'}</span>
+                            // No project: the task can belong straight to a goal.
+                            <Select
+                                className="prop-input"
+                                value={String(task.goal?.id ?? '')}
+                                label="Goal"
+                                onChange={(v) => patch(task.id, { goal_id: v ? Number(v) : null })}
+                                options={[{ value: '', label: 'No goal' }, ...goalChoices.map((g) => ({ value: String(g.id), label: g.title }))]}
+                            />
                         )}
                     </div>
                     <div className="prop-label">
