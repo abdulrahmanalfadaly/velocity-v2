@@ -130,6 +130,12 @@ class Task extends Model
         return $this->belongsToMany(Task::class, 'task_dependencies', 'task_id', 'depends_on_id');
     }
 
+    /** Tasks that wait on this one (it "blocks" them). */
+    public function dependents(): BelongsToMany
+    {
+        return $this->belongsToMany(Task::class, 'task_dependencies', 'depends_on_id', 'task_id');
+    }
+
     /** For a repeating task: the copy that was created when this one was finished. */
     public function nextRepeat(): HasOne
     {

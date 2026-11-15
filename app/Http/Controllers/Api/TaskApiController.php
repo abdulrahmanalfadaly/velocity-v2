@@ -9,6 +9,7 @@ use App\Http\Controllers\FocusController;
 use App\Models\Task;
 use App\Models\TaskStep;
 use App\Services\RankingService;
+use App\Services\TaskLinks;
 use App\Services\TaskPresenter;
 use App\Support\ApiPresent;
 use App\Support\Clock;
@@ -144,6 +145,11 @@ class TaskApiController extends ApiController
     {
         $user = $request->user();
         $this->own($task, $user);
+        // Still waiting on another task: only with "anyway".
+        $waiting = $task->status === Task::DONE || $user->fyp_mode ? null : TaskLinks::waitingOn($task);
+        if ($waiting && ! $request->boolean('anyway')) {
+            abort(409, "It is still waiting on “{$waiting->title}”. Send {\"anyway\": true} to complete it anyway.");
+        }
         $next = $task->status === Task::DONE ? null : $this->actions->complete($task, $user);
         $list = $this->ranking->rank($user);
 

@@ -30,7 +30,7 @@ list only covers what's missing or partly there.
 - [x] More quick-add words (start date, reminder, importance) and chips you can remove. **Partly** (due, project, hours, repeat work)
 - [x] ★2 Follow-up dates and a "Needs attention" group. **Add**
 - [x] "Make available now" (clear the start date in one click). **Add**
-- [ ] Dependencies: a "Blocks" list, stop finishing a task that is still blocked, warnings on cancel or reopen. **Partly**
+- [x] Dependencies: a "Blocks" list, stop finishing a task that is still blocked, warnings on cancel or reopen. **Partly**
 - [ ] Real subtasks, with "Complete anyway?" when some are still open. **Add**
 - [x] ★2 Archive a task, and auto-archive old finished ones. **Add**
 - [x] ★7 Repeat on several weekdays (Mon + Thu), an end date, skip one, move one without moving the rest. **Partly**

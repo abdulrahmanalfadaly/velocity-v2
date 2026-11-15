@@ -14,8 +14,9 @@ import { TaskFiles } from './task-files';
 import { Check, Dots } from './ui';
 
 type Value = string | number | boolean | null | number[];
-const patch = (id: number, data: Record<string, Value>) =>
-    router.patch(route('tasks.update', id), data, { preserveScroll: true, preserveState: true });
+const patch = (id: number, data: Record<string, Value>, onError?: (errors: Record<string, string>) => void) =>
+    router.patch(route('tasks.update', id), data, { preserveScroll: true, preserveState: true, onError });
+const isOpen = (s: string) => s !== 'done' && s !== 'cancelled';
 
 const repeatKey = (r: RepeatRule | null) => (r ? `${r.every}-${r.unit}` : '');
 const VIA_WORD: Record<string, string> = {
@@ -69,15 +70,24 @@ export function TaskPanel({
     const waitsFor = task.dependsOn.map((d) => d.id);
     // The last change made with an access key (Mark), newest first.
     const viaKey = task.events.find((e) => e.via);
-    const toggleDone = () => {
+    const blocks = task.blocks ?? [];
+    // Why a link couldn't be made ("they would wait for each other").
+    const [linkError, setLinkError] = useState('');
+    useEffect(() => setLinkError(''), [task.id]);
+    const linkFailed = (e: Record<string, string>) => setLinkError(Object.values(e)[0] ?? '');
+    const waitingOn = task.dependsOn.find((d) => isOpen(d.status));
+    const [asking, setAsking] = useState(false);
+    const complete = (extra: Record<string, Value> = {}) => {
         if (busy) return; // a second click while the first is saving would undo it
         setBusy(true);
-        router.post(
-            route(finished ? 'tasks.reopen' : 'tasks.complete', task.id),
-            {},
-            { preserveScroll: true, preserveState: true, onFinish: () => setBusy(false) },
-        );
+        router.post(route(finished ? 'tasks.reopen' : 'tasks.complete', task.id), extra, {
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => setBusy(false),
+        });
     };
+    // Still waiting on another task: ask first.
+    const toggleDone = () => (!finished && waitingOn ? setAsking(true) : complete());
     const saveTitle = () => {
         if (!title.trim()) setTitle(task.title);
         else if (title !== task.title) patch(task.id, { title: title.trim() });
@@ -563,9 +573,54 @@ export function TaskPanel({
                             value=""
                             label="Add a task it starts after"
                             placeholder={task.dependsOn.length ? 'Add another…' : 'Nothing – pick a task…'}
-                            onChange={(v) => patch(task.id, { depends_on: [...waitsFor, Number(v)] })}
+                            onChange={(v) => patch(task.id, { depends_on: [...waitsFor, Number(v)] }, linkFailed)}
                             options={task.candidates.filter((c) => !waitsFor.includes(c.id)).map((c) => ({ value: String(c.id), label: c.title }))}
                         />
+                    </div>
+                    <div className="prop-label">
+                        <Icon name="branch" />
+                        Blocks
+                    </div>
+                    <div className="prop-value p-after">
+                        {blocks.map((b) => (
+                            <span key={b.id} className={`p-after-chip${isOpen(b.status) ? '' : ' is-done'}`}>
+                                <Link href={`?task=${b.id}`} preserveScroll preserveState className="p-chip-link">
+                                    {b.title}
+                                </Link>
+                                <button
+                                    type="button"
+                                    aria-label={`“${b.title}” doesn’t wait on this`}
+                                    title="Doesn’t wait on this"
+                                    onClick={() =>
+                                        router.post(route('tasks.blocks', task.id), { remove: b.id }, { preserveScroll: true, preserveState: true })
+                                    }
+                                >
+                                    <Icon name="x" className="ic-xs" />
+                                </button>
+                            </span>
+                        ))}
+                        <Select
+                            className="prop-input"
+                            value=""
+                            label="Add a task that waits on this one"
+                            placeholder={blocks.length ? 'Add another…' : 'Nothing waits on it…'}
+                            onChange={(v) =>
+                                router.post(
+                                    route('tasks.blocks', task.id),
+                                    { add: Number(v) },
+                                    { preserveScroll: true, preserveState: true, onError: linkFailed },
+                                )
+                            }
+                            options={task.candidates
+                                .filter((c) => !waitsFor.includes(c.id) && !blocks.some((b) => b.id === c.id))
+                                .map((c) => ({ value: String(c.id), label: c.title }))}
+                        />
+                        {linkError && (
+                            <span className="p-warn" role="alert">
+                                <Icon name="alert" className="ic-xs" />
+                                {linkError}
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -722,6 +777,29 @@ export function TaskPanel({
                 {!finished && <StartFocus taskId={task.id} className="btn btn-secondary btn-lg" />}
             </div>
             {cancelling && <CancelTask task={task} onClose={() => setCancelling(false)} />}
+            {asking && waitingOn && (
+                <Modal title={`Still waiting on “${waitingOn.title}”`} onClose={() => setAsking(false)}>
+                    <div className="vform" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), setAsking(false))}>
+                        <p className="muted">“{task.title}” starts after it, and it isn’t done yet.</p>
+                        <div className="vform-foot">
+                            <button type="button" className="btn btn-ghost" onClick={() => setAsking(false)}>
+                                Keep it open
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                autoFocus
+                                onClick={() => {
+                                    setAsking(false);
+                                    complete({ anyway: true });
+                                }}
+                            >
+                                Complete anyway
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </>
     );
 }
@@ -729,6 +807,7 @@ export function TaskPanel({
 /** "Cancel task": an optional reason; a repeating task can skip only this one or stop repeating. */
 function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }) {
     const [reason, setReason] = useState('');
+    const waiting = (task.blocks ?? []).filter((b) => isOpen(b.status)).length;
     const send = (skip: boolean) =>
         router.post(
             route('tasks.cancel', task.id),
@@ -747,6 +826,9 @@ function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }
                     }
                 }}
             >
+                {waiting > 0 && (
+                    <p className="muted">{waiting === 1 ? '1 task waits' : `${waiting} tasks wait`} on this one. Cancelled, it won’t hold them up.</p>
+                )}
                 <div className="field">
                     <div className="field-label">
                         <label htmlFor="cancel-reason">Why? (optional)</label>

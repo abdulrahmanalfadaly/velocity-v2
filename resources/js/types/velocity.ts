@@ -85,6 +85,8 @@ export type TaskDetail = BaseTask &
         total: number;
         children: { id: number; title: string; rank: number | null; score: number | null }[];
         dependsOn: { id: number; title: string; status: Status }[];
+        /** Tasks that wait on this one. */
+        blocks?: { id: number; title: string; status: Status }[];
         events: { type: string; at: string | null; via?: string | null }[];
         candidates: { id: number; title: string }[];
         files: TaskFileInfo[];

@@ -14,6 +14,7 @@ use App\Services\GitHub;
 use App\Services\NextActions;
 use App\Services\RankingService;
 use App\Services\StudyLogger;
+use App\Services\TaskLinks;
 use App\Services\TaskPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -105,7 +106,7 @@ class TaskController extends Controller
             return null;
         }
         $user = $request->user();
-        $task = Task::with(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'files', 'linkedNotes.event', 'people', 'githubLinks', 'reminders', 'events' => fn ($q) => $q->limit(8)])
+        $task = Task::with(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'dependents', 'files', 'linkedNotes.event', 'people', 'githubLinks', 'reminders', 'events' => fn ($q) => $q->limit(8)])
             ->where('user_id', $user->id)->find($id);
         if (! $task) {
             return null;
@@ -118,6 +119,8 @@ class TaskController extends Controller
             'total' => count($list),
             'children' => $task->children->map(fn ($c) => ['id' => $c->id, 'title' => $c->title, 'rank' => $list->rankOf($c->id), 'score' => $list->scoreOf($c->id)])->values(),
             'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
+            // Tasks that wait on this one.
+            'blocks' => $task->dependents->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
             // Open tasks this one could be set to start after.
             'files' => $task->files->map(fn ($f) => $f->present())->values(),
             'reminders' => $task->reminders->map(fn ($r) => $r->present())->values(),
@@ -308,10 +311,39 @@ class TaskController extends Controller
         if ($task->status === Task::DONE) {
             return back();
         }
+        // Still waiting on another task: done only when asked for ("Complete anyway" in the panel).
+        $waiting = $user->fyp_mode ? null : TaskLinks::waitingOn($task);
+        if ($waiting && ! $request->boolean('anyway')) {
+            return back()->with('toast', "“{$task->title}” is still waiting on “{$waiting->title}”. Open it to complete it anyway.");
+        }
         $next = $this->actions->complete($task, $user);
-        $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '');
+        $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '').$this->freedWords($task, $user);
 
         return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+    }
+
+    /** " · “Slides” can start now": tasks that waited on this one and now can (personal mode). */
+    private function freedWords(Task $task, User $user): string
+    {
+        return $user->fyp_mode ? '' : TaskLinks::words(TaskLinks::freed($task, $this->ranking->now()), 'can start now', 'can start now');
+    }
+
+    /** "Blocks": a task that waits on this one, added or taken away (it is set to start after this one). */
+    public function blocks(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $data = $request->validate([
+            'add' => ['required_without:remove', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
+            'remove' => ['required_without:add', 'integer'],
+        ]);
+        $other = Task::where('user_id', $user->id)->findOrFail($data['add'] ?? $data['remove']);
+        $ids = $other->dependencies()->pluck('tasks.id')->all();
+        $after = isset($data['add']) ? array_values(array_unique([...$ids, $task->id])) : array_values(array_diff($ids, [$task->id]));
+        $event = $this->actions->update($other, $user, ['depends_on' => $after]);
+
+        return back()->with('toast', isset($data['add']) ? "“{$other->title}” now starts after this one" : "“{$other->title}” doesn’t wait on this one any more")
+            ->with('undo', $event ? $this->undo('revert-task', $other->id, ['event' => $event->id]) : null);
     }
 
     /**
@@ -421,11 +453,18 @@ class TaskController extends Controller
             $undo = $this->undo('cancel-task', $task->id, ['reason' => $task->cancel_reason, 'skip' => $task->nextRepeat()->open()->exists()]);
             $this->actions->reopen($task, $user, $status);
 
-            return back()->with('toast', "Back: “{$task->title}”")->with('undo', $undo);
+            return back()->with('toast', "Back: “{$task->title}”".$this->againWords($task, $user))->with('undo', $undo);
         }
         $this->actions->reopen($task, $user, $status);
 
-        return back()->with('toast', "Not done: “{$task->title}”")->with('undo', $this->undo('complete', $task->id));
+        // Undo completes it again, even if it is still waiting on something.
+        return back()->with('toast', "Not done: “{$task->title}”".$this->againWords($task, $user))->with('undo', $this->undo('complete', $task->id, ['anyway' => true]));
+    }
+
+    /** " · 2 tasks wait on it again": opened again, the tasks after it can't start (personal mode). */
+    private function againWords(Task $task, User $user): string
+    {
+        return $user->fyp_mode ? '' : TaskLinks::words(TaskLinks::waitingAgain($task), 'waits on it again', 'wait on it again');
     }
 
     /** "Cancel task": it won't be done (with a reason, if given). A repeating one can skip only this time. */
@@ -442,7 +481,7 @@ class TaskController extends Controller
         $next = $this->actions->cancel($task, $user, $reason, (bool) $skip);
         $toast = $skip
             ? "Skipped “{$task->title}”".($next?->due_at ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '')
-            : "Cancelled “{$task->title}”";
+            : "Cancelled “{$task->title}”".$this->freedWords($task, $user);
 
         return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
     }
