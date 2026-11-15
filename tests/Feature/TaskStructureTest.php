@@ -80,4 +80,35 @@ class TaskStructureTest extends TestCase
         $this->post(route('tasks.revert', $chart), session('undo')['data']);
         $this->assertSame([$data->id], $chart->dependencies()->pluck('tasks.id')->all());
     }
+
+    public function test_subtasks_are_tasks_of_their_own_and_the_parent_asks_about_them(): void
+    {
+        $report = $this->task(['title' => 'Write the report', 'importance' => 4, 'due_at' => '2026-11-20 09:00']);
+        $this->post(route('tasks.subtask', $report), ['title' => 'Intro'])->assertSessionHas('toast', 'Added subtask “Intro”');
+        $this->post(route('tasks.subtask', $report), ['title' => 'Method']);
+        $intro = Task::where('title', 'Intro')->sole();
+        $this->assertSame([$report->id, 4, '2026-11-20 09:00'], [$intro->parent_id, $intro->importance, $intro->due_at->format('Y-m-d H:i')]);
+        // Ranked like any task.
+        $this->get(route('tasks.index', ['task' => $report->id]))->assertInertia(fn ($page) => $page
+            ->count('tasks', 3)->where('selected.children.0.title', 'Intro')->where('selected.children.0.status', 'todo'));
+
+        // Open subtasks: the parent asks first.
+        $this->post(route('tasks.complete', $report))->assertSessionHas('toast', '“Write the report” has 2 open subtasks. Open it to choose.');
+        $this->post(route('tasks.complete', $intro));
+        $this->post(route('tasks.complete', $report), ['children' => 'complete'])->assertSessionHas('toast', 'Done: “Write the report” and 1 subtask');
+        $this->assertSame([Task::DONE, Task::DONE], [$report->fresh()->status, Task::where('title', 'Method')->sole()->status]);
+        $this->post(route('tasks.bulk-undo'), session('undo')['data']);
+        $this->assertSame([Task::TODO, Task::TODO, Task::DONE], [$report->fresh()->status, Task::where('title', 'Method')->sole()->status, $intro->fresh()->status]);
+        $this->post(route('tasks.complete', $report), ['children' => 'leave'])->assertSessionHas('toast', 'Done: “Write the report”');
+        $this->assertSame(Task::TODO, Task::where('title', 'Method')->sole()->status);
+        $this->post(route('tasks.reopen', $report));
+
+        // Deleting the parent: its subtasks too, and Undo brings them all back; or they stay on their own.
+        $this->delete(route('tasks.destroy', $report), ['children' => 'delete'])->assertSessionHas('toast', 'Deleted “Write the report” and its 2 subtasks');
+        $this->assertSame(0, $this->user->tasks()->count());
+        $this->post(route('tasks.restore', $report->id));
+        $this->assertSame(3, $this->user->tasks()->count());
+        $this->delete(route('tasks.destroy', $report))->assertSessionHas('toast', 'Deleted “Write the report”');
+        $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->count('tasks', 1)->where('tasks.0.title', 'Method')->where('tasks.0.parent', null));
+    }
 }

@@ -117,7 +117,10 @@ class TaskController extends Controller
 
         return $base + [
             'total' => count($list),
-            'children' => $task->children->map(fn ($c) => ['id' => $c->id, 'title' => $c->title, 'rank' => $list->rankOf($c->id), 'score' => $list->scoreOf($c->id)])->values(),
+            'children' => $task->children->map(fn ($c) => [
+                'id' => $c->id, 'title' => $c->title, 'status' => $c->status, 'dueAt' => $c->due_at?->toIso8601ZuluString(),
+                'rank' => $list->rankOf($c->id), 'score' => $list->scoreOf($c->id),
+            ])->values(),
             'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
             // Tasks that wait on this one.
             'blocks' => $task->dependents->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
@@ -316,10 +319,40 @@ class TaskController extends Controller
         if ($waiting && ! $request->boolean('anyway')) {
             return back()->with('toast', "“{$task->title}” is still waiting on “{$waiting->title}”. Open it to complete it anyway.");
         }
+        // Open subtasks: complete them too, or only this one (the panel asks).
+        $mode = $request->validate(['children' => ['sometimes', Rule::in(['complete', 'leave'])]])['children'] ?? null;
+        $kids = $user->fyp_mode ? collect() : $task->children()->open()->get();
+        if ($kids->isNotEmpty() && ! $mode) {
+            $n = $kids->count();
+
+            return back()->with('toast', "“{$task->title}” has {$n} open ".($n === 1 ? 'subtask' : 'subtasks').'. Open it to choose.');
+        }
+        $list = $mode === 'complete' && $kids->isNotEmpty() ? $this->ranking->rank($user) : null;
         $next = $this->actions->complete($task, $user);
+        if ($list) {
+            $kids->each(fn (Task $kid) => $this->actions->complete($kid, $user, $list->scoreOf($kid->id), false));
+            $n = $kids->count();
+
+            return back()->with('toast', "Done: “{$task->title}” and {$n} ".($n === 1 ? 'subtask' : 'subtasks').$this->freedWords($task, $user))
+                ->with('undo', $this->undo('bulk-undo', 0, ['action' => 'complete', 'ids' => [$task->id, ...$kids->pluck('id')->all()], 'before' => []]));
+        }
         $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '').$this->freedWords($task, $user);
 
         return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+    }
+
+    /** "Add subtask": a small task under this one, ranked like any other. It starts with the parent's importance, urgency and due date. */
+    public function subtask(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $title = trim($request->validate(['title' => ['required', 'string', 'max:255']])['title']);
+        $kid = $this->actions->create($user, [
+            'title' => $title, 'parent_id' => $task->id, 'project_id' => $task->project_id, 'goal_id' => $task->project_id ? null : $task->goal_id,
+            'importance' => $task->importance, 'urgency' => $task->urgency, 'due_at' => $task->due_at, 'est_hours' => 1,
+        ]);
+
+        return back()->with('toast', "Added subtask “{$kid->title}”")->with('undo', $this->undo('delete-task', $kid->id));
     }
 
     /** " · “Slides” can start now": tasks that waited on this one and now can (personal mode). */
@@ -515,10 +548,14 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
-        $this->actions->delete($task, $user);
+        // A parent task: its subtasks go too, or stay as tasks of their own (the panel asks; keeping is the default).
+        $withKids = $request->validate(['children' => ['sometimes', Rule::in(['delete', 'keep'])]])['children'] ?? 'keep';
+        $n = $withKids === 'delete' ? $task->children()->count() : 0;
+        $this->actions->delete($task, $user, $withKids === 'delete');
 
         return redirect()->to(url()->previous() === url()->current() ? route('tasks.index') : preg_replace('/([?&])task=\d+&?/', '$1', url()->previous()))
-            ->with('toast', "Deleted “{$task->title}”")->with('undo', ['action' => 'restore', 'id' => $task->id]);
+            ->with('toast', "Deleted “{$task->title}”".($n ? " and its {$n} ".($n === 1 ? 'subtask' : 'subtasks') : ''))
+            ->with('undo', ['action' => 'restore', 'id' => $task->id]);
     }
 
     public function restore(Request $request, int $id): RedirectResponse

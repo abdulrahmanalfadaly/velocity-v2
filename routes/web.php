@@ -82,6 +82,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('tasks/archive', ArchiveController::class)->name('tasks.archive');
         Route::post('tasks/{task}/cancel', [TaskController::class, 'cancel'])->name('tasks.cancel');
         Route::post('tasks/{task}/blocks', [TaskController::class, 'blocks'])->name('tasks.blocks');
+        Route::post('tasks/{task}/subtasks', [TaskController::class, 'subtask'])->name('tasks.subtask');
         Route::post('tasks/{task}/archive', [TaskController::class, 'archive'])->name('tasks.archive-one');
         Route::post('tasks/{task}/unarchive', [TaskController::class, 'unarchive'])->name('tasks.unarchive');
 

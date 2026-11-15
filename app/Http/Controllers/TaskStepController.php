@@ -67,6 +67,7 @@ class TaskStepController extends Controller
             'title' => $step->title,
             'parent_id' => $parent->id,
             'project_id' => $parent->project_id,
+            'goal_id' => $parent->project_id ? null : $parent->goal_id,
             'importance' => $parent->importance,
             'urgency' => $parent->urgency,
             'due_at' => $parent->due_at,

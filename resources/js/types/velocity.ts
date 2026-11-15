@@ -83,7 +83,7 @@ export interface FollowUpTask extends BaseTask {
 export type TaskDetail = BaseTask &
     Partial<Omit<RankedTask, keyof BaseTask>> & {
         total: number;
-        children: { id: number; title: string; rank: number | null; score: number | null }[];
+        children: { id: number; title: string; status: Status; dueAt: string | null; rank: number | null; score: number | null }[];
         dependsOn: { id: number; title: string; status: Status }[];
         /** Tasks that wait on this one. */
         blocks?: { id: number; title: string; status: Status }[];

@@ -265,16 +265,31 @@ class TaskActions
         }
     }
 
-    public function delete(Task $task, User $user): void
+    /**
+     * Deletes a task (Undo can bring it back). With $children its subtasks go too, and
+     * come back with it; without, they stay as tasks of their own.
+     */
+    public function delete(Task $task, User $user, bool $children = false): void
     {
-        $task->events()->create(['user_id' => $user->id, 'type' => 'deleted']);
+        $kids = $children ? $task->children()->get() : collect();
+        $task->events()->create(['user_id' => $user->id, 'type' => 'deleted', 'snapshot' => $kids->isNotEmpty() ? ['children' => $kids->pluck('id')->all()] : null]);
+        foreach ($kids as $kid) {
+            $kid->events()->create(['user_id' => $user->id, 'type' => 'deleted', 'snapshot' => ['withParent' => $task->id]]);
+            $kid->delete();
+        }
         $task->delete();
     }
 
     public function restore(Task $task, User $user): void
     {
+        $deleted = $task->events()->where('type', 'deleted')->first();
         $task->restore();
         $task->events()->create(['user_id' => $user->id, 'type' => 'restored']);
+        // Subtasks deleted with it come back with it.
+        $ids = $deleted?->snapshot['children'] ?? [];
+        if ($ids) {
+            Task::onlyTrashed()->where('user_id', $user->id)->whereIn('id', $ids)->get()->each(fn (Task $kid) => $this->restore($kid, $user));
+        }
     }
 
     /** Scores a task that is not saved yet and finds its place among the others (leaving out $except). */

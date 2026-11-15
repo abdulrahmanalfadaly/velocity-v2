@@ -42,6 +42,8 @@ export function TaskPanel({
 }) {
     const [title, setTitle] = useState(task.title);
     const [newStep, setNewStep] = useState('');
+    const [newSub, setNewSub] = useState('');
+    const [deleting, setDeleting] = useState(false);
     const [busy, setBusy] = useState(false);
     const titleRef = useRef<HTMLTextAreaElement>(null);
     useEffect(() => setTitle(task.title), [task.id, task.title]);
@@ -86,8 +88,12 @@ export function TaskPanel({
             onFinish: () => setBusy(false),
         });
     };
-    // Still waiting on another task: ask first.
-    const toggleDone = () => (!finished && waitingOn ? setAsking(true) : complete());
+    const openKids = task.children.filter((c) => isOpen(c.status));
+    // Still waiting on another task, or subtasks still open: ask first.
+    const toggleDone = () => (!finished && (waitingOn || openKids.length) ? setAsking(true) : complete());
+    const remove = (children?: 'delete' | 'keep') =>
+        router.delete(route('tasks.destroy', task.id), { preserveScroll: true, data: children ? { children } : {} });
+    const kids = (n: number) => (n === 1 ? '1 subtask' : `${n} subtasks`);
     const saveTitle = () => {
         if (!title.trim()) setTitle(task.title);
         else if (title !== task.title) patch(task.id, { title: title.trim() });
@@ -145,7 +151,7 @@ export function TaskPanel({
                         className="icon-btn"
                         aria-label="Delete task"
                         title="Delete (you can undo)"
-                        onClick={() => router.delete(route('tasks.destroy', task.id), { preserveScroll: true })}
+                        onClick={() => (task.children.length ? setDeleting(true) : remove())}
                     >
                         <Icon name="trash" />
                     </button>
@@ -734,14 +740,6 @@ export function TaskPanel({
                                 </button>
                             </li>
                         ))}
-                        {task.children.map((c) => (
-                            <li key={`c${c.id}`} className="pt-step pt-subtask" style={{ minHeight: 34 }}>
-                                <span className="rank-badge">{c.rank ?? '–'}</span>
-                                <Link className="pt-step-title" href={`?task=${c.id}`} preserveScroll title={c.title}>
-                                    {c.title}
-                                </Link>
-                            </li>
-                        ))}
                     </ul>
                     <form
                         className="add-step"
@@ -768,6 +766,72 @@ export function TaskPanel({
                         />
                     </form>
                 </section>
+
+                {(!finished || task.children.length > 0) && (
+                    <section className="p-section">
+                        <div className="p-section-head">
+                            <h3 className="p-section-title">Subtasks</h3>
+                            {task.children.length > 0 && (
+                                <span className="card-sub">
+                                    {task.children.filter((c) => !isOpen(c.status)).length} of {task.children.length} done
+                                </span>
+                            )}
+                        </div>
+                        <ul className="steps">
+                            {task.children.map((c) => (
+                                <li key={c.id} className={`pt-step pt-subtask${isOpen(c.status) ? '' : ' is-done'}`} style={{ minHeight: 34 }}>
+                                    <Check
+                                        done={c.status === 'done'}
+                                        label={c.status === 'done' ? `Mark “${c.title}” not done` : `Mark “${c.title}” done`}
+                                        onClick={() =>
+                                            router.post(
+                                                route(isOpen(c.status) ? 'tasks.complete' : 'tasks.reopen', c.id),
+                                                {},
+                                                { preserveScroll: true, preserveState: true },
+                                            )
+                                        }
+                                    />
+                                    <Link className="pt-step-title" href={`?task=${c.id}`} preserveScroll title={c.title}>
+                                        {c.title}
+                                    </Link>
+                                    {c.rank != null ? (
+                                        <span className="rank-badge" title={`#${c.rank} in the ranking`}>
+                                            {c.rank}
+                                        </span>
+                                    ) : c.dueAt && isOpen(c.status) ? (
+                                        <span className="card-sub">{clock.date(c.dueAt, { day: 'numeric', month: 'short' })}</span>
+                                    ) : null}
+                                </li>
+                            ))}
+                        </ul>
+                        {!finished && (
+                            <form
+                                className="add-step"
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (!newSub.trim()) return;
+                                    const text = newSub;
+                                    setNewSub('');
+                                    router.post(
+                                        route('tasks.subtask', task.id),
+                                        { title: text },
+                                        { preserveScroll: true, preserveState: true, onError: () => setNewSub(text) },
+                                    );
+                                }}
+                            >
+                                <Icon name="plus" className="ic-sm" />
+                                <input
+                                    value={newSub}
+                                    onChange={(e) => setNewSub(e.target.value)}
+                                    placeholder="Add a subtask (a task of its own)"
+                                    aria-label="Add a subtask"
+                                    maxLength={255}
+                                    style={{ flex: 1, border: 0, background: 'transparent', outline: 0 }}
+                                />
+                            </form>
+                        )}
+                    </section>
+                )}
             </div>
             <div className="panel-foot">
                 <button className="btn btn-primary btn-lg" onClick={toggleDone} disabled={busy}>
@@ -777,25 +841,82 @@ export function TaskPanel({
                 {!finished && <StartFocus taskId={task.id} className="btn btn-secondary btn-lg" />}
             </div>
             {cancelling && <CancelTask task={task} onClose={() => setCancelling(false)} />}
-            {asking && waitingOn && (
-                <Modal title={`Still waiting on “${waitingOn.title}”`} onClose={() => setAsking(false)}>
+            {asking && (
+                <Modal
+                    title={waitingOn ? `Still waiting on “${waitingOn.title}”` : `${kids(openKids.length)} still open`}
+                    onClose={() => setAsking(false)}
+                >
                     <div className="vform" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), setAsking(false))}>
-                        <p className="muted">“{task.title}” starts after it, and it isn’t done yet.</p>
+                        <p className="muted">
+                            {waitingOn ? `“${task.title}” starts after it, and it isn’t done yet.` : ''}
+                            {waitingOn && openKids.length ? ` ${kids(openKids.length)} still open too.` : ''}
+                            {!waitingOn ? 'Complete them too, or only this task?' : ''}
+                        </p>
                         <div className="vform-foot">
                             <button type="button" className="btn btn-ghost" onClick={() => setAsking(false)}>
                                 Keep it open
                             </button>
-                            <button
-                                type="button"
-                                className="btn btn-primary"
-                                autoFocus
-                                onClick={() => {
-                                    setAsking(false);
-                                    complete({ anyway: true });
-                                }}
-                            >
-                                Complete anyway
+                            <div className="vform-foot-right">
+                                {openKids.length > 0 ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            onClick={() => {
+                                                setAsking(false);
+                                                complete({ anyway: true, children: 'leave' });
+                                            }}
+                                        >
+                                            Only this one
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-primary"
+                                            autoFocus
+                                            onClick={() => {
+                                                setAsking(false);
+                                                complete({ anyway: true, children: 'complete' });
+                                            }}
+                                        >
+                                            Complete them too
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        autoFocus
+                                        onClick={() => {
+                                            setAsking(false);
+                                            complete({ anyway: true });
+                                        }}
+                                    >
+                                        Complete anyway
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+            {deleting && (
+                <Modal title={`Delete “${task.title}”?`} onClose={() => setDeleting(false)}>
+                    <div className="vform" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), setDeleting(false))}>
+                        <p className="muted">
+                            It has {kids(task.children.length)}. Delete them too, or keep them as tasks of their own? You can undo either.
+                        </p>
+                        <div className="vform-foot">
+                            <button type="button" className="btn btn-ghost" onClick={() => setDeleting(false)}>
+                                Cancel
                             </button>
+                            <div className="vform-foot-right">
+                                <button type="button" className="btn btn-secondary" onClick={() => remove('keep')}>
+                                    Keep the subtasks
+                                </button>
+                                <button type="button" className="btn btn-primary" autoFocus onClick={() => remove('delete')}>
+                                    Delete them too
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </Modal>

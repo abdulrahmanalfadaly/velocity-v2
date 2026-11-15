@@ -85,7 +85,7 @@ class Task extends Model
 
     public function children(): HasMany
     {
-        return $this->hasMany(Task::class, 'parent_id');
+        return $this->hasMany(Task::class, 'parent_id')->orderBy('id');
     }
 
     public function steps(): HasMany
