@@ -124,4 +124,30 @@ class TaskFilesTest extends TestCase
         Storage::disk('local')->assertMissing($path);
         $this->assertSame(0, TaskFile::count());
     }
+
+    public function test_a_project_has_files_of_its_own_and_shows_its_tasks_files_and_rows_count_them(): void
+    {
+        $project = $this->user->projects()->create(['name' => 'Chapter 3']);
+        $this->task->update(['project_id' => $project->id]);
+        $this->post(route('files.store', $this->task), ['files' => [$this->png('scan.png')]]);
+        $this->post(route('project-files.store', $project), ['files' => [UploadedFile::fake()->create('brief.pdf', 50, 'application/pdf')]])
+            ->assertSessionHas('toast', 'Attached “brief.pdf”');
+
+        $this->get(route('projects.show', $project))->assertInertia(fn ($page) => $page
+            ->count('files', 2)
+            ->where('files.0.name', 'brief.pdf')->where('files.0.task', null)
+            ->where('files.1.name', 'scan.png')->where('files.1.task.title', 'Essay'));
+        $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->where('tasks.0.fileCount', 1));
+
+        $brief = $project->files()->sole();
+        $this->get(route('project-files.show', $brief))->assertOk();
+        $this->delete(route('project-files.destroy', $brief))->assertSessionHas('undo.action', 'restore-project-file');
+        $this->assertSame(0, $project->files()->count());
+        $this->post(route('project-files.restore', $brief->id));
+        $this->assertSame(1, $project->files()->count());
+
+        // Nobody else's.
+        $this->actingAs(User::factory()->create());
+        $this->get(route('project-files.show', $brief))->assertNotFound();
+    }
 }

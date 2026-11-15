@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FocusSession;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\TaskFile;
 use App\Services\AutoArchive;
 use App\Services\HabitStats;
 use App\Services\RankingService;
@@ -175,6 +176,11 @@ class ProjectController extends Controller
             'people' => $project->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'initials' => $p->initials(), 'relationship' => $p->relationship])->values(),
             'peopleChoices' => $request->user()->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'notes' => $project->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+            // The project's own files, and the files on its tasks (with the task they are on).
+            'files' => $project->files()->get()->map(fn ($f) => $f->present() + ['task' => null])->concat(
+                TaskFile::whereIn('task_id', $project->tasks()->whereNull('archived_at')->select('id'))->with('task:id,title')->latest('id')->limit(200)->get()
+                    ->map(fn (TaskFile $f) => $f->present() + ['task' => ['id' => $f->task->id, 'title' => $f->task->title]])
+            )->values(),
             // GitHub (once connected in Settings): the project's repository; its open issues load on their own.
             'github' => $user->github_login ? ['repo' => $project->github_repo] : null,
             // The task panel opens right here (?task=id), as on the Tasks pages.

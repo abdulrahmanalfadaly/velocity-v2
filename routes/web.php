@@ -20,6 +20,7 @@ use App\Http\Controllers\PersonLinkController;
 use App\Http\Controllers\PlannerBlockController;
 use App\Http\Controllers\PlannerController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectFileController;
 use App\Http\Controllers\ProjectStatusController;
 use App\Http\Controllers\ReminderController;
 use App\Http\Controllers\ReviewController;
@@ -77,6 +78,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('files/{file}', [TaskFileController::class, 'show'])->name('files.show');
         Route::delete('files/{file}', [TaskFileController::class, 'destroy'])->name('files.destroy');
         Route::post('files/{id}/restore', [TaskFileController::class, 'restore'])->whereNumber('id')->name('files.restore');
+        Route::post('projects/{project}/files', [ProjectFileController::class, 'store'])->name('project-files.store');
+        Route::post('projects/{project}/files/remove', [ProjectFileController::class, 'removeMany'])->name('project-files.remove-many');
+        Route::get('project-files/{file}', [ProjectFileController::class, 'show'])->name('project-files.show');
+        Route::delete('project-files/{file}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
+        Route::post('project-files/{id}/restore', [ProjectFileController::class, 'restore'])->whereNumber('id')->name('project-files.restore');
         Route::post('steps/{id}/restore', [TaskStepController::class, 'restore'])->whereNumber('id')->name('steps.restore');
         Route::post('tasks/{task}/unpromote', [TaskController::class, 'unpromote'])->name('tasks.unpromote');
 

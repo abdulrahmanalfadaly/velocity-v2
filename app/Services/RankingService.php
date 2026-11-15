@@ -49,6 +49,7 @@ class RankingService
         $params ??= $user->weights()->parameters();
         $tasks = $this->eligibleQuery($user)
             ->with(['project.goal', 'goal', 'parent:id,title', 'steps'])
+            ->withCount('files')
             ->get()
             ->keyBy('id');
 

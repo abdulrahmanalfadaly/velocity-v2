@@ -1489,6 +1489,10 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .vcol.is-weekend { background: transparent; }
 .vcol-body { display: grid; gap: 8px; padding: 4px 8px 10px; }
 .vt-span { margin: 0 0 10px; }
+.p-file-task { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; text-decoration: none; }
+.p-file-task:hover { color: var(--text); text-decoration: underline; }
+.pfiles { padding: 4px 18px 14px; }
+.is-files { display: inline-flex; align-items: center; gap: 3px; }
 .pviews { padding: 4px 16px 16px; overflow-x: auto; }
 .pviews .vboard { min-width: 720px; }
 .vtimeline.is-weeks .vcol-head { flex-direction: column; gap: 2px; }

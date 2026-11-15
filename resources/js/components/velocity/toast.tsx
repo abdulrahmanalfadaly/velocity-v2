@@ -29,6 +29,8 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'unskip-event': { method: 'post', route: 'events.unskip' },
     'focus-resume': { method: 'post', route: 'focus.undo-stop' },
     'remove-files': { method: 'post', route: 'files.remove-many' },
+    'remove-project-files': { method: 'post', route: 'project-files.remove-many' },
+    'restore-project-file': { method: 'post', route: 'project-files.restore' },
     'restore-milestone': { method: 'post', route: 'milestones.restore' },
     'restore-template': { method: 'post', route: 'templates.restore' },
     'delete-template': { method: 'delete', route: 'templates.destroy' },

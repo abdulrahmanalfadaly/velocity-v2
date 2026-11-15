@@ -44,7 +44,7 @@ list only covers what's missing or partly there.
 - [x] An "All tasks" list that includes finished and archived ones. **Add**
 - [ ] A "suggested work" score with time and energy pickers and reasons. **Can't** as GPT did it; **Filter only**; reasons stay in FYP mode
 - [x] ★3 Reminders: several per task, ones that move with the due date, "Bug me" repeats, more snooze choices. **Partly** (one reminder; "before due" is saved as a fixed time; snooze 10 min / 1 h)
-- [ ] Paste files into a task, a file count on rows, files on projects. **Partly** (PLAN decision 3 promises project files)
+- [x] Paste files into a task, a file count on rows, files on projects. **Partly** (PLAN decision 3 promises project files)
 - [x] Task activity list. **Add** (the data is stored already)
 - [ ] Delete a parent task (keep or delete its subtasks); empty the Archive. **Add**
 

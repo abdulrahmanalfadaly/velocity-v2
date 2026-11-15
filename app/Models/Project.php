@@ -41,6 +41,12 @@ class Project extends Model
         return $this->hasMany(Task::class);
     }
 
+    /** Files on the project itself (its tasks have their own). */
+    public function files(): HasMany
+    {
+        return $this->hasMany(ProjectFile::class)->latest('id');
+    }
+
     public function milestones(): HasMany
     {
         return $this->hasMany(Milestone::class)->orderBy('position');

@@ -51,6 +51,8 @@ export interface BaseTask {
     /** The project's goal, or the task's own when it has no project. */
     goal?: { id: number; title: string; color: number } | null;
     parent: { id: number; title: string } | null;
+    /** How many files it has (on the ranked list). */
+    fileCount?: number | null;
     steps: Step[];
 }
 
@@ -137,6 +139,8 @@ export interface TaskFileInfo {
     image: boolean;
     url: string;
     addedAt: string | null;
+    /** On a project's Files tab: the task the file is on (none: the project's own). */
+    task?: { id: number; title: string } | null;
 }
 
 export interface RankingSettings {

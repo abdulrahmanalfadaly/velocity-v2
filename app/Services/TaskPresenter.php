@@ -46,6 +46,8 @@ class TaskPresenter
             // The project's goal, or the task's own when it has no project.
             'goal' => $goal ? ['id' => $goal->id, 'title' => $goal->title, 'color' => $goal->color] : null,
             'parent' => $task->relationLoaded('parent') && $task->parent ? ['id' => $task->parent->id, 'title' => $task->parent->title] : null,
+            // How many files it has (when counted with the list).
+            'fileCount' => $task->files_count ?? null,
             'steps' => $task->relationLoaded('steps')
                 ? $task->steps->map(fn ($s) => ['id' => $s->id, 'title' => $s->title, 'done' => $s->done_at !== null])->values()->all()
                 : [],

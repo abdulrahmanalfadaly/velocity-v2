@@ -1,20 +1,61 @@
 import type { TaskFileInfo } from '@/types/velocity';
-import { router } from '@inertiajs/react';
-import { type DragEvent, useRef, useState } from 'react';
+import { Link, router } from '@inertiajs/react';
+import { type DragEvent, useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 
 const MAX = 20 * 1024 * 1024; // 20 MB, the same limit as the server
 
 export const fileSize = (b: number) => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
 
-/** The task panel's Files: attach (button or drag in), open, download, remove. */
+/** The task panel's Files: attach (button, drag in, or paste), open, download, remove. */
 export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileInfo[] }) {
+    return <FileBox storeUrl={route('files.store', taskId)} removeRoute="files.destroy" files={files} paste />;
+}
+
+/** A pasted screenshot is called "image.png"; give it a name that says when. */
+function pastedName(f: File): File {
+    if (f.name && f.name !== 'image.png') return f;
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '.');
+    return new File([f], `Pasted ${stamp}.${f.type.split('/')[1] || 'png'}`, { type: f.type });
+}
+
+/**
+ * Files on a task or a project: attach (button or drag in; on a task, also paste), open, download,
+ * remove. On a project's Files tab the files on its tasks show too, each with its task.
+ */
+export function FileBox({
+    storeUrl,
+    removeRoute,
+    files,
+    paste = false,
+    title = 'Files',
+}: {
+    storeUrl: string;
+    removeRoute: string;
+    files: TaskFileInfo[];
+    paste?: boolean;
+    title?: string;
+}) {
     const input = useRef<HTMLInputElement>(null);
     const [over, setOver] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const upload = (list: FileList | null) => {
+    // Paste a file or a screenshot while the panel is open (not into another box).
+    useEffect(() => {
+        if (!paste) return;
+        const onPaste = (e: ClipboardEvent) => {
+            const list = [...(e.clipboardData?.files ?? [])];
+            const target = e.target as Element | null;
+            if (!list.length || !(target === document.body || target?.closest?.('.panel'))) return;
+            e.preventDefault();
+            upload(list.map(pastedName));
+        };
+        document.addEventListener('paste', onPaste);
+        return () => document.removeEventListener('paste', onPaste);
+    });
+
+    const upload = (list: FileList | File[] | null) => {
         if (!list?.length) return;
         const picked = [...list].slice(0, 10);
         const big = picked.find((f) => f.size > MAX);
@@ -25,7 +66,7 @@ export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileIn
         setError(null);
         setBusy(true);
         router.post(
-            route('files.store', taskId),
+            storeUrl,
             { files: picked },
             {
                 forceFormData: true,
@@ -59,7 +100,7 @@ export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileIn
             }}
         >
             <div className="p-section-head">
-                <h3 className="p-section-title">Files</h3>
+                <h3 className="p-section-title">{title}</h3>
                 <button className="btn btn-ghost btn-sm" onClick={() => input.current?.click()} disabled={busy}>
                     <Icon name="paperclip" className="ic-sm" />
                     {busy ? 'Attaching…' : 'Attach'}
@@ -75,6 +116,11 @@ export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileIn
                                 <span className="p-file-name">{f.name}</span>
                                 <span className="p-file-size">{fileSize(f.size)}</span>
                             </a>
+                            {f.task && (
+                                <Link className="p-file-task" href={`?task=${f.task.id}`} preserveScroll preserveState title="Open the task">
+                                    {f.task.title}
+                                </Link>
+                            )}
                             <a className="icon-btn" href={`${f.url}?download=1`} aria-label={`Download “${f.name}”`} title="Download">
                                 <Icon name="arrowR" className="ic-sm p-file-dl" />
                             </a>
@@ -82,7 +128,9 @@ export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileIn
                                 className="icon-btn"
                                 aria-label={`Remove “${f.name}”`}
                                 title="Remove"
-                                onClick={() => router.delete(route('files.destroy', f.id), { preserveScroll: true, preserveState: true })}
+                                onClick={() =>
+                                    router.delete(route(f.task ? 'files.destroy' : removeRoute, f.id), { preserveScroll: true, preserveState: true })
+                                }
                             >
                                 <Icon name="x" className="ic-sm" />
                             </button>
@@ -90,7 +138,7 @@ export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileIn
                     ))}
                 </ul>
             ) : (
-                <p className="p-files-empty">Drop files here, or use Attach. Up to 20 MB each.</p>
+                <p className="p-files-empty">Drop files here{paste ? ', paste them' : ''}, or use Attach. Up to 20 MB each.</p>
             )}
             {error && <p className="field-error">{error}</p>}
         </section>

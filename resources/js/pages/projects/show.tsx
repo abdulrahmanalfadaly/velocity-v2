@@ -6,12 +6,13 @@ import { HabitDialog } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { Picker } from '@/components/velocity/pick';
 import { Select } from '@/components/velocity/select';
+import { FileBox } from '@/components/velocity/task-files';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Board, Timeline } from '@/components/velocity/task-views';
 import { Check, HabitButton, Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmt1, fmtHours, goalVar } from '@/lib/velocity';
-import type { BaseTask, HabitToday, NotReadyTask, RankedTask, TaskDetail, VelocityShared } from '@/types/velocity';
+import type { BaseTask, HabitToday, NotReadyTask, RankedTask, TaskDetail, TaskFileInfo, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 import { type KeyboardEvent, useMemo, useState } from 'react';
 
@@ -56,13 +57,15 @@ interface Props extends VelocityShared {
     done: BaseTask[];
     habits: HabitToday[];
     notes: { id: number; title: string; updatedAt: string | null }[];
+    /** The project's own files, and the files on its tasks. */
+    files: TaskFileInfo[];
     /** Set once GitHub is connected in Settings → Integrations. */
     github: { repo: string | null } | null;
     selected: TaskDetail | null;
     projects: { id: number; name: string }[];
 }
 
-type View = 'overview' | 'tasks' | 'notes' | 'habits';
+type View = 'overview' | 'tasks' | 'notes' | 'habits' | 'files';
 
 /** A soft contour-line landscape, unique to each project and tinted with its goal colour. */
 function WorldArt({ seed }: { seed: string }) {
@@ -134,6 +137,7 @@ export default function ProjectShow() {
         ['tasks', 'Tasks', props.tasks.length + props.notReady.length],
         ['notes', 'Notes', props.notes.length],
         ['habits', 'Habits', props.habits.length],
+        ['files', 'Files', props.files.length],
     ];
 
     return (
@@ -722,6 +726,16 @@ export default function ProjectShow() {
                                         </div>
                                     ))}
                                 </div>
+                            </section>
+                        )}
+                        {view === 'files' && (
+                            <section className="card pfiles">
+                                <FileBox
+                                    storeUrl={route('project-files.store', project.id)}
+                                    removeRoute="project-files.destroy"
+                                    files={props.files}
+                                    title="Files on this project and its tasks"
+                                />
                             </section>
                         )}
                         {show('notes') && (

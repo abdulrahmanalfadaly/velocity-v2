@@ -461,6 +461,18 @@ export default function TasksIndex() {
                                                                 </span>
                                                             </>
                                                         )}
+                                                        {t.fileCount ? (
+                                                            <>
+                                                                <span className="dotsep" />
+                                                                <span
+                                                                    className="is-files"
+                                                                    title={`${t.fileCount} ${t.fileCount === 1 ? 'file' : 'files'}`}
+                                                                >
+                                                                    <Icon name="paperclip" className="ic-xs" />
+                                                                    {t.fileCount}
+                                                                </span>
+                                                            </>
+                                                        ) : null}
                                                         {t.parent && (
                                                             <>
                                                                 <span className="dotsep" />

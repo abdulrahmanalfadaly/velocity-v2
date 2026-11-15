@@ -82,6 +82,12 @@ function Card({
                 )}
                 {!done && t.dueAt && <span className={due.late ? 'is-late' : ''}>{due.text}</span>}
                 <span>{fmtHours(t.estHours)}</span>
+                {t.fileCount ? (
+                    <span className="is-files" title={`${t.fileCount} ${t.fileCount === 1 ? 'file' : 'files'}`}>
+                        <Icon name="paperclip" className="ic-xs" />
+                        {t.fileCount}
+                    </span>
+                ) : null}
             </div>
         </div>
     );
