@@ -1,3 +1,4 @@
+import { BulkSet } from '@/components/velocity/bulk-set';
 import { DatePick } from '@/components/velocity/date-pick';
 import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
@@ -124,7 +125,7 @@ export default function TasksIndex() {
         });
         lastPick.current = id;
     };
-    const bulk = (action: 'complete' | 'cancel' | 'delete' | 'move' | 'due', extra: Record<string, string | number | null> = {}) => {
+    const bulk = (action: string, extra: Record<string, string | number | null> = {}) => {
         if (!picked?.length) return;
         router.post(
             route('tasks.bulk'),
@@ -589,6 +590,7 @@ export default function TasksIndex() {
                     >
                         Set due
                     </button>
+                    <BulkSet disabled={!picked.length} onSet={bulk} />
                     <button className="btn btn-secondary btn-sm" disabled={!picked.length} onClick={() => bulk('cancel')}>
                         <Icon name="ban" className="ic-sm" />
                         Cancel

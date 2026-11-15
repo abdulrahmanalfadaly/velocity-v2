@@ -454,6 +454,10 @@ class TaskController extends Controller
             'action' => ['required', Rule::in(self::BULK)],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'due_at' => ['nullable', 'date'],
+            'importance' => ['required_if:action,importance', 'integer', 'between:1,5'],
+            'urgency' => ['required_if:action,urgency', 'integer', 'between:1,5'],
+            'status' => ['required_if:action,status', Rule::in(Task::OPEN)],
+            'follow_up_on' => ['nullable', 'date_format:Y-m-d'],
         ]);
         // Only the user's own tasks that the action fits (open ones to finish, finished ones to reopen …); the rest are quietly left out.
         $query = $user->tasks()->whereIn('id', $data['ids']);
@@ -509,6 +513,24 @@ class TaskController extends Controller
                 }
                 $toast = "Moved {$n} {$noun}";
                 break;
+            case 'importance':
+            case 'urgency':
+            case 'status':
+            case 'follow_up':
+                // Through the same change as the panel's (history, "waiting since"); Undo puts each task's old value back.
+                $field = $data['action'] === 'follow_up' ? 'follow_up_on' : $data['action'];
+                $value = $data[$field] ?? null;
+                foreach ($tasks as $t) {
+                    $before[$t->id] = [$field => $field === 'follow_up_on' ? $t->follow_up_on?->toDateString() : $t->{$field}]
+                        + ($field === 'status' ? ['waiting_since' => $t->waiting_since?->toIso8601ZuluString()] : []);
+                    $this->actions->update($t, $user, [$field => $value]);
+                }
+                $toast = match ($field) {
+                    'status' => 'Set '.$n.' '.$noun.' to '.['todo' => 'To do', 'doing' => 'Doing', 'waiting' => 'Waiting'][$value],
+                    'follow_up_on' => $value ? "Follow-up set on {$n} {$noun}" : "Follow-up cleared on {$n} {$noun}",
+                    default => ucfirst($field)." set on {$n} {$noun}",
+                };
+                break;
             default: // due
                 $due = $this->fromLocal($data['due_at'] ?? null, $user);
                 foreach ($tasks as $t) {
@@ -524,7 +546,7 @@ class TaskController extends Controller
     }
 
     /** What the selection bar can do to several tasks at once. */
-    private const BULK = ['complete', 'cancel', 'delete', 'move', 'due', 'reopen', 'archive', 'unarchive'];
+    private const BULK = ['complete', 'cancel', 'delete', 'move', 'due', 'reopen', 'archive', 'unarchive', 'importance', 'urgency', 'status', 'follow_up'];
 
     /** A change from the selection bar goes into the task's history like one from its panel (Review counts it). */
     private function history(Task $task, User $user, array $before, array $after): void
@@ -541,13 +563,17 @@ class TaskController extends Controller
             'ids.*' => ['integer'],
             'action' => ['required', Rule::in(self::BULK)],
             'before' => ['nullable', 'array'],
-            'before.*.status' => ['sometimes', Rule::in(Task::FINISHED)],
+            'before.*.status' => ['sometimes', Rule::in(Task::STATUSES)],
             'before.*.score' => ['nullable', 'numeric'],
             'before.*.reason' => ['nullable', 'string', 'max:300'],
             'before.*.archived' => ['sometimes', 'boolean'],
             'before.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'before.*.due_at' => ['nullable', 'date'],
             'before.*.repeat_day' => ['nullable', 'integer', 'between:1,31'],
+            'before.*.importance' => ['sometimes', 'integer', 'between:1,5'],
+            'before.*.urgency' => ['sometimes', 'integer', 'between:1,5'],
+            'before.*.follow_up_on' => ['nullable', 'date_format:Y-m-d'],
+            'before.*.waiting_since' => ['nullable', 'date'],
         ]);
         $tasks = Task::withTrashed()->where('user_id', $user->id)->whereIn('id', $data['ids'])->get();
 
@@ -569,8 +595,10 @@ class TaskController extends Controller
                 $this->actions->unarchive($t, $user);
             } elseif ($data['action'] === 'unarchive' && ! $t->archived_at && in_array($t->status, Task::FINISHED, true)) {
                 $this->actions->archive($t, $user);
-            } elseif (in_array($data['action'], ['move', 'due'], true) && isset($data['before'][$t->id])) {
-                $t->update(array_intersect_key($data['before'][$t->id], ['project_id' => 1, 'due_at' => 1, 'repeat_day' => 1]));
+            } elseif (in_array($data['action'], ['move', 'due', 'importance', 'urgency', 'follow_up'], true) && isset($data['before'][$t->id])) {
+                $t->update(array_intersect_key($data['before'][$t->id], ['project_id' => 1, 'due_at' => 1, 'repeat_day' => 1, 'importance' => 1, 'urgency' => 1, 'follow_up_on' => 1]));
+            } elseif ($data['action'] === 'status' && $t->isOpen() && in_array($data['before'][$t->id]['status'] ?? null, Task::OPEN, true)) {
+                $t->update(['status' => $data['before'][$t->id]['status'], 'waiting_since' => $data['before'][$t->id]['waiting_since'] ?? null]);
             }
         }
 

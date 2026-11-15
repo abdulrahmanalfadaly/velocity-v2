@@ -149,4 +149,26 @@ class BulkActionsTest extends TestCase
         $this->undo();
         $this->assertNotNull($done->fresh()->archived_at);
     }
+
+    public function test_importance_urgency_status_and_follow_up_can_be_set_on_several_tasks_with_undo(): void
+    {
+        $a = $this->task('A', ['importance' => 2]);
+        $b = $this->task('B', ['importance' => 4, 'status' => 'doing']);
+
+        $this->post(route('tasks.bulk'), ['ids' => [$a->id, $b->id], 'action' => 'importance', 'importance' => 5])->assertSessionHas('toast', 'Importance set on 2 tasks');
+        $this->assertSame([5, 5], [$a->fresh()->importance, $b->fresh()->importance]);
+        $this->undo();
+        $this->assertSame([2, 4], [$a->fresh()->importance, $b->fresh()->importance]);
+
+        $this->post(route('tasks.bulk'), ['ids' => [$a->id, $b->id], 'action' => 'status', 'status' => 'waiting'])->assertSessionHas('toast', 'Set 2 tasks to Waiting');
+        $this->assertNotNull($a->fresh()->waiting_since);
+        $this->undo();
+        $this->assertSame([Task::TODO, Task::DOING, null], [$a->fresh()->status, $b->fresh()->status, $a->fresh()->waiting_since]);
+
+        $this->post(route('tasks.bulk'), ['ids' => [$a->id], 'action' => 'follow_up', 'follow_up_on' => '2026-11-16'])->assertSessionHas('toast', 'Follow-up set on 1 task');
+        $this->assertSame('2026-11-16', $a->fresh()->follow_up_on->toDateString());
+        $this->undo();
+        $this->assertNull($a->fresh()->follow_up_on);
+        $this->post(route('tasks.bulk'), ['ids' => [$a->id], 'action' => 'urgency'])->assertSessionHasErrors('urgency');
+    }
 }

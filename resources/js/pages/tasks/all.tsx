@@ -1,3 +1,4 @@
+import { BulkSet } from '@/components/velocity/bulk-set';
 import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
@@ -69,8 +70,12 @@ export default function AllTasks() {
         return parts.join(' · ');
     };
     const toggle = (id: number) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-    const bulk = (action: string) =>
-        router.post(route('tasks.bulk'), { ids: picked, action }, { preserveScroll: true, preserveState: true, onSuccess: () => setPicked([]) });
+    const bulk = (action: string, extra: Record<string, string | number | null> = {}) =>
+        router.post(
+            route('tasks.bulk'),
+            { ids: picked, action, ...extra },
+            { preserveScroll: true, preserveState: true, onSuccess: () => setPicked([]) },
+        );
 
     return (
         <VelocityShell
@@ -185,6 +190,7 @@ export default function AllTasks() {
                                 <Icon name="ban" className="ic-sm" />
                                 Cancel
                             </button>
+                            <BulkSet onSet={bulk} />
                         </>
                     ) : (
                         <>
