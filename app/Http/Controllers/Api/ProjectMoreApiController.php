@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Actions\ProjectActions;
 use App\Http\Controllers\AreaController;
 use App\Models\Area;
+use App\Models\Goal;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\RankingService;
@@ -44,6 +45,47 @@ class ProjectMoreApiController extends ApiController
         $cancelled = $this->projects->complete($project, $user, $open === 'cancel');
 
         return $this->ok($this->present($project) + ['cancelledTasks' => $cancelled]);
+    }
+
+    /** {"tasks": "inbox" | "delete"}: its tasks go to the Inbox (the default) or are deleted too. meta.undo brings it back. */
+    public function destroy(Request $request, Project $project): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($project, $user);
+        $mode = $request->validate(['tasks' => ['sometimes', Rule::in(['inbox', 'delete'])]])['tasks'] ?? 'inbox';
+        $was = $this->projects->delete($project, $user, $mode);
+
+        return $this->ok(['id' => $project->id, 'deleted' => true], meta: ['undo' => $was]);
+    }
+
+    /** Send back what the delete answered in meta.undo. */
+    public function restore(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $project = Project::onlyTrashed()->findOrFail($id);
+        $this->own($project, $user);
+        $this->projects->restore($project, $user, $request->validate(ProjectActions::UNDO_RULES));
+
+        return $this->ok($this->present($project->fresh()));
+    }
+
+    /** Its projects and tasks stay, without a goal. meta.undo brings it back. */
+    public function destroyGoal(Request $request, Goal $goal): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($goal, $user);
+
+        return $this->ok(['id' => $goal->id, 'deleted' => true], meta: ['undo' => $this->projects->deleteGoal($goal, $user)]);
+    }
+
+    public function restoreGoal(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $goal = Goal::onlyTrashed()->findOrFail($id);
+        $this->own($goal, $user);
+        $this->projects->restoreGoal($goal, $user, $request->validate(ProjectActions::UNDO_RULES));
+
+        return $this->ok(['id' => $goal->id, 'title' => $goal->title, 'deleted' => false]);
     }
 
     public function reopen(Request $request, Project $project): JsonResponse

@@ -34,7 +34,7 @@ class TaskApiController extends ApiController
     {
         $user = $request->user();
         $q = $request->validate([
-            'view' => ['nullable', Rule::in(['upnext', 'inbox', 'waiting', 'done'])],
+            'view' => ['nullable', Rule::in(['upnext', 'inbox', 'waiting', 'done', 'cancelled', 'archived'])],
             'project_id' => ['nullable', 'integer'],
             'q' => ['nullable', 'string', 'max:100'],
             'limit' => ['nullable', 'integer', 'between:1,200'],
@@ -51,6 +51,10 @@ class TaskApiController extends ApiController
                 ->map(fn (Task $t) => ApiPresent::task($t, $list)),
             'waiting' => $this->ranking->notReady($user)->filter(fn ($r) => $keep($r['task']))
                 ->map(fn ($r) => ApiPresent::task($r['task']) + ['kind' => $r['kind'], 'why' => $r['why']]),
+            'cancelled' => $user->tasks()->where('status', Task::CANCELLED)->whereNull('archived_at')->with('project.goal')->latest('cancelled_at')->limit(500)->get()
+                ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
+            'archived' => $user->tasks()->whereNotNull('archived_at')->with('project.goal')->latest('archived_at')->limit(500)->get()
+                ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
             default => $user->tasks()->where('status', Task::DONE)->with('project.goal')->latest('completed_at')->limit(500)->get()
                 ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
         };
@@ -62,10 +66,15 @@ class TaskApiController extends ApiController
     {
         $user = $request->user();
         $this->own($task, $user);
-        $task->load(['project.goal', 'parent:id,title', 'steps', 'dependencies', 'linkedNotes.event', 'people', 'events' => fn ($q) => $q->limit(20)]);
+        $task->load(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'dependents', 'linkedNotes.event', 'people', 'events' => fn ($q) => $q->limit(20)]);
+        $list = $this->ranking->rank($user);
 
-        return $this->ok(ApiPresent::task($task, $this->ranking->rank($user)) + [
+        return $this->ok(ApiPresent::task($task, $list) + [
             'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
+            // Tasks that wait on this one, and its subtasks.
+            'blocks' => $task->dependents->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
+            'subtasks' => $task->children->map(fn ($c) => ['id' => $c->id, 'title' => $c->title, 'status' => $c->status, 'rank' => $list->rankOf($c->id)])->values(),
+            'activity' => TaskPresenter::activity($task, $user, 20),
             'notes' => $task->linkedNotes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
             'people' => $task->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'focusedMinutes' => (int) round($task->focusSessions()->whereNotNull('ended_at')->sum('seconds') / 60),
@@ -150,7 +159,11 @@ class TaskApiController extends ApiController
         if ($waiting && ! $request->boolean('anyway')) {
             abort(409, "It is still waiting on “{$waiting->title}”. Send {\"anyway\": true} to complete it anyway.");
         }
+        // "children": "complete" also finishes its open subtasks.
+        $kids = $request->input('children') === 'complete' && $task->status !== Task::DONE ? $task->children()->open()->get() : collect();
+        $list = $kids->isNotEmpty() ? $this->ranking->rank($user) : null;
         $next = $task->status === Task::DONE ? null : $this->actions->complete($task, $user);
+        $kids->each(fn (Task $kid) => $this->actions->complete($kid, $user, $list->scoreOf($kid->id), false));
         $list = $this->ranking->rank($user);
 
         return $this->ok(ApiPresent::task($task->fresh(['project.goal'])), meta: ['next' => $next ? ApiPresent::task($next, $list) : null]);
@@ -173,7 +186,8 @@ class TaskApiController extends ApiController
     {
         $user = $request->user();
         $this->own($task, $user);
-        $this->actions->delete($task, $user);
+        // "children": "delete" deletes its subtasks too (restore brings them back with it).
+        $this->actions->delete($task, $user, $request->input('children') === 'delete');
 
         return $this->ok(['id' => $task->id, 'deleted' => true]);
     }

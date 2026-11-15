@@ -82,6 +82,7 @@ organised (to be given later – ask before Phase 2 is finished).
 | 7 | Home, Review charts, global search | done |
 | 8 | API for Mark (personal tokens with scopes) + GitHub | done |
 | 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | top picks done; the rest of the list next |
+| 10 | The GPT list, batch 2: finishing tasks and projects | done |
 
 ## Phase 0 / 1 checklist
 
@@ -548,6 +549,60 @@ leave Up next; only finished or cancelled tasks can be archived.
       API share the same code (`NextActions`, `ProjectActions`,
       `Reminders`, `NoteLink::attach`). Mark's examples: eight short
       scripts on top of `mark_velocity.py`; `docs/api.md` covers it all.
+
+## Phase 10 checklist
+
+The second batch from `docs/backlog.md`: finishing tasks and projects. Plan
+approved on 15 Nov; the one call (other sorts on All tasks) went with the
+recommendation: no other sorts. Open tasks keep the formula's order there
+too, and finished ones go newest first.
+
+- [x] Small wins: a task with no project can belong straight to a goal
+      (`tasks.goal_id`; under the goal on the Goals map; moving it into a
+      project drops it); the panel warns when a task is due after its
+      project's due date (a label only); "Start now" on tasks that start later
+- [x] Quick add: "from mon" (start date), "remind 9am" / "remind fri 8am" /
+      "remind 1h before", "!" and "!!" (importance; the dots win); every chip
+      has an x that keeps its words in the title; the Note tab writes a note
+      with its text and stays ("Open in Notes" goes to the editor); "Add
+      another"; a dropped connection keeps the draft
+- [x] Waiting on other tasks: a Blocks list in the panel (add, take off;
+      loops refused with the reason); ticking a task still waiting asks
+      "Complete anyway?" (the server and the API only do it when asked);
+      "“Slides” can start now" after done or cancelled, "waits on it again"
+      after reopening (`TaskLinks`)
+- [x] Real subtasks: "Add subtask" (a task under this one, ranked like any;
+      it starts with the parent's importance, urgency and due date), their
+      own list with ticks; a parent with open subtasks asks: complete them
+      too, or only this one; deleting a parent asks: delete them too, or keep
+      them as tasks of their own (Undo brings back what went with it)
+- [x] Activity list in the task panel: its history in plain words ("Due
+      moved Wed 11 Nov → Fri 13 Nov", "Moved to “Chapter 3”", "Done"), with
+      when and via whom (`TaskPresenter::activity`)
+- [x] All tasks (Tasks › All tasks): Open / Done / Cancelled / Archived, a
+      search and a project filter; select several to reopen, archive, take
+      out of the archive or delete (each with Undo)
+- [x] The selection bar also sets importance, urgency, status and a
+      follow-up date on several tasks (Undo puts each one's old value back)
+- [x] A project's Tasks tab: List / Board / Timeline; the Timeline shows 2
+      weeks by day, or 2 or 3 months by week (a card dropped on a week keeps
+      its weekday; no date: that week's Friday)
+- [x] Templates with dates counted from the day they are used ("due 3 days
+      after use, 17:00", "can start 1 day after"); saving a task as a
+      template turns its dates into days from today
+- [x] Files: paste a file or screenshot while a task's panel is open; a
+      paperclip count on rows and cards; a project Files tab with the
+      project's own files (`project_files`) and its tasks' files
+- [x] Deleting a project or goal with things in it, with Undo (projects and
+      goals are now only marked deleted): a project's tasks go to the Inbox
+      or are deleted with it, its notes and habits stay; a goal's projects
+      and tasks stay without it (`ProjectActions::delete`, `deleteGoal`).
+      The Archive's "Delete all for good" / "Empty" ask first (no Undo)
+- [x] The API for all of it: `goal_id`, the new quick-add words,
+      `anyway` / `children` on complete and delete, subtasks, blocks,
+      `cancelled` and `archived` views, the new bulk actions, template
+      dates, deleting and restoring projects and goals (`meta.undo`).
+      Uploading files and emptying the Archive stay on the screens only.
 
 ## Run it
 

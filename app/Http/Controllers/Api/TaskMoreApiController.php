@@ -123,11 +123,23 @@ class TaskMoreApiController extends ApiController
         $d = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:100'],
             'ids.*' => ['integer', 'distinct'],
-            'action' => ['required', Rule::in(['complete', 'cancel', 'delete', 'move', 'due'])],
+            'action' => ['required', Rule::in(['complete', 'cancel', 'delete', 'move', 'due', 'reopen', 'archive', 'unarchive', 'importance', 'urgency', 'status', 'follow_up'])],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'due_at' => ['nullable', 'date'],
+            'importance' => ['required_if:action,importance', 'integer', 'between:1,5'],
+            'urgency' => ['required_if:action,urgency', 'integer', 'between:1,5'],
+            'status' => ['required_if:action,status', Rule::in(Task::OPEN)],
+            'follow_up_on' => ['nullable', 'date_format:Y-m-d'],
         ]);
-        $tasks = $user->tasks()->open()->whereIn('id', $d['ids'])->get();
+        // The same tasks the selection bar would take: open ones to finish or change, finished ones to reopen or archive.
+        $query = $user->tasks()->whereIn('id', $d['ids']);
+        $tasks = (match ($d['action']) {
+            'reopen' => $query->whereIn('status', Task::FINISHED),
+            'archive' => $query->whereIn('status', Task::FINISHED)->whereNull('archived_at'),
+            'unarchive' => $query->whereNotNull('archived_at'),
+            'delete', 'move' => $query,
+            default => $query->open(),
+        })->get();
         $list = $this->ranking->rank($user);
         $due = $this->at($d['due_at'] ?? null, $user, true);
         foreach ($tasks as $t) {
@@ -136,11 +148,46 @@ class TaskMoreApiController extends ApiController
                 'cancel' => $this->actions->cancel($t, $user),
                 'delete' => $this->actions->delete($t, $user),
                 'move' => $this->actions->update($t, $user, ['project_id' => $d['project_id'] ?? null]),
+                'reopen' => $this->actions->reopen($t, $user),
+                'archive' => $this->actions->archive($t, $user),
+                'unarchive' => $this->actions->unarchive($t, $user),
+                'importance', 'urgency', 'status' => $this->actions->update($t, $user, [$d['action'] => $d[$d['action']]]),
+                'follow_up' => $this->actions->update($t, $user, ['follow_up_on' => $d['follow_up_on'] ?? null]),
                 default => $this->actions->update($t, $user, ['due_at' => $due]),
             };
         }
 
         return $this->ok(['action' => $d['action'], 'ids' => $tasks->pluck('id')->values()]);
+    }
+
+    /** {"title"}: a subtask, ranked like any task (it starts with the parent's importance, urgency and due date). */
+    public function subtask(Request $request, Task $task): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $title = trim($request->validate(['title' => ['required', 'string', 'max:255']])['title']);
+        $kid = $this->actions->create($user, [
+            'title' => $title, 'parent_id' => $task->id, 'project_id' => $task->project_id, 'goal_id' => $task->project_id ? null : $task->goal_id,
+            'importance' => $task->importance, 'urgency' => $task->urgency, 'due_at' => $task->due_at, 'est_hours' => 1,
+        ]);
+
+        return $this->ok(ApiPresent::task($kid->fresh(['project.goal', 'parent:id,title']), $this->ranking->rank($user)), 201);
+    }
+
+    /** {"add": id} or {"remove": id}: a task that waits on this one (it is set to start after it). */
+    public function blocks(Request $request, Task $task): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $d = $request->validate([
+            'add' => ['required_without:remove', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
+            'remove' => ['required_without:add', 'integer'],
+        ]);
+        $other = Task::where('user_id', $user->id)->findOrFail($d['add'] ?? $d['remove']);
+        $ids = $other->dependencies()->pluck('tasks.id')->all();
+        $this->actions->update($other, $user, ['depends_on' => isset($d['add']) ? array_values(array_unique([...$ids, $task->id])) : array_values(array_diff($ids, [$task->id]))]);
+
+        return $this->ok($task->dependents()->get()->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status])->values());
     }
 
     /** Each project's best task by the formula, and the projects with nothing ready. */
@@ -154,6 +201,7 @@ class TaskMoreApiController extends ApiController
         return $this->ok($request->user()->templates()->orderBy('name')->get()->map(fn (TaskTemplate $t) => [
             'id' => $t->id, 'name' => $t->name, 'title' => $t->title, 'steps' => $t->steps ?? [], 'importance' => $t->importance, 'urgency' => $t->urgency,
             'estHours' => $t->est_hours, 'projectId' => $t->project_id, 'used' => $t->used,
+            'dueDays' => $t->due_days, 'dueTime' => $t->due_time, 'startDays' => $t->start_days,
         ])->values());
     }
 

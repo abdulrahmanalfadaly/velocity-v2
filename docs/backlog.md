@@ -39,7 +39,7 @@ list only covers what's missing or partly there.
 - [ ] This-or-That (pick between two tasks). **Add**, without changing the order
 - [x] Board and Timeline on project pages; Timeline by week, month or quarter. **Add** (Up next and Inbox have them)
 - [x] ★9 Smart views like "Due today" or "Quick wins" in the side menu. **Partly** (Up next has Due this week, 1 hour or less, Overdue and No project as filters that reset when you leave); filters only, still in formula order
-- [ ] Other sorts, drag to reorder, pin a "Next action". **Your call** (breaks "one order")
+- [ ] Other sorts, drag to reorder, pin a "Next action". **Your call** (breaks "one order"); Phase 10: no other sorts, All tasks keeps the formula's order
 - [x] ★9 Next Actions page: the top task of each project. **Add** (the formula picks it)
 - [x] An "All tasks" list that includes finished and archived ones. **Add**
 - [ ] A "suggested work" score with time and energy pickers and reasons. **Can't** as GPT did it; **Filter only**; reasons stay in FYP mode

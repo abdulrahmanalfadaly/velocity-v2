@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\ProjectActions;
 use App\Models\Goal;
 use App\Models\NoteLink;
 use App\Models\Task;
@@ -10,7 +11,6 @@ use App\Services\RankingService;
 use App\Services\TaskPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,16 +29,11 @@ class GoalController extends Controller
     }
 
     /** Deletes a goal (Undo brings it back): its projects and tasks stay, without a goal. */
-    public function destroy(Request $request, Goal $goal): RedirectResponse
+    public function destroy(Request $request, Goal $goal, ProjectActions $actions): RedirectResponse
     {
         $user = $request->user();
         $this->own($goal, $user);
-        $was = ['projects' => $goal->projects()->pluck('id')->all(), 'tasks' => $user->tasks()->where('goal_id', $goal->id)->pluck('id')->all()];
-        DB::transaction(function () use ($goal, $user) {
-            $user->projects()->where('goal_id', $goal->id)->update(['goal_id' => null]);
-            $user->tasks()->where('goal_id', $goal->id)->update(['goal_id' => null]);
-            $goal->delete();
-        });
+        $was = $actions->deleteGoal($goal, $user);
         $n = count($was['projects']);
 
         return back()->with('toast', "Deleted goal “{$goal->title}”".($n ? " · its {$n} ".($n === 1 ? 'project stays' : 'projects stay') : ''))
@@ -46,15 +41,12 @@ class GoalController extends Controller
     }
 
     /** Undo of deleting a goal: it comes back, with its projects and tasks under it again. */
-    public function restore(Request $request, int $id): RedirectResponse
+    public function restore(Request $request, int $id, ProjectActions $actions): RedirectResponse
     {
         $user = $request->user();
         $goal = Goal::onlyTrashed()->findOrFail($id);
         $this->own($goal, $user);
-        $was = $request->validate(['projects' => ['nullable', 'array'], 'projects.*' => ['integer'], 'tasks' => ['nullable', 'array'], 'tasks.*' => ['integer']]);
-        $goal->restore();
-        $user->projects()->whereIn('id', $was['projects'] ?? [])->whereNull('goal_id')->update(['goal_id' => $goal->id]);
-        $user->tasks()->whereIn('id', $was['tasks'] ?? [])->whereNull('project_id')->whereNull('goal_id')->update(['goal_id' => $goal->id]);
+        $actions->restoreGoal($goal, $user, $request->validate(ProjectActions::UNDO_RULES));
 
         return back()->with('toast', "Goal “{$goal->title}” is back");
     }

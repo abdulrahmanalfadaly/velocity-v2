@@ -159,4 +159,33 @@ class ApiMoreTest extends TestCase
         $this->api('GET', 'tasks/next', [], $readOnly)->assertOk();
         $this->api('GET', 'areas', [], $readOnly)->assertForbidden();
     }
+
+    public function test_phase_10_subtasks_blocks_finished_views_bulk_fields_and_deleting_a_project(): void
+    {
+        $report = $this->task('Report');
+        $this->api('POST', "tasks/{$report->id}/subtasks", ['title' => 'Intro'])->assertCreated()->assertJsonPath('data.parent.id', $report->id);
+        $slides = $this->task('Slides');
+        $this->api('POST', "tasks/{$report->id}/blocks", ['add' => $slides->id])->assertOk()->assertJsonPath('data.0.title', 'Slides');
+        $this->api('GET', "tasks/{$report->id}")->assertOk()
+            ->assertJsonPath('data.subtasks.0.title', 'Intro')->assertJsonPath('data.blocks.0.title', 'Slides');
+        $this->api('GET', "tasks/{$slides->id}")->assertOk()->assertJsonPath('data.activity.0.text', 'Starts after changed');
+        // Waiting on "Report": 409 unless "anyway".
+        $this->api('POST', "tasks/{$slides->id}/complete")->assertStatus(409);
+        $this->api('POST', "tasks/{$report->id}/complete", ['children' => 'complete'])->assertOk();
+        $this->assertSame(Task::DONE, Task::where('title', 'Intro')->sole()->status);
+
+        // Finished views, and the selection bar's new actions.
+        $this->api('POST', 'tasks/bulk', ['ids' => [$report->id], 'action' => 'archive'])->assertOk()->assertJsonPath('data.ids', [$report->id]);
+        $this->api('GET', 'tasks?view=archived')->assertOk()->assertJsonPath('data.0.title', 'Report');
+        $this->api('POST', 'tasks/bulk', ['ids' => [$slides->id], 'action' => 'importance', 'importance' => 5])->assertOk();
+        $this->assertSame(5, $slides->fresh()->importance);
+
+        // Deleting a project: its tasks to the Inbox; meta.undo brings it back.
+        $fyp = $this->user->projects()->create(['name' => 'FYP']);
+        $slides->update(['project_id' => $fyp->id]);
+        $undo = $this->api('DELETE', "projects/{$fyp->id}")->assertOk()->json('meta.undo');
+        $this->assertNull($slides->fresh()->project_id);
+        $this->api('POST', "projects/{$fyp->id}/restore", $undo)->assertOk()->assertJsonPath('data.name', 'FYP');
+        $this->assertSame($fyp->id, $slides->fresh()->project_id);
+    }
 }

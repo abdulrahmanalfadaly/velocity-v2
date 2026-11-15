@@ -58,6 +58,8 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::delete('reminders/{reminder}', [TaskMoreApiController::class, 'removeReminder'])->whereNumber('reminder')->name('reminders.destroy');
             Route::post('reminders/{reminder}/snooze', [TaskMoreApiController::class, 'snoozeReminder'])->whereNumber('reminder')->name('reminders.snooze');
             Route::post('templates/{template}/use', [TaskMoreApiController::class, 'useTemplate'])->whereNumber('template')->name('templates.use');
+            Route::post('tasks/{task}/subtasks', [TaskMoreApiController::class, 'subtask'])->whereNumber('task')->name('tasks.subtask');
+            Route::post('tasks/{task}/blocks', [TaskMoreApiController::class, 'blocks'])->whereNumber('task')->name('tasks.blocks');
         });
 
         Route::middleware('scope:projects:read')->group(function () {
@@ -78,6 +80,10 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::post('projects/{project}/reopen', [ProjectMoreApiController::class, 'reopen'])->whereNumber('project')->name('projects.reopen');
             Route::post('areas', [ProjectMoreApiController::class, 'storeArea'])->name('areas.store');
             Route::patch('areas/{area}', [ProjectMoreApiController::class, 'updateArea'])->whereNumber('area')->name('areas.update');
+            Route::delete('projects/{project}', [ProjectMoreApiController::class, 'destroy'])->whereNumber('project')->name('projects.destroy');
+            Route::post('projects/{id}/restore', [ProjectMoreApiController::class, 'restore'])->whereNumber('id')->name('projects.restore');
+            Route::delete('goals/{goal}', [ProjectMoreApiController::class, 'destroyGoal'])->whereNumber('goal')->name('goals.destroy');
+            Route::post('goals/{id}/restore', [ProjectMoreApiController::class, 'restoreGoal'])->whereNumber('id')->name('goals.restore');
         });
 
         Route::middleware('scope:planner:read')->group(function () {
