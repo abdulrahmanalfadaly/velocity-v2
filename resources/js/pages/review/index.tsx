@@ -797,7 +797,7 @@ function FocusHistory({ f, clock }: { f: FocusReport; clock: Clock }) {
                         table={['Hour', 'Minutes']}
                         bars={f.hours.map((m, h) => ({
                             key: String(h),
-                            label: h % 3 === 0 ? hourLabel(h) : '',
+                            label: hourLabel(h),
                             value: m,
                             title: `${hourText(h)}: ${hm(m)}`,
                         }))}

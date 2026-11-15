@@ -161,7 +161,7 @@ export interface HabitToday {
     week: { done: number; need: number } | null;
     /** Monthly habits: runs so far this month, and how many it asks for. */
     month: { done: number; need: number } | null;
-    group: 'todo' | 'done' | 'skipped' | 'off' | 'paused';
+    group: 'todo' | 'less' | 'done' | 'skipped' | 'off' | 'paused';
     pausedSince: string | null;
     pausedUntil: string | null;
     streak: number;

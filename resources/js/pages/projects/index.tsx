@@ -70,7 +70,7 @@ export default function AllProjects() {
                                 key={p.id}
                                 className="na-row ap-row"
                                 href={`/projects/${p.id}`}
-                                style={{ ['--goal' as string]: goalVar(p.goal?.color) }}
+                                style={{ ['--goal' as string]: goalVar(p.goal?.color), ['--g' as string]: goalVar(p.goal?.color) }}
                             >
                                 <span className="ap-ring">
                                     <Ring pct={p.pct} size={32} stroke={4} />

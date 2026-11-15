@@ -57,7 +57,7 @@ class HabitKindsTest extends TestCase
         $coffee = $this->habit(['name' => 'Coffee', 'kind' => 'limit', 'target' => 2, 'unit' => 'cups'], '2026-11-06', ['2026-11-08' => 1, '2026-11-10' => 3]);
         $this->assertSame(['done', 'done', 'done', 'missed', 'todo'], array_map(fn ($d) => $this->state($coffee, $d), ['2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10', '2026-11-11']));
         $row = $this->stats($coffee)->row();
-        $this->assertSame([0, 'todo', false, false], [$row['streak'], $row['group'], $row['overToday'], $row['doneToday']]);
+        $this->assertSame([0, 'less', false, false], [$row['streak'], $row['group'], $row['overToday'], $row['doneToday']]);
 
         // Each tap logs one more; the third goes over.
         $this->post(route('habits.check', $coffee))->assertSessionHas('toast', 'Coffee: 1 of at most 2');

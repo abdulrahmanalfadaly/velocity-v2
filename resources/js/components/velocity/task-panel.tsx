@@ -378,6 +378,7 @@ export function TaskPanel({
                                 <DatePick
                                     className="prop-input"
                                     label="Repeats until"
+                                    min={clock.localInput(clock.now.toISOString()).slice(0, 10)}
                                     placeholder="No end"
                                     value={task.repeat.until ?? ''}
                                     onChange={(v) => patch(task.id, { repeat_until: v || null })}

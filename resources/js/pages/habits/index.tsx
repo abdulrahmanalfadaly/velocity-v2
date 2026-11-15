@@ -225,6 +225,7 @@ function ListView({ props, clock, rowProps, onNew, all }: { props: Props; clock:
             ) : (
                 <section className="card hb-card">
                     <Group title="To do" rows={todo} rowProps={rowProps} />
+                    <Group title="Keep to it" rows={by('less')} rowProps={rowProps} />
                     <Group title="Done" rows={by('done')} rowProps={rowProps} />
                     <Group title="Skipped" rows={by('skipped')} rowProps={rowProps} />
                     {by('off').length > 0 && (

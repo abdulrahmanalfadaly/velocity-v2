@@ -1,5 +1,5 @@
 import { StartFocus } from '@/components/velocity/focus';
-import { Streak } from '@/components/velocity/habit-parts';
+import { Streak, habitSub } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import type { PlanBlock } from '@/components/velocity/planner-parts';
 import { HabitButton } from '@/components/velocity/ui';
@@ -406,7 +406,7 @@ function Habits({ habits, routines }: { habits: HabitToday[]; routines: Props['r
                     Habits today
                 </h2>
                 <span className="card-sub">
-                    {done} of {habits.length} done
+                    {done} of {habits.filter((h) => h.group !== 'less').length} done
                 </span>
             </div>
             {routines.length > 0 && (
@@ -429,11 +429,13 @@ function Habits({ habits, routines }: { habits: HabitToday[]; routines: Props['r
                         <div>
                             <div className={`habit-name${h.doneToday ? ' is-done' : ''}`}>{h.name}</div>
                             <div className="habit-detail">
-                                {h.week
-                                    ? `${h.week.done} of ${h.week.need} this week`
-                                    : h.target > 1
-                                      ? `${h.today} of ${h.target}${h.unit ? ` ${h.unit}` : ''}`
-                                      : h.detail}
+                                {h.kind === 'limit' || h.kind === 'avoid' || h.kind === 'minutes' || h.month
+                                    ? habitSub(h).split(' · ')[0]
+                                    : h.week
+                                      ? `${h.week.done} of ${h.week.need} this week`
+                                      : h.target > 1
+                                        ? `${h.today} of ${h.target}${h.unit ? ` ${h.unit}` : ''}`
+                                        : h.detail}
                                 {h.project ? ` · ${h.project.name}` : ''}
                             </div>
                         </div>

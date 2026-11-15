@@ -58,6 +58,8 @@ class HabitStats
             $this->skipped($t) => 'skipped',
             ! $h->less() && ($this->done($t) || ($period && $period['state'] === 'met')) => 'done',
             ! $h->isDue($this->today) => 'off',
+            // A limit or something to avoid isn't a job to do: it's kept unless it goes over.
+            $h->less() => 'less',
             default => 'todo',
         };
 

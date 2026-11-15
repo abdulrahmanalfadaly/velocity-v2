@@ -2282,3 +2282,6 @@ a.pp-contact .pp-contact-value { color: var(--violet-ink); }
 }
 
 .vc-empty { display: grid; place-items: center; margin: 0; padding: 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; color: var(--text-3); }
+
+/* A ghost button that switches something on (Review's Compare). */
+.btn-ghost[aria-pressed="true"] { background: var(--surface-3); color: var(--text); }
