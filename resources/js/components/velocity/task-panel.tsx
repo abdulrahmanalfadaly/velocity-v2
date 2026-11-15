@@ -823,7 +823,7 @@ export function TaskPanel({
                                 <input
                                     value={newSub}
                                     onChange={(e) => setNewSub(e.target.value)}
-                                    placeholder="Add a subtask (a task of its own)"
+                                    placeholder="Add a subtask"
                                     aria-label="Add a subtask"
                                     maxLength={255}
                                     style={{ flex: 1, border: 0, background: 'transparent', outline: 0 }}

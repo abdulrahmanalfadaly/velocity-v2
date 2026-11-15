@@ -1,5 +1,6 @@
-import type { TaskFileInfo } from '@/types/velocity';
-import { Link, router } from '@inertiajs/react';
+import { Clock } from '@/lib/velocity';
+import type { TaskFileInfo, VelocityShared } from '@/types/velocity';
+import { Link, router, usePage } from '@inertiajs/react';
 import { type DragEvent, useEffect, useRef, useState } from 'react';
 import { Icon } from './icon';
 
@@ -12,10 +13,10 @@ export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileIn
     return <FileBox storeUrl={route('files.store', taskId)} removeRoute="files.destroy" files={files} paste />;
 }
 
-/** A pasted screenshot is called "image.png"; give it a name that says when. */
-function pastedName(f: File): File {
+/** A pasted screenshot is called "image.png"; give it a name that says when (in the user's own time). */
+function pastedName(f: File, clock: Clock): File {
     if (f.name && f.name !== 'image.png') return f;
-    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '.');
+    const stamp = clock.localInput(new Date().toISOString()).replace('T', ' ').replace(':', '.');
     return new File([f], `Pasted ${stamp}.${f.type.split('/')[1] || 'png'}`, { type: f.type });
 }
 
@@ -40,6 +41,7 @@ export function FileBox({
     const [over, setOver] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const clock = Clock.from(usePage<VelocityShared>().props.clock);
 
     // Paste a file or a screenshot while the panel is open (not into another box).
     useEffect(() => {
@@ -49,7 +51,7 @@ export function FileBox({
             const target = e.target as Element | null;
             if (!list.length || !(target === document.body || target?.closest?.('.panel'))) return;
             e.preventDefault();
-            upload(list.map(pastedName));
+            upload(list.map((f) => pastedName(f, clock)));
         };
         document.addEventListener('paste', onPaste);
         return () => document.removeEventListener('paste', onPaste);

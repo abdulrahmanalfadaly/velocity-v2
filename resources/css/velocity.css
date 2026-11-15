@@ -390,7 +390,7 @@ kbd {
 /* ---------- Home ---------- */
 
 .home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
-.col { display: grid; gap: 20px; min-width: 0; }
+.col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
 
 .hero { padding: 22px 24px 22px; }
 .hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

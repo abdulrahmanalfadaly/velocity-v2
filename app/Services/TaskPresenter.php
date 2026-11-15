@@ -62,6 +62,7 @@ class TaskPresenter
     {
         $events = $task->events()->limit($limit)->get();
         $projects = $user->projects()->pluck('name', 'id');
+        $goals = $user->goals()->pluck('title', 'id');
         $tz = $user->timezone;
         $day = fn ($v) => $v ? CarbonImmutable::parse($v)->timezone($tz)->format('D j M') : null;
         $level = fn ($v) => ['', 'very low', 'low', 'medium', 'high', 'very high'][(int) $v] ?? (string) $v;
@@ -69,7 +70,7 @@ class TaskPresenter
         $change = fn (string $key, $before, $after): ?string => match ($key) {
             'due_at' => $after === null ? 'Due date cleared' : ($before === null ? 'Due '.$day($after) : 'Due moved '.$day($before).' → '.$day($after)),
             'project_id' => $after === null ? 'Moved to the Inbox' : 'Moved to “'.($projects[$after] ?? 'a project').'”',
-            'goal_id' => $after === null ? 'Goal taken off' : 'Goal set',
+            'goal_id' => $after === null ? 'Goal taken off' : 'Goal: “'.($goals[$after] ?? 'a goal').'”',
             'status' => 'Status: '.(['todo' => 'To do', 'doing' => 'Doing', 'waiting' => 'Waiting'][$after] ?? $after),
             'importance' => 'Importance '.$level($after),
             'urgency' => 'Urgency '.$level($after),
