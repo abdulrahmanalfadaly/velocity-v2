@@ -83,6 +83,66 @@ class TaskController extends Controller
 
     private const SHOWS = ['all', 'today', 'week', 'overdue', 'quick', 'doing', 'important', 'repeating', 'inbox'];
 
+    /** Tabs of All tasks. */
+    public const ALL_TABS = ['open', 'done', 'cancelled', 'archived'];
+
+    /**
+     * All tasks, finished and archived ones too: a page for finding a task, not for
+     * deciding what to do. Open tasks keep the formula's order (ranked first, then the
+     * ones not ready yet); finished ones go newest first.
+     */
+    public function all(Request $request): Response
+    {
+        $user = $request->user();
+        AutoArchive::run($user, $this->ranking->now());
+        $tab = in_array($request->query('tab'), self::ALL_TABS, true) ? $request->query('tab') : 'open';
+        $q = mb_substr(trim((string) $request->query('q', '')), 0, 100);
+        $project = $request->query('project'); // a project's id, "inbox", or nothing
+        $filter = function ($query) use ($q, $project) {
+            if ($q !== '') {
+                $like = '%'.addcslashes($q, '%_\\').'%';
+                $query->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('notes', 'like', $like));
+            }
+            if ($project === 'inbox') {
+                $query->whereNull('project_id');
+            } elseif (ctype_digit((string) $project)) {
+                $query->where('project_id', (int) $project);
+            }
+
+            return $query;
+        };
+        $of = fn (string $t) => match ($t) {
+            'open' => $user->tasks()->open(),
+            'done' => $user->tasks()->where('status', Task::DONE)->whereNull('archived_at'),
+            'cancelled' => $user->tasks()->where('status', Task::CANCELLED)->whereNull('archived_at'),
+            default => $user->tasks()->whereNotNull('archived_at'),
+        };
+        $limit = 300;
+        $total = $filter($of($tab))->count();
+        $list = $this->ranking->rank($user);
+
+        if ($tab === 'open') {
+            $ids = $filter($of('open'))->pluck('id')->flip();
+            $ranked = collect($list->toArray())->filter(fn ($r) => $ids->has($r['id']))->values();
+            $rest = $this->ranking->notReady($user)->filter(fn ($r) => $ids->has($r['task']->id))->map(fn ($r) => TaskPresenter::notReady($r));
+            $rows = $ranked->concat($rest)->take($limit)->values();
+        } else {
+            $order = ['done' => 'completed_at', 'cancelled' => 'cancelled_at', 'archived' => 'archived_at'][$tab];
+            $rows = $filter($of($tab))->with(['project.goal', 'goal'])->latest($order)->latest('id')->limit($limit)->get()->map(fn (Task $t) => TaskPresenter::base($t))->values();
+        }
+
+        return Inertia::render('tasks/all', [
+            'tab' => $tab,
+            'q' => $q,
+            'project' => $project === 'inbox' || ctype_digit((string) $project) ? (string) $project : null,
+            'rows' => $rows,
+            'total' => $total,
+            'counts' => collect(self::ALL_TABS)->mapWithKeys(fn ($t) => [$t => $filter($of($t))->count()]),
+            'selected' => fn () => $this->detail($request),
+            'projects' => $user->projects()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
     /**
      * Next actions: each project's best task by the formula (its first in the
      * one ranking), projects in the order of those tasks, and the projects with
@@ -391,12 +451,19 @@ class TaskController extends Controller
         $data = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:200'],
             'ids.*' => ['integer', 'distinct'],
-            'action' => ['required', Rule::in(['complete', 'cancel', 'delete', 'move', 'due'])],
+            'action' => ['required', Rule::in(self::BULK)],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'due_at' => ['nullable', 'date'],
         ]);
-        // Only the user's own open tasks; anything else in the list is quietly left out.
-        $tasks = $user->tasks()->open()->whereIn('id', $data['ids'])->get();
+        // Only the user's own tasks that the action fits (open ones to finish, finished ones to reopen …); the rest are quietly left out.
+        $query = $user->tasks()->whereIn('id', $data['ids']);
+        $tasks = (match ($data['action']) {
+            'reopen' => $query->whereIn('status', Task::FINISHED),
+            'archive' => $query->whereIn('status', Task::FINISHED)->whereNull('archived_at'),
+            'unarchive' => $query->whereNotNull('archived_at'),
+            'delete', 'move' => $query,
+            default => $query->open(),
+        })->get();
         if ($tasks->isEmpty()) {
             return back();
         }
@@ -417,6 +484,21 @@ class TaskController extends Controller
             case 'delete':
                 $tasks->each(fn (Task $t) => $this->actions->delete($t, $user));
                 $toast = "Deleted {$n} {$noun}";
+                break;
+            case 'reopen':
+                foreach ($tasks as $t) {
+                    $before[$t->id] = ['status' => $t->status, 'score' => $t->score_at_completion, 'reason' => $t->cancel_reason, 'archived' => $t->archived_at !== null];
+                    $this->actions->reopen($t, $user);
+                }
+                $toast = "Opened {$n} {$noun} again";
+                break;
+            case 'archive':
+                $tasks->each(fn (Task $t) => $this->actions->archive($t, $user));
+                $toast = "Archived {$n} {$noun}";
+                break;
+            case 'unarchive':
+                $tasks->each(fn (Task $t) => $this->actions->unarchive($t, $user));
+                $toast = "Took {$n} {$noun} out of the archive";
                 break;
             case 'move':
                 $projectId = $data['project_id'] ?? null;
@@ -441,6 +523,9 @@ class TaskController extends Controller
             ->with('undo', $this->undo('bulk-undo', 0, ['action' => $data['action'], 'ids' => $tasks->pluck('id')->all(), 'before' => $before]));
     }
 
+    /** What the selection bar can do to several tasks at once. */
+    private const BULK = ['complete', 'cancel', 'delete', 'move', 'due', 'reopen', 'archive', 'unarchive'];
+
     /** A change from the selection bar goes into the task's history like one from its panel (Review counts it). */
     private function history(Task $task, User $user, array $before, array $after): void
     {
@@ -454,8 +539,12 @@ class TaskController extends Controller
         $data = $request->validate([
             'ids' => ['required', 'array', 'max:200'],
             'ids.*' => ['integer'],
-            'action' => ['required', Rule::in(['complete', 'cancel', 'delete', 'move', 'due'])],
+            'action' => ['required', Rule::in(self::BULK)],
             'before' => ['nullable', 'array'],
+            'before.*.status' => ['sometimes', Rule::in(Task::FINISHED)],
+            'before.*.score' => ['nullable', 'numeric'],
+            'before.*.reason' => ['nullable', 'string', 'max:300'],
+            'before.*.archived' => ['sometimes', 'boolean'],
             'before.*.project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'before.*.due_at' => ['nullable', 'date'],
             'before.*.repeat_day' => ['nullable', 'integer', 'between:1,31'],
@@ -467,6 +556,19 @@ class TaskController extends Controller
                 $this->actions->reopen($t, $user);
             } elseif ($data['action'] === 'delete' && $t->trashed()) {
                 $this->actions->restore($t, $user);
+            } elseif ($data['action'] === 'reopen' && $t->isOpen() && isset($data['before'][$t->id]['status'])) {
+                // Finished again as it was: done with its old score, or cancelled with its reason; archived if it was.
+                $was = $data['before'][$t->id];
+                $was['status'] === Task::DONE
+                    ? $this->actions->complete($t, $user, isset($was['score']) ? (float) $was['score'] : null, false)
+                    : $this->actions->cancel($t, $user, $was['reason'] ?? null);
+                if (! empty($was['archived'])) {
+                    $this->actions->archive($t, $user);
+                }
+            } elseif ($data['action'] === 'archive' && $t->archived_at) {
+                $this->actions->unarchive($t, $user);
+            } elseif ($data['action'] === 'unarchive' && ! $t->archived_at && in_array($t->status, Task::FINISHED, true)) {
+                $this->actions->archive($t, $user);
             } elseif (in_array($data['action'], ['move', 'due'], true) && isset($data['before'][$t->id])) {
                 $t->update(array_intersect_key($data['before'][$t->id], ['project_id' => 1, 'due_at' => 1, 'repeat_day' => 1]));
             }

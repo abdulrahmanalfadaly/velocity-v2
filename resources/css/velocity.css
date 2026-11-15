@@ -564,6 +564,13 @@ kbd {
 .fold-row.is-link { cursor: pointer; }
 .fold-row.is-link:hover { background: var(--surface-2); }
 .fold-row.is-link.is-selected { background: var(--selected); }
+.fold-row.is-picked { background: var(--selected); }
+.all-find { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.all-search { flex: 1 1 220px; max-width: 360px; height: 34px; }
+.all-list { padding: 0; overflow: hidden; }
+.all-list .fold-row:first-child { border-top: 0; }
+.row-title.is-finished { color: var(--text-3); }
+.all-more { margin: 0; padding: 12px 18px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; }
 .fold-row.is-link:last-child { border-radius: 0 0 var(--r-lg) var(--r-lg); }
 .list-empty { padding: 16px 18px; color: var(--text-3); }
 

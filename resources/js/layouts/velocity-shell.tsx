@@ -527,6 +527,7 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                 {item('upnext', 'rank', 'Up next', '/tasks', nav.counts.upNext)}
                 {item('waiting', 'hourglass', 'Not ready yet', '/tasks/waiting', nav.counts.waiting)}
                 {item('next', 'arrowR', 'Next actions', '/tasks/next')}
+                {item('all', 'list', 'All tasks', '/tasks/all')}
                 <div className="nav-label">Views</div>
                 {TASK_VIEWS.map(([k, icon, label]) => (
                     <Fragment key={k}>{item(`show:${k}`, icon, label, `/tasks?show=${k}`, nav.counts.views?.[k])}</Fragment>

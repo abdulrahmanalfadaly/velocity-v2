@@ -82,10 +82,10 @@ class BulkActionsTest extends TestCase
         $theirs = $other->tasks()->create(['title' => 'Theirs', 'importance' => 3, 'urgency' => 3, 'est_hours' => 1]);
         $theirProject = $other->projects()->create(['name' => 'Theirs']);
 
-        $this->post(route('tasks.bulk'), ['ids' => [$a->id, $b->id, $done->id, $theirs->id], 'action' => 'delete'])->assertSessionHas('toast', 'Deleted 2 tasks');
+        $this->post(route('tasks.bulk'), ['ids' => [$a->id, $b->id, $done->id, $theirs->id], 'action' => 'delete'])->assertSessionHas('toast', 'Deleted 3 tasks');
         $this->assertSoftDeleted($a);
         $this->assertSoftDeleted($b);
-        $this->assertNull($done->fresh()->deleted_at); // done tasks are not part of a bulk action
+        $this->assertSoftDeleted($done); // finished tasks too (All tasks › Done)
         $this->assertNull($theirs->fresh()->deleted_at);
 
         $this->undo();
@@ -111,5 +111,42 @@ class BulkActionsTest extends TestCase
         $this->post(route('tasks.reopen', $task), ['status' => 'done'])->assertSessionHasErrors('status');
         $this->post(route('tasks.reopen', $task));
         $this->assertSame('waiting', $task->fresh()->status); // without a status: back to what it was
+    }
+
+    public function test_all_tasks_has_tabs_a_search_and_a_project_filter(): void
+    {
+        $fyp = $this->user->projects()->create(['name' => 'FYP']);
+        $this->task('Essay outline', ['project_id' => $fyp->id, 'importance' => 5]);
+        $this->task('Buy milk');
+        $this->task('Old report', ['status' => 'done', 'completed_at' => now()->subDay()]);
+        $this->task('Dropped idea', ['status' => 'cancelled', 'cancelled_at' => now()->subDay(), 'cancel_reason' => 'No time']);
+        $this->task('Last term', ['status' => 'done', 'completed_at' => now()->subDays(40), 'archived_at' => now()->subDays(30)]);
+
+        // Open: in the formula's order.
+        $this->get(route('tasks.all'))->assertInertia(fn ($page) => $page->component('tasks/all')
+            ->where('counts', ['open' => 2, 'done' => 1, 'cancelled' => 1, 'archived' => 1])
+            ->where('rows.0.title', 'Essay outline')->where('rows.0.rank', 1)->where('rows.1.title', 'Buy milk'));
+        $this->get(route('tasks.all', ['q' => 'milk']))->assertInertia(fn ($page) => $page->where('total', 1)->where('rows.0.title', 'Buy milk'));
+        $this->get(route('tasks.all', ['project' => 'inbox']))->assertInertia(fn ($page) => $page->where('total', 1)->where('counts.done', 1));
+        $this->get(route('tasks.all', ['tab' => 'archived']))->assertInertia(fn ($page) => $page->where('rows.0.title', 'Last term'));
+    }
+
+    public function test_finished_tasks_can_be_reopened_archived_and_taken_out_of_the_archive_together(): void
+    {
+        $done = $this->task('Old report', ['status' => 'done', 'completed_at' => now()->subDay(), 'score_at_completion' => 61.5]);
+        $dropped = $this->task('Dropped idea', ['status' => 'cancelled', 'cancelled_at' => now()->subDay(), 'cancel_reason' => 'No time']);
+        $open = $this->task('Still open');
+
+        $this->post(route('tasks.bulk'), ['ids' => [$done->id, $dropped->id, $open->id], 'action' => 'reopen'])->assertSessionHas('toast', 'Opened 2 tasks again');
+        $this->assertSame([Task::TODO, Task::TODO], [$done->fresh()->status, $dropped->fresh()->status]);
+        $this->undo();
+        $this->assertSame([Task::DONE, 61.5, Task::CANCELLED, 'No time'], [$done->fresh()->status, $done->fresh()->score_at_completion, $dropped->fresh()->status, $dropped->fresh()->cancel_reason]);
+
+        $this->post(route('tasks.bulk'), ['ids' => [$done->id, $dropped->id, $open->id], 'action' => 'archive'])->assertSessionHas('toast', 'Archived 2 tasks');
+        $this->assertNotNull($done->fresh()->archived_at);
+        $this->assertNull($open->fresh()->archived_at);
+        $this->post(route('tasks.bulk'), ['ids' => [$done->id], 'action' => 'unarchive'])->assertSessionHas('toast', 'Took 1 task out of the archive');
+        $this->undo();
+        $this->assertNotNull($done->fresh()->archived_at);
     }
 }
