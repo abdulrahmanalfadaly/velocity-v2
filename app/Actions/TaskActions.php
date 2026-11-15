@@ -57,17 +57,23 @@ class TaskActions
         ];
     }
 
-    /** Plain words in: "Ethics essay outline fri 3h #fyp" → a task due Friday, 3 hours, in the FYP project. */
-    public function quickAdd(User $user, string $text, ?int $importance = null, ?int $urgency = null, ?int $projectId = null): Task
+    /**
+     * Plain words in: "Ethics essay outline fri 3h #fyp" → a task due Friday, 3 hours, in the FYP project.
+     * "from mon" sets when it can start, "remind 9am" adds a reminder, "!" / "!!" the importance
+     * (importance picked on the dots wins). $plain: words to keep as words.
+     *
+     * @param  list<string>  $plain
+     */
+    public function quickAdd(User $user, string $text, ?int $importance = null, ?int $urgency = null, ?int $projectId = null, array $plain = []): Task
     {
-        $parsed = $this->parse($user, $text);
+        $parsed = $this->parse($user, $text, $plain);
         if ($parsed['title'] === '') {
             throw ValidationException::withMessages(['text' => 'A task needs a title, not only a date or hours.']);
         }
 
-        return $this->create($user, [
+        $task = $this->create($user, [
             'title' => $parsed['title'],
-            'importance' => $importance ?? 3,
+            'importance' => $importance ?? $parsed['importance'] ?? 3,
             'urgency' => $urgency ?? 3,
             'due_at' => $parsed['due']?->utc(),
             'est_hours' => $parsed['hours'] ?? 1,
@@ -77,13 +83,21 @@ class TaskActions
             'repeat_days' => $parsed['repeat']['days'] ?? null,
             'repeat_until' => $parsed['repeat']['until'] ?? null,
             'repeat_anchor' => $parsed['repeat'] ? $parsed['due']?->utc() : null,
+            'available_from' => $parsed['start']?->utc(),
         ]);
+        if ($parsed['remind']) {
+            Reminders::add($task, $parsed['remind']['kind'] === 'at' ? ['kind' => 'at', 'at' => $parsed['remind']['at']->utc()] : $parsed['remind'], $this->ranking->now());
+        }
+
+        return $task;
     }
 
-    /** What quick add makes of the words: title, due, hours, project, repeat. */
-    public function parse(User $user, string $text): array
+    /** What quick add makes of the words: title, due, hours, project, repeat, start, reminder, importance. */
+    public function parse(User $user, string $text, array $plain = []): array
     {
-        return $this->parser->parse($text, $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all());
+        $plain = array_values(array_filter(array_map(fn ($w) => mb_strtolower(rtrim(trim((string) $w), ',.')), $plain)));
+
+        return $this->parser->parse($text, $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all(), $plain);
     }
 
     public function create(User $user, array $fields): Task

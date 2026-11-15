@@ -152,11 +152,14 @@ class TaskController extends Controller
             'importance' => ['nullable', 'integer', 'between:1,5'],
             'urgency' => ['nullable', 'integer', 'between:1,5'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            'plain' => ['nullable', 'array', 'max:40'],
+            'plain.*' => ['string', 'max:80'],
         ]);
-        $task = $this->actions->quickAdd($user, $data['text'], $data['importance'] ?? null, $data['urgency'] ?? null, $data['project_id'] ?? null);
+        $task = $this->actions->quickAdd($user, $data['text'], $data['importance'] ?? null, $data['urgency'] ?? null, $data['project_id'] ?? null, $data['plain'] ?? []);
         $rank = $this->ranking->rank($user)->rankOf($task->id);
+        $later = ! $rank && $task->available_from?->isFuture() ? ' · starts '.$task->available_from->timezone($user->timezone)->format('D j M') : '';
 
-        return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''))->with('undo', $this->undo('delete-task', $task->id));
+        return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : $later))->with('undo', $this->undo('delete-task', $task->id));
     }
 
     /** Where a task will land, before it is saved: from quick-add words or from the FYP form's fields. */
@@ -178,12 +181,16 @@ class TaskController extends Controller
             return response()->json(['preview' => $this->actions->place($input, $user, $data['except'] ?? null)]);
         }
 
-        $data = $request->validate(['text' => ['required', 'string', 'max:255'], 'importance' => ['integer', 'between:1,5'], 'urgency' => ['integer', 'between:1,5']]);
-        $parsed = $this->actions->parse($user, $data['text']);
+        $data = $request->validate([
+            'text' => ['required', 'string', 'max:255'], 'importance' => ['integer', 'between:1,5'], 'urgency' => ['integer', 'between:1,5'],
+            'plain' => ['nullable', 'array', 'max:40'], 'plain.*' => ['string', 'max:80'],
+        ]);
+        $parsed = $this->actions->parse($user, $data['text'], $data['plain'] ?? []);
         if ($parsed['title'] === '') {
-            return response()->json(['parsed' => $parsed, 'preview' => null]);
+            return response()->json(['parsed' => ['picked' => $parsed['picked']], 'preview' => null]);
         }
-        $input = new TaskInput(0, $parsed['title'], (int) ($data['importance'] ?? 3), (int) ($data['urgency'] ?? 3), $parsed['due']?->toDateTimeImmutable(), $parsed['hours'] ?? 1.0, $now);
+        $input = new TaskInput(0, $parsed['title'], (int) ($data['importance'] ?? $parsed['importance'] ?? 3), (int) ($data['urgency'] ?? 3), $parsed['due']?->toDateTimeImmutable(), $parsed['hours'] ?? 1.0, $now);
+        $remind = $parsed['remind'];
 
         return response()->json([
             'parsed' => [
@@ -192,9 +199,13 @@ class TaskController extends Controller
                 'hours' => $parsed['hours'],
                 'project' => $parsed['projectId'] ? $user->projects()->find($parsed['projectId'])?->only('id', 'name') : null,
                 'repeat' => $parsed['repeat'],
+                'start' => $parsed['start']?->utc()->toIso8601ZuluString(),
+                'remind' => $remind ? ($remind['kind'] === 'at' ? ['kind' => 'at', 'at' => $remind['at']->utc()->toIso8601ZuluString()] : $remind) : null,
+                'importance' => $parsed['importance'],
                 'picked' => $parsed['picked'],
             ],
-            'preview' => $this->actions->place($input, $user),
+            // A task that starts later isn't ranked until then.
+            'preview' => $parsed['start'] && $parsed['start']->greaterThan($this->ranking->now()) ? null : $this->actions->place($input, $user),
         ]);
     }
 

@@ -77,20 +77,30 @@ class NoteController extends Controller
             'task_id' => ['nullable', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)],
             'person_id' => ['nullable', 'integer', Rule::exists('people', 'id')->where('user_id', $user->id)],
             'title' => ['nullable', 'string', 'max:200'],
+            'text' => ['nullable', 'string', 'max:200000'],
             'in' => ['nullable', 'string', 'max:20'],
+            // Quick add: save it and stay where you are.
+            'stay' => ['sometimes', 'boolean'],
         ]);
+        $text = trim($data['text'] ?? '');
+        if (($data['stay'] ?? false) && $text === '' && trim($data['title'] ?? '') === '') {
+            throw ValidationException::withMessages(['title' => 'A note needs a title or some text.']);
+        }
         $task = isset($data['task_id']) ? Task::find($data['task_id']) : null;
         $person = isset($data['person_id']) ? Person::find($data['person_id']) : null;
         $note = $user->notes()->create([
             'project_id' => $data['project_id'] ?? $task?->project_id,
             'title' => $data['title'] ?? Str::limit($task->title ?? $person->name ?? '', 200, ''),
-            'body_text' => '',
-        ]);
+            'body_text' => $text,
+        ] + ($text !== '' ? ['body' => json_encode(Note::docFromText($text), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)] : []));
         if ($task) {
             $note->tasks()->attach($task->id, ['created_at' => now()]);
         }
         if ($person) {
             $note->people()->attach($person->id);
+        }
+        if ($data['stay'] ?? false) {
+            return back()->with('toast', "Added note “{$note->displayTitle()}”");
         }
         $in = $note->project_id ? "p{$note->project_id}" : (($data['in'] ?? null) === 'loose' ? 'loose' : 'all');
 

@@ -713,6 +713,8 @@ select.input { padding-right: 8px; }
 .qa-preview { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: var(--surface-2); border-top: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
 .qa-preview b { color: var(--text); }
 .qa-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 12px 18px; border-top: 1px solid var(--line); }
+.qa-foot-right { display: flex; align-items: center; gap: 8px; }
+.qa-note-text { width: 100%; resize: vertical; min-height: 92px; }
 .qa-hint { font-size: 12px; color: var(--text-3); }
 .qa-fields { display: grid; gap: 10px; padding: 2px 18px 14px; }
 .qa-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13.5px; }

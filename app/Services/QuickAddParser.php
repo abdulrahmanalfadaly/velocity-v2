@@ -21,13 +21,19 @@ class QuickAddParser
     private const UNITS = ['day' => 'day', 'days' => 'day', 'weekday' => 'weekday', 'weekdays' => 'weekday', 'week' => 'week', 'weeks' => 'week',
         'month' => 'month', 'months' => 'month', 'year' => 'year', 'years' => 'year'];
 
+    /** "remind 1h before" and the like: the "before due" reminders there are. */
+    private const BEFORE = ['15m' => '15m', '15min' => '15m', '1h' => '1h', '1hr' => '1h', '3h' => '3h', '3hr' => '3h', '1d' => '1d', '2d' => '2d', '7d' => '7d', '1w' => '7d'];
+
     /**
+     * $plain: words to keep as words (a chip taken off in quick add), lower case.
+     *
      * @param  array<int, string>  $projects  id => name
-     * @return array{title: string, due: ?CarbonImmutable, hours: ?float, projectId: ?int, repeat: ?array{unit: string, every: int}, picked: list<array{kind: string, text: string}>}
+     * @param  list<string>  $plain
+     * @return array{title: string, due: ?CarbonImmutable, hours: ?float, projectId: ?int, repeat: ?array{unit: string, every: int}, start: ?CarbonImmutable, remind: ?array, importance: ?int, picked: list<array{kind: string, text: string}>}
      */
-    public function parse(string $text, CarbonImmutable $nowLocal, array $projects = []): array
+    public function parse(string $text, CarbonImmutable $nowLocal, array $projects = [], array $plain = []): array
     {
-        $s = $this->scan($text, $nowLocal, $projects, false);
+        $s = $this->scan($text, $nowLocal, $projects, false, $plain);
         $day = $s['day'];
         $time = $s['time'];
 
@@ -44,7 +50,20 @@ class QuickAddParser
             }
         }
 
-        return ['title' => $s['title'], 'due' => $due, 'hours' => $s['hours'], 'projectId' => $s['projectId'], 'repeat' => $s['repeat'], 'picked' => $s['picked']];
+        // "remind 9am": at nine on the due day, or today (tomorrow once it has passed); "remind fri 9am"; "remind 1h before".
+        $remind = null;
+        if ($s['remind'] && isset($s['remind']['before'])) {
+            $remind = ['kind' => 'before', 'before' => $s['remind']['before']];
+        } elseif ($s['remind']) {
+            $at = ($s['remind']['day'] ?? $due?->startOfDay() ?? $nowLocal->startOfDay())->setTimeFromTimeString($s['remind']['time'] ?? '09:00');
+            if ($s['remind']['day'] === null && $due === null && $at->lessThanOrEqualTo($nowLocal)) {
+                $at = $at->addDay();
+            }
+            $remind = ['kind' => 'at', 'at' => $at];
+        }
+
+        return ['title' => $s['title'], 'due' => $due, 'hours' => $s['hours'], 'projectId' => $s['projectId'], 'repeat' => $s['repeat'],
+            'start' => $s['start'], 'remind' => $remind, 'importance' => $s['importance'], 'picked' => $s['picked']];
     }
 
     /**
@@ -90,10 +109,13 @@ class QuickAddParser
      * The words, one by one: what each recognised word means, and the rest as the title.
      * In event mode "#class / #work / #personal" pick the calendar and only weekly repeats count.
      *
+     * Tasks also take "from mon" (the start date), "remind …" and "!" / "!!" (importance).
+     *
      * @param  array<int, string>  $projects
-     * @return array{title: string, day: ?CarbonImmutable, time: ?string, end: ?string, hours: ?float, projectId: ?int, calendar: ?string, repeat: ?array{unit: string, every: int}, repeatDay: ?int, picked: list<array{kind: string, text: string}>}
+     * @param  list<string>  $plain
+     * @return array{title: string, day: ?CarbonImmutable, time: ?string, end: ?string, hours: ?float, projectId: ?int, calendar: ?string, repeat: ?array{unit: string, every: int}, repeatDay: ?int, start: ?CarbonImmutable, remind: ?array, importance: ?int, picked: list<array{kind: string, text: string}>}
      */
-    private function scan(string $text, CarbonImmutable $nowLocal, array $projects, bool $event): array
+    private function scan(string $text, CarbonImmutable $nowLocal, array $projects, bool $event, array $plain = []): array
     {
         $words = preg_split('/\s+/u', trim($text)) ?: [];
         $keep = [];
@@ -107,6 +129,9 @@ class QuickAddParser
         $until = null;
         $repeat = null;
         $repeatDay = null;
+        $start = null;
+        $remind = null;
+        $importance = null;
         $picked = [];
 
         for ($i = 0; $i < count($words); $i++) {
@@ -119,6 +144,12 @@ class QuickAddParser
                 ? (isset(self::DAYS[$w1]) || $w1 === 'week')
                 : (isset(self::UNITS[$w1]) || isset(self::DAYS[$w1]) || (in_array($w1, ['other', '2nd'], true) && isset(self::UNITS[$w2])) || (ctype_digit($w1) && (int) $w1 > 0 && isset(self::UNITS[$w2])));
 
+            // A chip that was taken off: the word stays in the title.
+            if ($plain && in_array($lw, $plain, true)) {
+                $keep[] = $w;
+
+                continue;
+            }
             // Repeats: only "every …" counts, so a title like "Weekly report" stays as it is.
             if ($lw === 'every' && $repeat === null && $repeatWord) {
                 if (isset(self::DAYS[$w1])) {
@@ -191,6 +222,18 @@ class QuickAddParser
             } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $lw, $m) && $this->realDate((int) $m[1], (int) $m[2])) {
                 $day = $this->dateInYear($nowLocal, (int) $m[1], (int) $m[2]);
                 $picked[] = ['kind' => 'due', 'text' => $w];
+            } elseif (! $event && preg_match('/^!{1,3}$/', $w)) {
+                $importance = $w === '!' ? 4 : 5; // "!" high, "!!" very high
+                $picked[] = ['kind' => 'importance', 'text' => $w];
+            } elseif (! $event && $lw === 'from' && ($first = $this->dateAt($words, $i + 1, $nowLocal, $plain)) !== null) {
+                // "from mon": it can start then (until then it isn't ranked).
+                $start = $first[0];
+                $picked[] = ['kind' => 'start', 'text' => implode(' ', array_slice($words, $i, $first[1] + 1))];
+                $i += $first[1];
+            } elseif (! $event && in_array($lw, ['remind', 'reminder'], true) && ($r = $this->remindAt($words, $i + 1, $nowLocal, $plain)) !== null) {
+                $remind = $r;
+                $picked[] = ['kind' => 'remind', 'text' => implode(' ', array_slice($words, $i, $r['n'] + 1))];
+                $i += $r['n'];
             } elseif ($lw === 'until' && $repeat !== null && ($last = $this->dateAt($words, $i + 1, $nowLocal)) !== null) {
                 // "every mon until 20 dec": the last day it repeats.
                 $until = $last[0];
@@ -229,7 +272,7 @@ class QuickAddParser
                     }
                 }
                 $keep[] = $w;
-            } elseif (in_array($lw, ['at', 'from'], true) && ($this->clockAt($words, $i + 1) || $this->rangeWord($w1))) {
+            } elseif (in_array($lw, ['at', 'from'], true) && ! in_array($w1, $plain, true) && ($this->clockAt($words, $i + 1) || $this->rangeWord($w1))) {
                 continue; // "at 3pm", "from 9-10am": the time is read on the next word
             } else {
                 $keep[] = $w;
@@ -237,14 +280,62 @@ class QuickAddParser
         }
 
         return ['title' => trim(implode(' ', $keep)), 'day' => $day, 'time' => $time, 'end' => $end, 'hours' => $hours, 'projectId' => $projectId,
-            'calendar' => $calendar, 'repeat' => $repeat && $until ? $repeat + ['until' => $until->toDateString()] : $repeat, 'repeatDay' => $repeatDay, 'picked' => $picked];
+            'calendar' => $calendar, 'repeat' => $repeat && $until ? $repeat + ['until' => $until->toDateString()] : $repeat, 'repeatDay' => $repeatDay,
+            'start' => $start, 'remind' => $remind, 'importance' => $importance, 'picked' => $picked];
     }
 
-    /** A date at word $j for "until …": "20 dec", "dec 20", "20/12", a weekday. @return array{0: CarbonImmutable, 1: int}|null [day, words used] */
-    private function dateAt(array $words, int $j, CarbonImmutable $now): ?array
+    /**
+     * What follows "remind": "9am", "at 9am", "fri", "fri 9am", "tomorrow at 8:30", "me 9am", "1h before".
+     *
+     * @return array{day?: ?CarbonImmutable, time?: ?string, before?: string, n: int}|null n = words used
+     */
+    private function remindAt(array $words, int $j, CarbonImmutable $now, array $plain): ?array
+    {
+        $at = $j;
+        $word = fn (int $k) => mb_strtolower(rtrim($words[$k] ?? '', ',.'));
+        if ($word($at) === 'me') {
+            $at++;
+        }
+        if (isset(self::BEFORE[$word($at)]) && $word($at + 1) === 'before' && ! in_array($word($at), $plain, true)) {
+            return ['before' => self::BEFORE[$word($at)], 'n' => $at + 2 - $j];
+        }
+        $day = $this->dateAt($words, $at, $now, $plain);
+        if ($day) {
+            $at += $day[1];
+        }
+        $skip = $word($at) === 'at' ? 1 : 0;
+        $clock = in_array($word($at + $skip), $plain, true) ? null : $this->clockAt($words, $at + $skip);
+        if ($clock) {
+            $at += $skip + $clock['n'];
+        }
+        if (! $day && ! $clock) {
+            return null;
+        }
+
+        return ['day' => $day[0] ?? null, 'time' => $clock ? $this->hhmm($clock) : null, 'n' => $at - $j];
+    }
+
+    /**
+     * A date at word $j for "until …", "from …", "remind …": "20 dec", "dec 20", "20/12", a weekday, "next fri", today, tomorrow.
+     *
+     * @return array{0: CarbonImmutable, 1: int}|null [day, words used]
+     */
+    private function dateAt(array $words, int $j, CarbonImmutable $now, array $plain = []): ?array
     {
         $a = mb_strtolower(rtrim($words[$j] ?? '', ',.'));
         $b = mb_strtolower(rtrim($words[$j + 1] ?? '', ',.'));
+        if ($a === '' || in_array($a, $plain, true)) {
+            return null;
+        }
+        if (in_array($a, ['today', 'tonight'], true)) {
+            return [$now->startOfDay(), 1];
+        }
+        if (in_array($a, ['tomorrow', 'tmr', 'tmrw', 'tomoro'], true)) {
+            return [$now->startOfDay()->addDay(), 1];
+        }
+        if ($a === 'next' && isset(self::DAYS[$b])) {
+            return [$this->nextWeekday($now, self::DAYS[$b])->addWeek(), 2];
+        }
         if (preg_match('/^(\d{1,2})$/', $a, $m) && ($month = $this->month($b)) !== null && $this->realDate((int) $m[1], $month)) {
             return [$this->dateInYear($now, (int) $m[1], $month), 2];
         }

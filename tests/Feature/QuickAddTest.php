@@ -45,6 +45,41 @@ class QuickAddTest extends TestCase
         $this->assertSame(['Meet at 3', null], [$this->task('Meet at 3')['title'], $this->task('Meet at 3')['due']]);
     }
 
+    public function test_a_start_date_a_reminder_and_importance_come_from_the_words_and_a_chip_can_be_taken_off(): void
+    {
+        // Wed 11 Nov, 10:00. "from mon" = Mon 16 Nov; "remind 9am" = 9:00 on the due day (Fri 13 Nov).
+        $p = $this->task('Book flights fri from mon remind 9am !!');
+        $this->assertSame(['Book flights', '2026-11-15T16:00:00Z', ['kind' => 'at', 'at' => '2026-11-13T01:00:00Z'], 5],
+            [$p['title'], $p['start'], $p['remind'], $p['importance']]);
+        $this->assertSame(['kind' => 'before', 'before' => '1h'], $this->task('Call Dr Lim tomorrow 3pm remind me 1h before')['remind']);
+        // No due date and 9:00 has passed: tomorrow at nine. "Remind Ali" isn't a reminder.
+        $this->assertSame('2026-11-12T01:00:00Z', $this->task('Pay rent remind 9am')['remind']['at']);
+        $this->assertSame(['Remind Ali about the form', null], [$this->task('Remind Ali about the form')['title'], $this->task('Remind Ali about the form')['remind']]);
+
+        // Taking the "fri" chip off keeps the word in the title.
+        $kept = $this->postJson(route('tasks.preview'), ['text' => 'Plan fri party fri', 'plain' => ['fri']])->json('parsed');
+        $this->assertSame(['Plan fri party fri', null], [$kept['title'], $kept['due']]);
+
+        // Adding: importance from "!" unless the dots were used; it starts later, with its reminder.
+        $this->post(route('tasks.store'), ['text' => 'Book flights from mon remind fri 8am !'])->assertSessionHas('toast', 'Added “Book flights” · starts Mon 16 Nov');
+        $task = $this->user->tasks()->where('title', 'Book flights')->sole();
+        $this->assertSame([4, '2026-11-15 16:00:00', '2026-11-13 00:00:00'],
+            [$task->importance, $task->available_from->format('Y-m-d H:i:s'), $task->reminders()->sole()->at->format('Y-m-d H:i:s')]);
+        $this->post(route('tasks.store'), ['text' => 'Essay !!', 'importance' => 2]);
+        $this->assertSame(2, $this->user->tasks()->where('title', 'Essay')->sole()->importance);
+    }
+
+    public function test_quick_add_can_save_a_note_with_its_text_and_stay(): void
+    {
+        $this->from('/tasks')->post(route('notes.store'), ['title' => 'Lab ideas', 'text' => 'Try the new sensor
+Ask about the budget', 'stay' => true])
+            ->assertRedirect('/tasks')->assertSessionHas('toast', 'Added note “Lab ideas”');
+        $note = $this->user->notes()->sole();
+        $this->assertSame('Try the new sensor
+Ask about the budget', $note->body_text);
+        $this->post(route('notes.store'), ['stay' => true])->assertSessionHasErrors('title');
+    }
+
     public function test_an_event_line_gives_its_day_times_and_calendar(): void
     {
         $this->assertSame(

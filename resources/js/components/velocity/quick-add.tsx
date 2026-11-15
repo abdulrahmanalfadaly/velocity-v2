@@ -1,4 +1,4 @@
-import { Clock, dueInfo, fmtHours, repeatText } from '@/lib/velocity';
+import { Clock, dueInfo, fmtHours, LEVEL, repeatText } from '@/lib/velocity';
 import type { CriterionKey, RepeatRule, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
@@ -14,6 +14,12 @@ interface Preview {
         hours: number | null;
         project: { id: number; name: string } | null;
         repeat: RepeatRule | null;
+        /** "from mon": when it can start. */
+        start?: string | null;
+        /** "remind 9am" / "remind 1h before". */
+        remind?: { kind: 'at'; at: string } | { kind: 'before'; before: string } | null;
+        /** "!" / "!!". */
+        importance?: number | null;
         picked: { kind: string; text: string }[];
     };
     preview: { rank: number; total: number; score: number; contrib: Record<CriterionKey, number>; above: string | null } | null;
@@ -41,7 +47,7 @@ interface EventFields {
     repeat_until: string | null;
 }
 
-type Mode = 'task' | 'event' | 'person';
+type Mode = 'task' | 'event' | 'note' | 'person';
 type Errors = Record<string, string>;
 
 const xsrf = () => decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? '');
@@ -61,8 +67,26 @@ function postJson<T>(name: string, body: object, signal?: AbortSignal): Promise<
 const PLACEHOLDER: Record<Mode, string> = {
     task: 'What do you need to do?',
     event: 'What’s happening, and when?',
+    note: 'Note title',
     person: 'Their name',
 };
+
+const BEFORE_WORDS: Record<string, string> = {
+    '15m': '15 min before',
+    '1h': '1 hour before',
+    '3h': '3 hours before',
+    '1d': '1 day before',
+    '2d': '2 days before',
+    '7d': '1 week before',
+};
+
+/** The words a chip stands for, as the parser compares them. */
+const wordsIn = (text: string) =>
+    text
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => w.replace(/[,.]+$/, ''))
+        .filter(Boolean);
 
 /** Add a task, an event or a person from anywhere (Ctrl Shift K). Dates, times, hours and #project are picked out of what you type. */
 export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectId?: number }) {
@@ -74,7 +98,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
     const [importance, setImportance] = useState(3);
     const [urgency, setUrgency] = useState(3);
     const [data, setData] = useState<Preview | null>(null);
-    const [ev, setEv] = useState<EventFields>({
+    const blankEvent = (): EventFields => ({
         date: today,
         all_day: true,
         start_time: '',
@@ -83,6 +107,12 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         repeat_weekly: false,
         repeat_until: null,
     });
+    const [ev, setEv] = useState<EventFields>(blankEvent);
+    // Words to keep as words (a chip taken off), whether importance was picked on the dots, and "Add another".
+    const [plain, setPlain] = useState<string[]>([]);
+    const [impPicked, setImpPicked] = useState(false);
+    const [again, setAgain] = useState(false);
+    const [noteText, setNoteText] = useState('');
     const [evParsed, setEvParsed] = useState<{ text: string; parse: EventParse } | null>(null);
     const touched = useRef<Set<'date' | 'time' | 'calendar' | 'weekly'>>(new Set());
     const [who, setWho] = useState('');
@@ -101,14 +131,17 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         }
         const ctl = new AbortController();
         const timer = setTimeout(
-            () => postJson<Preview>('tasks.preview', { text, importance, urgency }, ctl.signal).then((d) => d && setData(d)),
+            () =>
+                postJson<Preview>('tasks.preview', { text, urgency, plain, ...(impPicked ? { importance } : {}) }, ctl.signal).then(
+                    (d) => d && setData(d),
+                ),
             220,
         );
         return () => {
             clearTimeout(timer);
             ctl.abort();
         };
-    }, [mode, text, importance, urgency]);
+    }, [mode, text, importance, urgency, plain, impPicked]);
 
     // Event: the typed day, times and calendar fill the fields (unless you set them yourself).
     const applyEvent = (t: string, parse: EventParse) => {
@@ -157,21 +190,59 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         setEv((f) => ({ ...f, ...patch }));
     };
 
-    const post = (name: string, body: Record<string, unknown>) =>
+    // "Add another": empty again, ready for the next one.
+    const reset = () => {
+        setText('');
+        setData(null);
+        setPlain([]);
+        setImpPicked(false);
+        setImportance(3);
+        setUrgency(3);
+        setNoteText('');
+        setWho('');
+        touched.current.clear();
+        setEvParsed(null);
+        setEv(blankEvent());
+        input.current?.focus();
+    };
+
+    const post = (name: string, body: Record<string, unknown>) => {
+        let answered = false;
         router.post(route(name), body as never, {
             preserveScroll: true,
-            preserveState: 'errors',
-            onError: (e) => setErrors(e as Errors),
-            onSuccess: onClose,
-            onFinish: () => setSaving(false),
+            preserveState: again ? true : 'errors',
+            onError: (e) => {
+                answered = true;
+                setErrors(e as Errors);
+            },
+            onSuccess: () => {
+                answered = true;
+                if (again) reset();
+                else onClose();
+            },
+            onFinish: () => {
+                setSaving(false);
+                // No answer (the connection dropped): what you typed stays, so you can try again.
+                if (!answered) setErrors({ text: 'Couldn’t add it. Check the connection and try again.' });
+            },
         });
+    };
 
+    const empty = mode === 'note' ? !text.trim() && !noteText.trim() : !text.trim();
     const submit = async () => {
-        if (!text.trim() || saving) return;
+        if (empty || saving) return;
         setSaving(true);
         setErrors({});
         if (mode === 'task') {
-            post('tasks.store', { text, importance, urgency, project_id: data?.parsed.project?.id ?? projectId ?? null });
+            post('tasks.store', {
+                text,
+                urgency,
+                plain,
+                ...(impPicked ? { importance } : {}),
+                project_id: data?.parsed.project?.id ?? projectId ?? null,
+            });
+        } else if (mode === 'note') {
+            post('notes.store', { title: text.trim() || null, text: noteText, project_id: projectId ?? null, stay: true });
         } else if (mode === 'person') {
             post('people.store', { name: text.trim(), relationship: who.trim() || null, contacts: [], group_ids: [], stay: true });
         } else {
@@ -209,6 +280,36 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
 
     const p = data?.parsed;
     const due = p?.due ? dueInfo({ dueAt: p.due }, clock) : null;
+    // One chip for each thing read out of the words; × keeps those words in the title.
+    const wordsOf = (kinds: string[]) =>
+        (p?.picked ?? [])
+            .filter((k) => kinds.includes(k.kind))
+            .map((k) => k.text)
+            .join(' ');
+    const day = (iso: string) => clock.date(iso, { weekday: 'short', day: 'numeric', month: 'short' });
+    const chips: { key: string; icon: string; label: string; words: string }[] = [];
+    if (p) {
+        if (due)
+            chips.push({
+                key: 'due',
+                icon: 'calendar',
+                label: `Due ${due.long.replace('Today · ', 'today, ').replace('Tomorrow · ', 'tomorrow, ')}`,
+                words: wordsOf(['due', 'time']),
+            });
+        if (p.start) chips.push({ key: 'start', icon: 'calClock', label: `Starts ${day(p.start)}`, words: wordsOf(['start']) });
+        if (p.remind)
+            chips.push({
+                key: 'remind',
+                icon: 'bell',
+                label: p.remind.kind === 'at' ? `Remind ${day(p.remind.at)}, ${clock.time(p.remind.at)}` : `Remind ${BEFORE_WORDS[p.remind.before]}`,
+                words: wordsOf(['remind']),
+            });
+        if (p.repeat) chips.push({ key: 'repeat', icon: 'habits', label: repeatText(p.repeat), words: wordsOf(['repeat']) });
+        if (p.hours) chips.push({ key: 'hours', icon: 'clock', label: `${fmtHours(p.hours)} of work`, words: wordsOf(['hours']) });
+        if (p.importance && !impPicked)
+            chips.push({ key: 'imp', icon: 'flag', label: `${LEVEL[p.importance]} importance`, words: wordsOf(['importance']) });
+        if (p.project) chips.push({ key: 'project', icon: 'folder', label: p.project.name, words: wordsOf(['project']) });
+    }
     const tab = (m: Mode, icon: string, label: string) => (
         <button
             type="button"
@@ -231,21 +332,12 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
             className="dialog"
             role="dialog"
             aria-modal="true"
-            aria-label={mode === 'task' ? 'Add a task' : mode === 'event' ? 'Add an event' : 'Add a person'}
+            aria-label={mode === 'task' ? 'Add a task' : mode === 'event' ? 'Add an event' : mode === 'note' ? 'Add a note' : 'Add a person'}
         >
             <div className="qa-tabs" role="tablist">
                 {tab('task', 'tasks', 'Task')}
                 {tab('event', 'planner', 'Event')}
-                <button
-                    type="button"
-                    className="qa-tab"
-                    role="tab"
-                    aria-selected="false"
-                    onClick={() => router.post(route('notes.store'), { project_id: projectId ?? null, title: text.trim().slice(0, 200) || null })}
-                >
-                    <Icon name="notes" />
-                    Note
-                </button>
+                {tab('note', 'notes', 'Note')}
                 {tab('person', 'people', 'Person')}
             </div>
             <form
@@ -262,34 +354,54 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                     placeholder={PLACEHOLDER[mode]}
                     aria-label={PLACEHOLDER[mode]}
                     aria-invalid={firstError ? true : undefined}
-                    maxLength={mode === 'person' ? 120 : 255}
+                    maxLength={mode === 'person' ? 120 : mode === 'note' ? 200 : 255}
                 />
             </form>
 
-            {mode === 'task' && p && (p.due || p.hours || p.project || p.repeat) ? (
+            {mode === 'note' && (
+                <div className="qa-fields">
+                    <textarea
+                        className="input qa-note-text"
+                        rows={4}
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="Write it here (optional)"
+                        aria-label="Note text"
+                        maxLength={200000}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                e.preventDefault();
+                                submit();
+                            }
+                        }}
+                    />
+                </div>
+            )}
+
+            {mode === 'task' && chips.length > 0 ? (
                 <div className="qa-chips">
-                    {due && (
-                        <span className="qa-chip">
-                            <Icon name="calendar" />
-                            Due {due.long.replace('Today · ', 'today, ').replace('Tomorrow · ', 'tomorrow, ')}
+                    {chips.map((c) => (
+                        <span className="qa-chip" key={c.key}>
+                            <Icon name={c.icon} />
+                            {c.label}
+                            {c.words && (
+                                <button
+                                    type="button"
+                                    aria-label={`Keep “${c.words}” as text`}
+                                    title="Keep as text"
+                                    onClick={() => setPlain((w) => [...w, ...wordsIn(c.words)])}
+                                >
+                                    <Icon name="x" className="ic-xs" />
+                                </button>
+                            )}
+                        </span>
+                    ))}
+                    {!p?.project && (
+                        <span className="qa-chip is-plain">
+                            <Icon name="inbox" />
+                            Inbox
                         </span>
                     )}
-                    {p.repeat && (
-                        <span className="qa-chip">
-                            <Icon name="habits" />
-                            {repeatText(p.repeat)}
-                        </span>
-                    )}
-                    {p.hours ? (
-                        <span className="qa-chip">
-                            <Icon name="clock" />
-                            {fmtHours(p.hours)} of work
-                        </span>
-                    ) : null}
-                    <span className="qa-chip is-plain">
-                        <Icon name={p.project ? 'folder' : 'inbox'} />
-                        {p.project ? p.project.name : 'Inbox'}
-                    </span>
                 </div>
             ) : null}
 
@@ -403,7 +515,15 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                 <>
                     <div className="qa-props">
                         <span className="qa-prop">
-                            Importance <Dots n={importance} c="I" onPick={setImportance} />
+                            Importance{' '}
+                            <Dots
+                                n={impPicked ? importance : (p?.importance ?? importance)}
+                                c="I"
+                                onPick={(v) => {
+                                    setImportance(v);
+                                    setImpPicked(true);
+                                }}
+                            />
                         </span>
                         <span className="qa-prop">
                             Urgency <Dots n={urgency} c="U" onPick={setUrgency} />
@@ -422,11 +542,31 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                 </>
             )}
             <div className="qa-foot">
-                <span />
-                <button className="btn btn-primary" onClick={submit} disabled={!text.trim() || saving}>
-                    {mode === 'task' ? 'Add task' : mode === 'event' ? 'Add event' : 'Add person'}
-                    <kbd>Enter</kbd>
-                </button>
+                <label className="auth-check">
+                    <input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} />
+                    Add another
+                </label>
+                <span className="qa-foot-right">
+                    {mode === 'note' && (
+                        <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() =>
+                                router.post(route('notes.store'), {
+                                    project_id: projectId ?? null,
+                                    title: text.trim().slice(0, 200) || null,
+                                    text: noteText,
+                                })
+                            }
+                        >
+                            Open in Notes
+                        </button>
+                    )}
+                    <button className="btn btn-primary" onClick={submit} disabled={empty || saving}>
+                        {mode === 'task' ? 'Add task' : mode === 'event' ? 'Add event' : mode === 'note' ? 'Add note' : 'Add person'}
+                        <kbd>{mode === 'note' ? 'Ctrl Enter' : 'Enter'}</kbd>
+                    </button>
+                </span>
             </div>
         </div>
     );

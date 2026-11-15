@@ -27,7 +27,7 @@ list only covers what's missing or partly there.
 - [ ] A capture-only Inbox where new tasks wait unsorted and unranked. **Your call** (v2's Inbox is the ranked list of tasks with no project)
 - [ ] Target date and energy level. **Filter only** (GPT gave them score points)
 - [x] Link a task straight to a goal; warn when a task is due after its project. **Add**
-- [ ] More quick-add words (start date, reminder, importance) and chips you can remove. **Partly** (due, project, hours, repeat work)
+- [x] More quick-add words (start date, reminder, importance) and chips you can remove. **Partly** (due, project, hours, repeat work)
 - [x] ★2 Follow-up dates and a "Needs attention" group. **Add**
 - [x] "Make available now" (clear the start date in one click). **Add**
 - [ ] Dependencies: a "Blocks" list, stop finishing a task that is still blocked, warnings on cancel or reopen. **Partly**
@@ -90,7 +90,7 @@ list only covers what's missing or partly there.
 - [ ] Search: filter by type, include archived, find people by nickname. **Add**
 - [x] ★1 Quick add → Event. **Add** (the tab is there, greyed out)
 - [x] ★1 Quick add → Person. **Add**
-- [ ] Quick add: text for a note, keep the draft with Retry on an error, "Add another". **Add**
+- [x] Quick add: text for a note, keep the draft with Retry on an error, "Add another". **Add**
 
 ## Review
 
