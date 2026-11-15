@@ -45,7 +45,7 @@ class TaskLifecycleTest extends TestCase
         $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->count('tasks', 1));
 
         $this->post(route('tasks.cancel', $task), ['reason' => 'Supervisor dropped it'])
-            ->assertSessionHas('toast', 'Cancelled “Essay”')->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id]);
+            ->assertSessionHas('toast', 'Cancelled “Essay” · “Slides” can start now')->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id]);
         $task->refresh();
         $this->assertSame([Task::CANCELLED, 'Supervisor dropped it'], [$task->status, $task->cancel_reason]);
         $this->assertNotNull($task->cancelled_at);
@@ -55,7 +55,7 @@ class TaskLifecycleTest extends TestCase
         $this->patch(route('tasks.update', $task), ['status' => 'todo']);
         $this->assertSame(Task::CANCELLED, $task->fresh()->status);
 
-        $this->post(route('tasks.reopen', $task))->assertSessionHas('toast', 'Back: “Essay”')
+        $this->post(route('tasks.reopen', $task))->assertSessionHas('toast', 'Back: “Essay” · “Slides” waits on it again')
             ->assertSessionHas('undo', ['action' => 'cancel-task', 'id' => $task->id, 'data' => ['reason' => 'Supervisor dropped it', 'skip' => false]]);
         $task->refresh();
         $this->assertSame([Task::DOING, null, null], [$task->status, $task->cancel_reason, $task->cancelled_at]);
