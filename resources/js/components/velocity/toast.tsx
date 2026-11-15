@@ -30,6 +30,8 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'focus-resume': { method: 'post', route: 'focus.undo-stop' },
     'remove-files': { method: 'post', route: 'files.remove-many' },
     'remove-project-files': { method: 'post', route: 'project-files.remove-many' },
+    'restore-project': { method: 'post', route: 'projects.restore' },
+    'restore-goal': { method: 'post', route: 'goals.restore' },
     'restore-project-file': { method: 'post', route: 'project-files.restore' },
     'restore-milestone': { method: 'post', route: 'milestones.restore' },
     'restore-template': { method: 'post', route: 'templates.restore' },

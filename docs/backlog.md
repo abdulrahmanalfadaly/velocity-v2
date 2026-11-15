@@ -46,13 +46,13 @@ list only covers what's missing or partly there.
 - [x] ★3 Reminders: several per task, ones that move with the due date, "Bug me" repeats, more snooze choices. **Partly** (one reminder; "before due" is saved as a fixed time; snooze 10 min / 1 h)
 - [x] Paste files into a task, a file count on rows, files on projects. **Partly** (PLAN decision 3 promises project files)
 - [x] Task activity list. **Add** (the data is stored already)
-- [ ] Delete a parent task (keep or delete its subtasks); empty the Archive. **Add**
+- [x] Delete a parent task (keep or delete its subtasks); empty the Archive. **Add**
 
 ## Projects, goals and areas
 
 - [x] ★10 Project status, start and target dates, "Complete project". **Add**
 - [x] ★10 An "All projects" page. **Add**
-- [ ] Delete a project or goal that still has things in it, with Undo. **Add**
+- [x] Delete a project or goal that still has things in it, with Undo. **Add**
 - [x] ★10 Goal dates, status, and progress by milestones or by hand. **Add** (the Goals map already shows progress from tasks)
 - [ ] Several goals for one project or habit. **Add**
 - [x] ★10 Areas: rename, remove, collapse, a menu on each. **Add**

@@ -24,6 +24,57 @@ class ProjectsGoalsAreasTest extends TestCase
         $this->actingAs($this->user);
     }
 
+    public function test_a_project_or_goal_with_things_in_it_can_be_deleted_and_undo_puts_it_all_back(): void
+    {
+        $goal = $this->user->goals()->create(['title' => 'Finish the FYP', 'color' => 1]);
+        $fyp = $this->user->projects()->create(['name' => 'Chapter 3', 'goal_id' => $goal->id]);
+        $a = $this->task('Draft', $fyp);
+        $b = $this->task('Old', $fyp, ['status' => 'done', 'completed_at' => now()]);
+        $note = $this->user->notes()->create(['title' => 'Ideas', 'project_id' => $fyp->id, 'body_text' => '']);
+        $habit = $this->user->habits()->create(['name' => 'Write daily', 'target' => 1, 'project_id' => $fyp->id]);
+        $loose = $this->task('Passport', null, ['goal_id' => $goal->id]);
+
+        // Tasks to the Inbox; notes and habits stay, out of the project.
+        $this->delete(route('projects.destroy', $fyp))->assertRedirect(route('tasks.index'))->assertSessionHas('toast', 'Deleted “Chapter 3” · 2 tasks moved to the Inbox');
+        $this->assertSame([null, null, null, null], [$a->fresh()->project_id, $b->fresh()->project_id, $note->fresh()->project_id, $habit->fresh()->project_id]);
+        $this->post(route('projects.restore', $fyp->id), session('undo')['data'])->assertSessionHas('toast', '“Chapter 3” is back');
+        $this->assertSame([$fyp->id, $fyp->id, $fyp->id], [$a->fresh()->project_id, $note->fresh()->project_id, $habit->fresh()->project_id]);
+
+        // Its tasks deleted with it, and back with it.
+        $this->delete(route('projects.destroy', $fyp), ['tasks' => 'delete'])->assertSessionHas('toast', 'Deleted “Chapter 3” and its 2 tasks');
+        $this->assertSoftDeleted($a);
+        $this->post(route('projects.restore', $fyp->id), session('undo')['data']);
+        $this->assertSame([null, $fyp->id], [$a->fresh()->deleted_at, $a->fresh()->project_id]);
+
+        // A goal: its projects and tasks stay, without it.
+        $this->delete(route('goals.destroy', $goal))->assertSessionHas('toast', 'Deleted goal “Finish the FYP” · its 1 project stays');
+        $undo = session('undo');
+        $this->assertSame([null, null], [$fyp->fresh()->goal_id, $loose->fresh()->goal_id]);
+        $this->get(route('goals.index'))->assertInertia(fn ($page) => $page->where('goals.0.id', 0));
+        $this->post(route('goals.restore', $goal->id), $undo['data']);
+        $this->assertSame([$goal->id, $goal->id], [$fyp->fresh()->goal_id, $loose->fresh()->goal_id]);
+
+        // Nobody else's.
+        $this->actingAs(User::factory()->create());
+        $this->delete(route('projects.destroy', $fyp))->assertNotFound();
+    }
+
+    public function test_the_archive_can_be_emptied_for_good(): void
+    {
+        $old = $this->task('Last term', null, ['status' => 'done', 'completed_at' => now()->subDays(40), 'archived_at' => now()->subDays(30)]);
+        $old->steps()->create(['title' => 'Step', 'position' => 0]);
+        $kept = $this->task('Done this week', null, ['status' => 'done', 'completed_at' => now()]);
+        $gone = $this->task('Deleted one');
+        $gone->delete();
+
+        $this->post(route('tasks.archive-empty'), ['what' => 'archived'])->assertSessionHas('toast', 'Deleted 1 task for good');
+        $this->assertNull(Task::withTrashed()->find($old->id));
+        $this->assertNotNull($kept->fresh());
+        $this->assertNotNull(Task::withTrashed()->find($gone->id));
+        $this->post(route('tasks.archive-empty'), ['what' => 'deleted'])->assertSessionHas('toast', 'Deleted 1 task for good');
+        $this->assertNull(Task::withTrashed()->find($gone->id));
+    }
+
     private function task(string $title, ?Project $project = null, array $attrs = []): Task
     {
         return $this->user->tasks()->create($attrs + ['title' => $title, 'importance' => 3, 'urgency' => 3, 'est_hours' => 1, 'project_id' => $project?->id]);

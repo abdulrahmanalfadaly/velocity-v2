@@ -1,8 +1,10 @@
+import { Modal } from '@/components/velocity/forms';
 import { Icon } from '@/components/velocity/icon';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, goalVar } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 
 interface Props extends VelocityShared {
     archived: { id: number; title: string; project: string | null; status: 'done' | 'cancelled'; finishedAt: string | null; reason: string | null }[];
@@ -20,6 +22,9 @@ export default function Archive() {
     const clock = Clock.from(props.clock);
     const when = (iso: string | null) => (iso ? clock.date(iso, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
     const empty = !props.archived.length && !props.tasks.length && !props.notes.length && !props.projects.length && !props.goals.length;
+    // "Delete all for good": archived tasks, or deleted ones. Asks first; it can't be undone.
+    const [emptying, setEmptying] = useState<null | 'archived' | 'deleted'>(null);
+    const many = (n: number) => (n === 1 ? '1 task' : `${n} tasks`);
 
     return (
         <VelocityShell title="Archive" section="tasks" active="archive">
@@ -94,6 +99,10 @@ export default function Archive() {
                                 <Icon name="archive" />
                                 Archived tasks
                             </h2>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setEmptying('archived')}>
+                                <Icon name="trash" className="ic-sm" />
+                                Delete all for good
+                            </button>
                         </div>
                         {props.archived.map((t) => (
                             <div className="fold-row" key={t.id}>
@@ -124,6 +133,10 @@ export default function Archive() {
                                 <Icon name="tasks" />
                                 Deleted tasks
                             </h2>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setEmptying('deleted')}>
+                                <Icon name="trash" className="ic-sm" />
+                                Empty
+                            </button>
                         </div>
                         {props.tasks.map((t) => (
                             <div className="fold-row" key={t.id}>
@@ -171,6 +184,35 @@ export default function Archive() {
                     </section>
                 )}
             </div>
+            {emptying && (
+                <Modal
+                    title={`Delete ${many(emptying === 'archived' ? props.archived.length : props.tasks.length)} for good?`}
+                    onClose={() => setEmptying(null)}
+                >
+                    <div className="vform">
+                        <p className="vform-text-plain">
+                            {emptying === 'archived'
+                                ? 'Every archived task goes, with its steps, files and history, and it leaves History and Review too.'
+                                : 'Every deleted task goes, with its steps, files and history.'}{' '}
+                            This can’t be undone.
+                        </p>
+                        <div className="vform-foot">
+                            <button type="button" className="btn btn-ghost" onClick={() => setEmptying(null)}>
+                                Keep them
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() =>
+                                    router.post(route('tasks.archive-empty'), { what: emptying }, { ...keep, onSuccess: () => setEmptying(null) })
+                                }
+                            >
+                                Delete for good
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </VelocityShell>
     );
 }

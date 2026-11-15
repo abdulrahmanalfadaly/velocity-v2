@@ -1,7 +1,7 @@
 import { goalVar } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
-import { useForm, usePage } from '@inertiajs/react';
-import { type FormEvent, type ReactNode, useEffect, useRef } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Icon } from './icon';
@@ -55,6 +55,8 @@ export interface ProjectValues {
     areaId: number | null;
     goalId: number | null;
     archived?: boolean;
+    /** How many of its tasks are open (said when deleting it). */
+    openCount?: number;
 }
 
 const NEW_AREA = 'new';
@@ -89,6 +91,35 @@ export function ProjectDialog({ project, areaId, onClose }: { project?: ProjectV
         if (project?.id) form.patch(route('projects.update', project.id), opts);
         else form.post(route('projects.store'), opts);
     };
+    const [deleting, setDeleting] = useState(false);
+
+    if (deleting && project?.id) {
+        const n = project.openCount ?? 0;
+        const remove = (tasks: 'inbox' | 'delete') => router.delete(route('projects.destroy', project.id!), { data: { tasks } });
+        return (
+            <Modal title={`Delete “${project.name}”?`} onClose={onClose}>
+                <div className="vform">
+                    <p className="vform-text-plain">
+                        {n ? `It has ${n} open ${n === 1 ? 'task' : 'tasks'}. ` : ''}Its tasks can go to the Inbox, or be deleted with it. Its notes
+                        and habits stay, out of the project. You can undo this.
+                    </p>
+                    <div className="vform-foot">
+                        <button type="button" className="btn btn-ghost" onClick={() => setDeleting(false)}>
+                            Back
+                        </button>
+                        <div className="vform-foot-right">
+                            <button type="button" className="btn btn-secondary" onClick={() => remove('inbox')}>
+                                Tasks to the Inbox
+                            </button>
+                            <button type="button" className="btn btn-primary" onClick={() => remove('delete')}>
+                                Delete the tasks too
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+        );
+    }
 
     return (
         <Modal title={project?.id ? 'Edit project' : 'New project'} onClose={onClose}>
@@ -153,7 +184,14 @@ export function ProjectDialog({ project, areaId, onClose }: { project?: ProjectV
                     processing={processing}
                     saveLabel={project?.id ? 'Save' : 'Create project'}
                     onClose={onClose}
-                    left={project?.id ? <ArchiveButton kind="projects" id={project.id} archived={!!project.archived} onDone={onClose} /> : undefined}
+                    left={
+                        project?.id ? (
+                            <span className="vform-foot-right">
+                                <ArchiveButton kind="projects" id={project.id} archived={!!project.archived} onDone={onClose} />
+                                <DeleteButton onClick={() => setDeleting(true)} />
+                            </span>
+                        ) : undefined
+                    }
                 />
             </form>
         </Modal>
@@ -204,6 +242,29 @@ export function GoalDialog({ goal, onClose }: { goal?: GoalValues; onClose: () =
         if (goal?.id) form.patch(route('goals.update', goal.id), opts);
         else form.post(route('goals.store'), opts);
     };
+    const [deleting, setDeleting] = useState(false);
+
+    if (deleting && goal?.id) {
+        return (
+            <Modal title={`Delete “${goal.title}”?`} onClose={onClose}>
+                <div className="vform">
+                    <p className="vform-text-plain">Its projects and tasks stay, without a goal. You can undo this.</p>
+                    <div className="vform-foot">
+                        <button type="button" className="btn btn-ghost" onClick={() => setDeleting(false)}>
+                            Back
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => router.delete(route('goals.destroy', goal.id!), { preserveScroll: true, onSuccess: onClose })}
+                        >
+                            Delete goal
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        );
+    }
 
     return (
         <Modal title={goal?.id ? 'Edit goal' : 'New goal'} onClose={onClose}>
@@ -314,10 +375,26 @@ export function GoalDialog({ goal, onClose }: { goal?: GoalValues; onClose: () =
                     processing={processing}
                     saveLabel={goal?.id ? 'Save' : 'Create goal'}
                     onClose={onClose}
-                    left={goal?.id ? <ArchiveButton kind="goals" id={goal.id} archived={false} onDone={onClose} /> : undefined}
+                    left={
+                        goal?.id ? (
+                            <span className="vform-foot-right">
+                                <ArchiveButton kind="goals" id={goal.id} archived={false} onDone={onClose} />
+                                <DeleteButton onClick={() => setDeleting(true)} />
+                            </span>
+                        ) : undefined
+                    }
                 />
             </form>
         </Modal>
+    );
+}
+
+function DeleteButton({ onClick }: { onClick: () => void }) {
+    return (
+        <button type="button" className="btn btn-ghost" onClick={onClick}>
+            <Icon name="trash" />
+            Delete
+        </button>
     );
 }
 

@@ -822,6 +822,7 @@ export default function ProjectShow() {
                         areaId: project.areaId,
                         goalId: project.goal?.id ?? null,
                         archived: project.archived,
+                        openCount: project.openCount,
                     }}
                     onClose={() => setEditing(false)}
                 />

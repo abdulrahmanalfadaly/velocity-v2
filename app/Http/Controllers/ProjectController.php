@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\TaskActions;
 use App\Models\FocusSession;
 use App\Models\Project;
 use App\Models\Task;
@@ -13,6 +14,7 @@ use App\Services\TaskPresenter;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -61,16 +63,57 @@ class ProjectController extends Controller
     }
 
     /** Only for undoing "New project": a project with nothing in it yet goes away for good. */
-    public function destroy(Request $request, Project $project): RedirectResponse
+    /**
+     * Deletes a project (Undo brings it back as it was). Its tasks go to the Inbox, or are
+     * deleted too; its notes and habits stay, out of the project.
+     */
+    public function destroy(Request $request, Project $project, TaskActions $actions): RedirectResponse
     {
-        $this->own($project, $request->user());
-        if ($project->tasks()->withTrashed()->exists() || $project->notes()->exists() || $project->habits()->exists()) {
-            return back()->with('toast', "“{$project->name}” already has things in it – archive it instead");
-        }
-        $project->milestones()->withTrashed()->forceDelete();
-        $project->delete();
+        $user = $request->user();
+        $this->own($project, $user);
+        $mode = $request->validate(['tasks' => ['sometimes', Rule::in(['inbox', 'delete'])]])['tasks'] ?? 'inbox';
+        $tasks = $project->tasks()->get();
+        $was = ['mode' => $mode, 'tasks' => $tasks->pluck('id')->all(), 'notes' => $project->notes()->pluck('id')->all(), 'habits' => $project->habits()->pluck('id')->all()];
+        DB::transaction(function () use ($project, $tasks, $mode, $user, $actions) {
+            if ($mode === 'delete') {
+                $tasks->each(fn (Task $t) => $actions->delete($t, $user));
+            } else {
+                $user->tasks()->whereIn('id', $tasks->pluck('id'))->update(['project_id' => null]);
+            }
+            $project->notes()->update(['project_id' => null]);
+            $project->habits()->update(['project_id' => null]);
+            $project->delete();
+        });
+        $n = $tasks->count();
+        $what = $n === 0 ? '' : ($mode === 'delete' ? " and its {$n} ".($n === 1 ? 'task' : 'tasks') : " · {$n} ".($n === 1 ? 'task' : 'tasks').' moved to the Inbox');
 
-        return to_route('tasks.index')->with('toast', "Removed “{$project->name}”");
+        return to_route('tasks.index')->with('toast', "Deleted “{$project->name}”{$what}")->with('undo', $this->undo('restore-project', $project->id, $was));
+    }
+
+    /** Undo of deleting a project: it comes back, with its tasks, notes and habits in it again. */
+    public function restore(Request $request, int $id, TaskActions $actions): RedirectResponse
+    {
+        $user = $request->user();
+        $project = Project::onlyTrashed()->findOrFail($id);
+        $this->own($project, $user);
+        $was = $request->validate([
+            'mode' => ['sometimes', Rule::in(['inbox', 'delete'])],
+            'tasks' => ['nullable', 'array'], 'tasks.*' => ['integer'],
+            'notes' => ['nullable', 'array'], 'notes.*' => ['integer'],
+            'habits' => ['nullable', 'array'], 'habits.*' => ['integer'],
+        ]);
+        DB::transaction(function () use ($project, $was, $user, $actions) {
+            $project->restore();
+            if (($was['mode'] ?? 'inbox') === 'delete') {
+                Task::onlyTrashed()->where('user_id', $user->id)->whereIn('id', $was['tasks'] ?? [])->get()->each(fn (Task $t) => $actions->restore($t, $user));
+            } else {
+                $user->tasks()->whereIn('id', $was['tasks'] ?? [])->whereNull('project_id')->update(['project_id' => $project->id]);
+            }
+            $user->notes()->whereIn('id', $was['notes'] ?? [])->whereNull('project_id')->update(['project_id' => $project->id]);
+            $user->habits()->whereIn('id', $was['habits'] ?? [])->whereNull('project_id')->update(['project_id' => $project->id]);
+        });
+
+        return back()->with('toast', "“{$project->name}” is back");
     }
 
     public function update(Request $request, Project $project): RedirectResponse

@@ -87,6 +87,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('tasks/{task}/unpromote', [TaskController::class, 'unpromote'])->name('tasks.unpromote');
 
         Route::get('tasks/archive', ArchiveController::class)->name('tasks.archive');
+        Route::post('tasks/archive/empty', [ArchiveController::class, 'empty'])->name('tasks.archive-empty');
         Route::post('tasks/{task}/cancel', [TaskController::class, 'cancel'])->name('tasks.cancel');
         Route::post('tasks/{task}/blocks', [TaskController::class, 'blocks'])->name('tasks.blocks');
         Route::post('tasks/{task}/subtasks', [TaskController::class, 'subtask'])->name('tasks.subtask');
@@ -118,6 +119,7 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('milestones/{milestone}', [MilestoneController::class, 'destroy'])->name('milestones.destroy');
         Route::post('milestones/{id}/restore', [MilestoneController::class, 'restore'])->whereNumber('id')->name('milestones.restore');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+        Route::post('projects/{id}/restore', [ProjectController::class, 'restore'])->whereNumber('id')->name('projects.restore');
 
         Route::get('goals', [GoalController::class, 'index'])->name('goals.index');
         Route::post('goals', [GoalController::class, 'store'])->name('goals.store');
@@ -125,6 +127,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('goals/{goal}/archive', [GoalController::class, 'archive'])->name('goals.archive');
         Route::post('goals/{goal}/unarchive', [GoalController::class, 'unarchive'])->name('goals.unarchive');
         Route::delete('goals/{goal}', [GoalController::class, 'destroy'])->name('goals.destroy');
+        Route::post('goals/{id}/restore', [GoalController::class, 'restore'])->whereNumber('id')->name('goals.restore');
 
         Route::get('habits', [HabitController::class, 'index'])->name('habits.index');
         Route::post('habits', [HabitController::class, 'store'])->name('habits.store');

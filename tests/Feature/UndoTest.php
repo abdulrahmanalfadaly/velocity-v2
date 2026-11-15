@@ -41,7 +41,8 @@ class UndoTest extends TestCase
             'restore-step' => ['post', 'steps.restore'], 'restore-milestone' => ['post', 'milestones.restore'],
             'restore-template' => ['post', 'templates.restore'], 'delete-template' => ['delete', 'templates.destroy'], 'patch-template' => ['patch', 'templates.update'],
             'archive-project' => ['post', 'projects.archive'], 'unarchive-project' => ['post', 'projects.unarchive'],
-            'delete-project' => ['delete', 'projects.destroy'], 'patch-project' => ['patch', 'projects.update'],
+            'delete-project' => ['delete', 'projects.destroy'], 'patch-project' => ['patch', 'projects.update'], 'restore-project' => ['post', 'projects.restore'],
+            'restore-goal' => ['post', 'goals.restore'],
             'archive-goal' => ['post', 'goals.archive'], 'unarchive-goal' => ['post', 'goals.unarchive'], 'delete-goal' => ['delete', 'goals.destroy'], 'patch-goal' => ['patch', 'goals.update'],
             'habit-count' => ['post', 'habits.check'], 'put-habit-day' => ['put', 'habits.day'], 'put-weights' => ['put', 'weights.update'],
         ];
@@ -158,9 +159,12 @@ class UndoTest extends TestCase
         $this->post(route('projects.store'), ['name' => 'Oops']);
         $this->undo();
         $this->assertNull($this->user->projects()->firstWhere('name', 'Oops'));
-        $this->task(['project_id' => $project->id]);
-        $this->delete(route('projects.destroy', $project))->assertSessionHas('toast', '“Thesis” already has things in it – archive it instead');
-        $this->assertNotNull($project->fresh());
+        // A project with things in it can be deleted too, and Undo brings it all back.
+        $essay = $this->task(['project_id' => $project->id]);
+        $this->delete(route('projects.destroy', $project))->assertSessionHas('toast', 'Deleted “Thesis” · 1 task moved to the Inbox');
+        $this->assertSoftDeleted($project);
+        $this->undo();
+        $this->assertSame($project->id, $essay->fresh()->project_id);
 
         $this->post(route('goals.store'), ['title' => 'Learn French', 'color' => 2]);
         $goal = $this->user->goals()->firstOrFail();

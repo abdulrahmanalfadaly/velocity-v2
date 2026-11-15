@@ -10,6 +10,7 @@ use App\Services\RankingService;
 use App\Services\TaskPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,16 +28,35 @@ class GoalController extends Controller
         return back()->with('toast', "Created goal “{$goal->title}”")->with('undo', $this->undo('delete-goal', $goal->id));
     }
 
-    /** Only for undoing "New goal": a goal with no projects yet goes away for good. */
+    /** Deletes a goal (Undo brings it back): its projects and tasks stay, without a goal. */
     public function destroy(Request $request, Goal $goal): RedirectResponse
     {
-        $this->own($goal, $request->user());
-        if ($goal->projects()->exists()) {
-            return back()->with('toast', "“{$goal->title}” already has projects – archive it instead");
-        }
-        $goal->delete();
+        $user = $request->user();
+        $this->own($goal, $user);
+        $was = ['projects' => $goal->projects()->pluck('id')->all(), 'tasks' => $user->tasks()->where('goal_id', $goal->id)->pluck('id')->all()];
+        DB::transaction(function () use ($goal, $user) {
+            $user->projects()->where('goal_id', $goal->id)->update(['goal_id' => null]);
+            $user->tasks()->where('goal_id', $goal->id)->update(['goal_id' => null]);
+            $goal->delete();
+        });
+        $n = count($was['projects']);
 
-        return back()->with('toast', "Removed goal “{$goal->title}”");
+        return back()->with('toast', "Deleted goal “{$goal->title}”".($n ? " · its {$n} ".($n === 1 ? 'project stays' : 'projects stay') : ''))
+            ->with('undo', $this->undo('restore-goal', $goal->id, $was));
+    }
+
+    /** Undo of deleting a goal: it comes back, with its projects and tasks under it again. */
+    public function restore(Request $request, int $id): RedirectResponse
+    {
+        $user = $request->user();
+        $goal = Goal::onlyTrashed()->findOrFail($id);
+        $this->own($goal, $user);
+        $was = $request->validate(['projects' => ['nullable', 'array'], 'projects.*' => ['integer'], 'tasks' => ['nullable', 'array'], 'tasks.*' => ['integer']]);
+        $goal->restore();
+        $user->projects()->whereIn('id', $was['projects'] ?? [])->whereNull('goal_id')->update(['goal_id' => $goal->id]);
+        $user->tasks()->whereIn('id', $was['tasks'] ?? [])->whereNull('project_id')->whereNull('goal_id')->update(['goal_id' => $goal->id]);
+
+        return back()->with('toast', "Goal “{$goal->title}” is back");
     }
 
     public function update(Request $request, Goal $goal): RedirectResponse

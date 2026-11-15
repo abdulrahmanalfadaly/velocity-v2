@@ -6,13 +6,38 @@ use App\Models\Note;
 use App\Models\Task;
 use App\Services\AutoArchive;
 use App\Services\RankingService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /** Archived and deleted tasks, deleted notes, archived projects and goals, each with a way back. */
 class ArchiveController extends Controller
 {
+    /**
+     * "Empty": archived tasks, or deleted ones, go for good (with their files, steps and history).
+     * This can't be undone, and archived tasks leave History and Review too; the page asks first.
+     */
+    public function empty(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $what = $request->validate(['what' => ['required', Rule::in(['archived', 'deleted'])]])['what'];
+        $query = $what === 'archived'
+            ? $user->tasks()->whereNotNull('archived_at')->whereIn('status', Task::FINISHED)
+            : Task::onlyTrashed()->where('user_id', $user->id);
+        $n = 0;
+        $query->with(['files' => fn ($q) => $q->withTrashed()])->chunkById(100, function ($tasks) use (&$n) {
+            foreach ($tasks as $task) {
+                $task->files->each->forceDelete(); // the stored files go too
+                $task->forceDelete();
+                $n++;
+            }
+        });
+
+        return back()->with('toast', $n === 0 ? 'Nothing to delete' : "Deleted {$n} ".($n === 1 ? 'task' : 'tasks').' for good');
+    }
+
     public function __invoke(Request $request, RankingService $ranking): Response
     {
         $user = $request->user();
