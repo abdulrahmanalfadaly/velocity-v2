@@ -85,11 +85,12 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 
 | | |
 |---|---|
-| `GET /tasks?view=upnext` | the ranking. `view`: `upnext` (default), `inbox` (ranked, no project), `waiting` (with `kind` and `why`), `done`, `cancelled`, `archived` (as on All tasks). Also `project_id`, `q`, `limit` (≤ 200). |
+| `GET /tasks?view=upnext` | the ranking. `view`: `upnext` (default), `inbox` (ranked, no project), `captured` (captured only, waiting to be sorted, not ranked), `waiting` (with `kind` and `why`), `done`, `cancelled`, `archived` (as on All tasks). Also `project_id`, `q`, `limit` (≤ 200). Each task has `energy` (`low` / `normal` / `high` / `null`: a filter only, never in the score) and `capturedAt`. |
 | `GET /tasks/{id}` | one task, with what it starts after, what waits on it (`blocks`), its `subtasks`, notes, people, minutes focused, `activity` (its history in words) and `history` |
-| `POST /tasks` | `{"text": "Ethics essay outline fri 3h #fyp"}` like quick add (also `from mon`, `remind 9am` / `remind 1h before`, `!` / `!!`; optional `importance`, `urgency`, `project_id`), or fields: `title`, `importance`, `urgency`, `due_at`, `est_hours`, `notes`, `project_id`, `depends_on` … |
+| `POST /tasks` | `{"text": "Ethics essay outline fri 3h #fyp"}` like quick add (also `from mon`, `remind 9am` / `remind 1h before`, `!` / `!!`, `~low` / `~normal` / `~high` for the energy it needs; optional `importance`, `urgency`, `project_id`, and `"capture": true` to keep it out of the ranking until `POST /tasks/{id}/rank`), or fields: `title`, `importance`, `urgency`, `due_at`, `est_hours`, `notes`, `project_id`, `depends_on` … |
 | `POST /tasks/preview` | where a task would land, without saving: `{"text": …}` or `importance`, `urgency`, `due_at`, `est_hours` → `rank`, `of`, `score` |
 | `PATCH /tasks/{id}` | any of: `title`, `notes`, `importance`, `urgency`, `due_at`, `est_hours`, `status` (todo / doing / waiting), `waiting_for`, `project_id`, `goal_id` (only for a task with no project), `repeat_unit`, `repeat_every`, `available_from`, `reminder_at` (one "at a time" reminder; `null` removes them), `follow_up_on` (YYYY-MM-DD), `depends_on` |
+| `POST /tasks/{id}/rank` | a captured task joins the ranking where the formula puts it |
 | `POST /tasks/{id}/complete` | done; a repeating task's next copy is in `meta.next`. Still waiting on another task: `409` unless `{"anyway": true}`. `{"children": "complete"}` finishes its open subtasks too |
 | `POST /tasks/{id}/subtasks` | `{"title"}`: a subtask, ranked like any task (it starts with the parent's importance, urgency and due date) |
 | `POST /tasks/{id}/blocks` | `{"add": id}` or `{"remove": id}`: a task that waits on this one; answers with what waits on it now |
@@ -104,7 +105,7 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 | `DELETE /reminders/{id}` · `POST /reminders/{id}/snooze` | remove; snooze `{"minutes"}` or `{"until": "2026-11-12 09:00"}` |
 | `GET /templates` · `POST /templates/{id}/use` | the templates (with `dueDays`, `dueTime`, `startDays`: dates counted from the day it is used); a task from one `{"due_at"?, "project_id"?}` (no `due_at`: the template's own) |
 | `GET /focus` | the timer now: a running session (`phase: "focus"`), a Pomodoro between rounds (`roundDone`, `break`, `breakOver`, with `breakEndsAt`), or `null` |
-| `POST /focus` · `POST /focus/stop` | start `{"task_id"?, "minutes"?, "mode"?: "timer"/"pomodoro", "intention"?}` (no minutes = no limit); stop (under a minute isn't kept: `counted: false`) |
+| `POST /focus` · `POST /focus/stop` | start `{"task_id"?, "minutes"?, "mode"?: "timer"/"pomodoro", "intention"?}` (no minutes = no limit), or on something else with one of `project_id`, `goal_id`, `habit_id`, `note_id` (the session's `subject` names it); stop (under a minute isn't kept: `counted: false`). With Settings → Focus "Stop" (`timeUp`), a timer stops at its length. |
 | `POST /focus/pause` · `/resume` · `/next` · `/end` | pause and go on; Pomodoro: the next round now, or done for now |
 | `GET /focus/history?range=week&date=` · `PATCH /focus/{id}` | sessions, focus by hour and weekday (`range`: week / month); the note after `{"note"}` |
 
@@ -127,14 +128,16 @@ its open tasks in rank order if the key reads tasks) · `POST /projects`
 
 | | |
 |---|---|
-| `GET /planner?from=2026-11-16&to=2026-11-22` | events (each time a weekly class happens), booked time, habit times, people's dates, tasks due. Default: the next 7 days; at most 62. |
+| `GET /planner?from=2026-11-16&to=2026-11-22` | events (each time a weekly class happens, with `locked` and `cancelled`), booked time (`kind`: task / project / reserved; `locked`; a project's `next` task; `blocked` with why when a booked task can't be worked on now), habit times, people's dates, `markers` (project and milestone due dates, goal target dates, habits with no set time, catch-ups), tasks due. Default: the next 7 days; at most 62. |
 | `POST /planner/plan` | `{"span": "day"}` or `"week"`, optional `date`, `task_id`: books free time in rank order → `bookedMinutes`, `didNotFit` |
 | `POST /events` | `{"title", "calendar": "class"/"work"/"personal", "date", "start_time", "end_time"}` or `"all_day": true`; `location`, `notes`, `repeat_weekly`, `repeat_until` |
 | `PATCH /events/{id}` | any of the same fields |
 | `DELETE /events/{id}` | the whole event; with `{"date"}` only that week of a weekly one |
+| `PATCH /events/{id}/move` | `{"occurrence": "2026-11-19", "date", "start", "minutes", "scope": "all"/"one"}`: a weekly event moves every week, or only that week (a one-off `copy` takes its place). Locked (`"locked": true` on the event): needs `{"anyway": true}` |
+| `POST /events/{id}/cancel` | `{"date"}`: that day is cancelled (it stays on the Planner, crossed out, and takes no time); `{"date", "cancelled": false}` takes it back |
 | `GET /planner/free?date=&span=day` | free time in working hours from now on, around events, habit times and booked blocks: per day, `slots` and `minutes` (`span`: day / week) |
-| `POST /planner/blocks` | book a task `{"task_id", "date", "start": "14:00", "minutes"}`; the answer lists what it `overlaps` (a warning only) |
-| `PATCH /planner/blocks/{id}` · `DELETE /planner/blocks/{id}` | move or resize `{"date"?, "start"?, "minutes"?}`; remove |
+| `POST /planner/blocks` | book a task `{"task_id", "date", "start": "14:00", "minutes"}`, a whole project `{"kind": "project", "project_id", …}` or reserved time `{"kind": "reserved", "label": "Gym", …}`; the answer lists what it `overlaps` (a warning only) |
+| `PATCH /planner/blocks/{id}` · `DELETE /planner/blocks/{id}` | move or resize `{"date"?, "start"?, "minutes"?}` (a locked block: `409` unless `{"anyway": true}`), `{"locked": true}`, give a task's time to another task `{"task_id"}`; remove |
 
 ### Notes (`notes`)
 

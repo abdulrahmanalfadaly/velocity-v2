@@ -85,6 +85,7 @@ organised. Left for the very end, after the backlog (user, 16 Nov).
 | 8 | API for Mark (personal tokens with scopes) + GitHub | done |
 | 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | top picks done; the rest of the list next |
 | 10 | The GPT list, batch 2: finishing tasks and projects | done |
+| 11 | The GPT list, batch 3: Planner, Focus, Home, Search and Capture | done (browser check to come) |
 
 ## Phase 0 / 1 checklist
 
@@ -605,6 +606,46 @@ too, and finished ones go newest first.
       `cancelled` and `archived` views, the new bulk actions, template
       dates, deleting and restoring projects and goals (`meta.undo`).
       Uploading files and emptying the Archive stay on the screens only.
+
+## Phase 11 checklist
+
+The third batch from `docs/backlog.md`: Planner, Focus, Home, Search and
+Capture. Approved on 16 Nov with the suggested answers: a timer's time-up is
+a choice in Settings → Focus (keep counting by default), and "Capture only" is
+a choice in quick add. Left out on purpose: a target date, Home's projects /
+focus / mini-map cards, the Planner's year view, session chooser and block
+history.
+
+- [x] Planner month view: Day / Week / Month; each day box shows its first
+      few things, then "+2 more"; a day opens it; phones show marks
+- [x] Time for a whole project ("FYP, Thu 2–5 pm", shows the project's top
+      task by the formula) and reserved time ("Gym", grey stripes, not
+      work); planning books around both (`planner_blocks.kind`)
+- [x] Lock a block (dragging asks "Move it anyway?"; the server refuses
+      without `anyway`), and "Change task" in the block menu
+- [x] A booked task that can't be worked on now (waiting, after another
+      task, project on hold, booked before it can start) turns grey and says
+      why; "Use for #N …" gives the time to the next task still to book
+- [x] Events: drag and resize like blocks (weekly: "Only this week" makes a
+      one-off copy, or "Every week"), a Locked box, "Cancel this week" /
+      "Mark as cancelled" (stays crossed out, takes no time, Review counts it)
+- [x] "Show" switches (task due dates, projects and milestones, goal dates,
+      habits, birthdays and catch-ups, follow-ups) and new markers: project
+      due dates, milestones, goal target dates, habits with no set time,
+      catch-ups
+- [x] Focus on a project, goal, habit or note (`focus_sessions.project_id`
+      …); a habit's focus offers to tick it off ("Add 25 min to Read
+      today?"); Settings → Focus "When a timer's time is up: Keep counting /
+      Stop"
+- [x] Home: "I have [time] [energy]" on Do next (tasks keep their own rank;
+      `tasks.energy` is a filter only, set in the panel or with `~low`), a
+      Refresh button, the Inbox count, a reload after midnight; Up next gets
+      a "Low energy" filter
+- [x] Search: one kind at a time, and "Include archived"
+- [x] Capture only: quick add's box puts a task in the Inbox's "To sort",
+      out of the ranking, until "Rank it" (`tasks.captured_at`)
+- [x] The API for all of it (`docs/api.md`); the launcher now brings the
+      database up to date when it starts
 
 ## Run it
 

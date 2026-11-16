@@ -24,8 +24,8 @@ list only covers what's missing or partly there.
 ## Tasks
 
 - [x] ★2 Cancel a task with a reason. **Add** (the data allows "Cancelled"; no way to set it yet)
-- [ ] A capture-only Inbox where new tasks wait unsorted and unranked. **Your call** (v2's Inbox is the ranked list of tasks with no project)
-- [ ] Target date and energy level. **Filter only** (GPT gave them score points)
+- [x] A capture-only Inbox where new tasks wait unsorted and unranked. **Your call**: decided 16 Nov, "Capture only" in quick add (Phase 11)
+- [x] Target date and energy level. **Filter only** (GPT gave them score points). Phase 11: energy as a filter; no target date (user, 16 Nov)
 - [x] Link a task straight to a goal; warn when a task is due after its project. **Add**
 - [x] More quick-add words (start date, reminder, importance) and chips you can remove. **Partly** (due, project, hours, repeat work)
 - [x] ★2 Follow-up dates and a "Needs attention" group. **Add**
@@ -59,35 +59,35 @@ list only covers what's missing or partly there.
 
 ## Planner
 
-- [ ] Month view. **Add** (year view: **Low**)
-- [ ] Blocks for a whole project, or "reserved" time. **Add**
+- [x] Month view. **Add** (year view: **Low**, left out)
+- [x] Blocks for a whole project, or "reserved" time. **Add**
 - [x] ★5 Drag to resize a block; type exact times. **Add**
 - [x] ★5 A warning when two things overlap. **Add**
-- [ ] A warning before moving a locked block. **Add**
+- [x] A warning before moving a locked block. **Add**
 - [x] ★5 Settings: gap between blocks, default length, day start and end. **Add** (time bands: with them)
 - [x] ★5 A free-time panel, with copy. **Add**
-- [ ] Markers for project due dates, milestones, goal targets, with show/hide. **Partly** (task due flags exist)
-- [ ] Habit markers, "Show habits" / "Show people" switches. **Add**
-- [ ] Advice when a booked task becomes blocked or waiting. **Add**
-- [ ] Cancelled events kept in history; locked events; overlap checks for events. **Add**
-- [ ] Session chooser, moving a block to another task, block history. **Low**
+- [x] Markers for project due dates, milestones, goal targets, with show/hide. **Partly** (task due flags exist)
+- [x] Habit markers, "Show habits" / "Show people" switches. **Add**
+- [x] Advice when a booked task becomes blocked or waiting. **Add**
+- [x] Cancelled events kept in history; locked events; overlap checks for events. **Add**
+- [x] Session chooser, moving a block to another task, block history. **Low**: moving a block to another task done; the rest left out (16 Nov)
 
 ## Focus
 
 - [x] ★4 Pomodoro breaks, and a Focus settings page (lengths, auto-start, sound). **Add**
 - [x] ★4 Any length from 1 to 240 minutes, and a stopwatch. **Partly** (25 / 50 / 90 / no limit)
 - [x] ★4 An intention before you start and a note after. **Add**
-- [ ] Focus on a project, goal, habit or note (not just a task). **Add**
+- [x] Focus on a project, goal, habit or note (not just a task). **Add**
 - [x] ★4 Focus history, with charts by hour and weekday. **Add**
 - [x] ★4 Finish the task from inside the timer. **Add**
-- [ ] At the planned end GPT stopped the timer; v2 keeps counting. **Your call**
+- [x] At the planned end GPT stopped the timer; v2 keeps counting. **Your call**: a choice in Settings → Focus, keep counting by default (16 Nov)
 
 ## Home, Search and Quick add
 
-- [ ] "I have 30 min, low energy" pickers. **Filter only**
-- [ ] Follow-ups on Home, an Inbox hint, a Refresh button, a refresh at midnight. **Add**
-- [ ] A projects card, a focus card with breaks, a mini goals map. **Low** (optional)
-- [ ] Search: filter by type, include archived, find people by nickname. **Add**
+- [x] "I have 30 min, low energy" pickers. **Filter only**
+- [x] Follow-ups on Home, an Inbox hint, a Refresh button, a refresh at midnight. **Add**
+- [x] A projects card, a focus card with breaks, a mini goals map. **Low**: left out (user, 16 Nov)
+- [x] Search: filter by type, include archived, find people by nickname. **Add** (nickname comes with People's nickname field, Phase 12)
 - [x] ★1 Quick add → Event. **Add** (the tab is there, greyed out)
 - [x] ★1 Quick add → Person. **Add**
 - [x] Quick add: text for a note, keep the draft with Retry on an error, "Add another". **Add**
@@ -129,7 +129,7 @@ them after seeing this list.
 - [ ] A description and a "why". **Add**
 - [ ] Several goals and an area for each habit. **Add**
 - [ ] A routine description, and archiving routines. **Add**
-- [ ] Focus on a habit. **Add**
+- [x] Focus on a habit. **Add** (Phase 11)
 
 ## People
 
@@ -139,7 +139,7 @@ them after seeing this list.
 - [ ] Time of an interaction, edit it, a "doesn't count" switch. **Add**
 - [ ] A memories list. **Add** (left out on purpose in Phase 6)
 - [ ] Follow-ups as their own items. **Your call** (v2 makes them tasks on purpose)
-- [ ] Follow-ups and catch-ups on the planner, with a switch. **Add**
+- [x] Follow-ups and catch-ups on the planner, with a switch. **Add** (Phase 11)
 
 ## Mark's API and GitHub
 

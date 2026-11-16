@@ -160,6 +160,24 @@ class EventController extends Controller
     {
         $user = $request->user();
         $this->own($event, $user);
+        $m = self::applyMove($request, $user, $event);
+        if ($m['copy']) {
+            return back()->with('toast', "Moved “{$event->title}” on {$m['label']}".$this->overlaps($user, $m['copy']))
+                ->with('undo', $this->undo('unmove-event', $event->id, $m['back']));
+        }
+
+        return back()->with('toast', "{$m['verb']} “{$event->title}”".($event->repeat_weekly ? ' every week' : '').$this->overlaps($user, $event))
+            ->with('undo', $this->undo('move-event', $event->id, $m['back']));
+    }
+
+    /**
+     * The move itself, for the Planner and the API. Returns the one-off copy (when only one
+     * week of a weekly event moved), what Undo sends back, and words for the message.
+     *
+     * @return array{copy: ?Event, back: array, label: string, verb: string}
+     */
+    public static function applyMove(Request $request, User $user, Event $event): array
+    {
         if ($event->locked && ! $request->boolean('anyway')) {
             throw ValidationException::withMessages(['anyway' => "“{$event->title}” is locked."]);
         }
@@ -187,8 +205,7 @@ class EventController extends Controller
             ]);
             $event->update(['skipped' => array_values(array_unique([...($event->skipped ?? []), $d['occurrence']]))]);
 
-            return back()->with('toast', "Moved “{$event->title}” on {$label}".$this->overlaps($user, $copy))
-                ->with('undo', $this->undo('unmove-event', $event->id, ['copy' => $copy->id, 'date' => $d['occurrence']]));
+            return ['copy' => $copy, 'back' => ['copy' => $copy->id, 'date' => $d['occurrence']], 'label' => $label, 'verb' => 'Moved'];
         }
 
         // The whole event (every week of a weekly one) moves by the same number of days, to the new time.
@@ -205,8 +222,7 @@ class EventController extends Controller
         $back = ['occurrence' => $d['date'], 'date' => $d['occurrence'], 'start' => $was->format('H:i'), 'minutes' => $wasMinutes, 'scope' => 'all', 'anyway' => true];
         $verb = $days === 0 && $start->format('H:i') === $was->format('H:i') ? 'Changed' : 'Moved';
 
-        return back()->with('toast', "{$verb} “{$event->title}”".($event->repeat_weekly ? ' every week' : '').$this->overlaps($user, $event))
-            ->with('undo', $this->undo('move-event', $event->id, $back));
+        return ['copy' => null, 'back' => $back, 'label' => $label, 'verb' => $verb];
     }
 
     /** Undo of moving one week: the copy goes and that week of the weekly event is back. */

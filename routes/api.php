@@ -38,6 +38,7 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::post('tasks', [TaskApiController::class, 'store'])->name('tasks.store');
             Route::patch('tasks/{task}', [TaskApiController::class, 'update'])->whereNumber('task')->name('tasks.update');
             Route::post('tasks/{task}/complete', [TaskApiController::class, 'complete'])->whereNumber('task')->name('tasks.complete');
+            Route::post('tasks/{task}/rank', [TaskApiController::class, 'rank'])->whereNumber('task')->name('tasks.rank');
             Route::post('tasks/{task}/reopen', [TaskApiController::class, 'reopen'])->whereNumber('task')->name('tasks.reopen');
             Route::delete('tasks/{task}', [TaskApiController::class, 'destroy'])->whereNumber('task')->name('tasks.destroy');
             Route::post('tasks/{id}/restore', [TaskApiController::class, 'restore'])->whereNumber('id')->name('tasks.restore');
@@ -95,6 +96,8 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::post('events', [PlannerApiController::class, 'storeEvent'])->name('events.store');
             Route::patch('events/{event}', [PlannerApiController::class, 'updateEvent'])->whereNumber('event')->name('events.update');
             Route::delete('events/{event}', [PlannerApiController::class, 'destroyEvent'])->whereNumber('event')->name('events.destroy');
+            Route::patch('events/{event}/move', [PlannerApiController::class, 'moveEvent'])->whereNumber('event')->name('events.move');
+            Route::post('events/{event}/cancel', [PlannerApiController::class, 'cancelEvent'])->whereNumber('event')->name('events.cancel');
             Route::post('planner/blocks', [PlannerApiController::class, 'storeBlock'])->name('blocks.store');
             Route::patch('planner/blocks/{block}', [PlannerApiController::class, 'updateBlock'])->whereNumber('block')->name('blocks.update');
             Route::delete('planner/blocks/{block}', [PlannerApiController::class, 'destroyBlock'])->whereNumber('block')->name('blocks.destroy');

@@ -67,11 +67,15 @@ class FocusController extends Controller
             $data['minutes'] = $settings['length'];
         }
         $intention = trim($data['intention'] ?? '') ?: null;
-        // One thing at a time: a task first, else the first of project, goal, habit, note.
-        $subject = collect(FocusSession::SUBJECTS)->map(fn ($column) => $data[$column] ?? null)->filter()->take(1)
-            ->mapWithKeys(fn ($id, $kind) => [FocusSession::SUBJECTS[$kind] => $id])->all();
 
-        return $actions->start($user, $task, $data['minutes'] ?? null, $data['mode'] ?? 'timer', $intention, null, $subject);
+        return $actions->start($user, $task, $data['minutes'] ?? null, $data['mode'] ?? 'timer', $intention, null, self::subjectOf($data));
+    }
+
+    /** One thing at a time: the first of project, goal, habit, note that was given ({project_id: 3}); a task wins over all of them. */
+    public static function subjectOf(array $data): array
+    {
+        return collect(FocusSession::SUBJECTS)->map(fn ($column) => $data[$column] ?? null)->filter()->take(1)
+            ->mapWithKeys(fn ($id, $kind) => [FocusSession::SUBJECTS[$kind] => $id])->all();
     }
 
     public function start(Request $request): RedirectResponse

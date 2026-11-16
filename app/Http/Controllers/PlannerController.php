@@ -79,7 +79,7 @@ class PlannerController extends Controller
             'habitTimes' => $month ? [] : HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
                 ->map(fn ($o) => HabitTimes::present($o))->values(),
             'personDates' => PeopleInfo::between($user, $first, $first->addDays($count)),
-            'markers' => $this->markers($user, $first, $first->addDays($count), $today, $month),
+            'markers' => self::markers($user, $first, $first->addDays($count), $today, $month),
             'followUps' => $user->tasks()->open()->whereDate('follow_up_on', '>=', $first->toDateString())->whereDate('follow_up_on', '<=', $first->addDays($count - 1)->toDateString())
                 ->get(['id', 'title', 'follow_up_on'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'date' => $t->follow_up_on->toDateString()])->values(),
             'unbooked' => $month ? [] : $this->builder->unbooked($user, $days->all(), $list),
@@ -135,7 +135,7 @@ class PlannerController extends Controller
      *
      * @return list<array{key: string, date: string, kind: string, title: string, href: string, done?: bool}>
      */
-    private function markers(User $user, CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $today, bool $month): array
+    public static function markers(User $user, CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $today, bool $month): array
     {
         $first = $from->toDateString();
         $last = $to->subDay()->toDateString();

@@ -38,10 +38,13 @@ class PlannerApiController extends ApiController
         $end = $last->addDay();
         $list = $this->ranking->rank($user);
 
-        $events = $user->events()->get()->flatMap(fn (Event $e) => array_map(fn ($o) => $this->event($e, $o), $e->occurrences($first->utc(), $end->utc(), $user->timezone)))
+        $events = $user->events()->get()->flatMap(fn (Event $e) => array_map(fn ($o) => $this->event($e, $o), $e->occurrences($first->utc(), $end->utc(), $user->timezone, true)))
             ->sortBy('start')->values();
         $blocks = $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])->where('ends_at', '>', $first->utc())->where('starts_at', '<', $end->utc())
-            ->orderBy('starts_at')->get()->map(fn (PlannerBlock $b) => PlannerController::block($b, $list))->values();
+            ->orderBy('starts_at')->get();
+        $notReady = $blocks->contains(fn (PlannerBlock $b) => $b->task_id && ! $list->rankOf($b->task_id))
+            ? $this->ranking->notReady($user)->keyBy(fn ($r) => $r['task']->id) : collect();
+        $blocks = $blocks->map(fn (PlannerBlock $b) => PlannerController::block($b, $list, $notReady))->values();
 
         return $this->ok([
             'from' => $first->toDateString(),
@@ -50,6 +53,7 @@ class PlannerApiController extends ApiController
             'booked' => $blocks,
             'habits' => HabitTimes::between($user, $first, $end)->reject(fn ($o) => $o['skipped'])->map(fn ($o) => HabitTimes::present($o))->values(),
             'dates' => PeopleInfo::between($user, $first, $end),
+            'markers' => PlannerController::markers($user, $first, $end, $today, false),
             'due' => $user->tasks()->open()->whereBetween('due_at', [$first->utc(), $end->utc()])->orderBy('due_at')->get(['id', 'title', 'due_at'])
                 ->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'dueAt' => $t->due_at->toIso8601ZuluString()])->values(),
         ], meta: ['timezone' => $user->timezone]);
@@ -67,26 +71,47 @@ class PlannerApiController extends ApiController
         return $this->ok($this->builder->free($user, $days), meta: ['timezone' => $user->timezone]);
     }
 
-    /** Book a task: {"task_id": 12, "date": "2026-11-12", "start": "14:00", "minutes": 90}. Answers with what it overlaps. */
+    /**
+     * Book time: a task {"task_id": 12, "date": "2026-11-12", "start": "14:00", "minutes": 90}, a whole
+     * project {"kind": "project", "project_id": 3, …} or reserved time {"kind": "reserved", "label": "Gym", …}.
+     * Answers with what it overlaps.
+     */
     public function storeBlock(Request $request): JsonResponse
     {
         $user = $request->user();
-        $d = $request->validate([
-            'task_id' => ['required', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereIn('status', Task::OPEN)->whereNull('deleted_at')],
-            'date' => ['required', 'date_format:Y-m-d'], 'start' => ['required', 'date_format:H:i'], 'minutes' => ['required', 'integer', 'min:5', 'max:720'],
-        ]);
+        $kind = $request->validate(['kind' => ['nullable', Rule::in(PlannerBlock::KINDS)]])['kind'] ?? 'task';
+        $what = match ($kind) {
+            'task' => $request->validate(['task_id' => ['required', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereIn('status', Task::OPEN)->whereNull('deleted_at')]]),
+            'project' => $request->validate(['project_id' => ['required', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)->whereNull('archived_at')->whereNull('deleted_at')]]),
+            'reserved' => ['label' => trim($request->validate(['label' => ['required', 'string', 'max:80']])['label'])],
+        };
+        $d = $request->validate(['date' => ['required', 'date_format:Y-m-d'], 'start' => ['required', 'date_format:H:i'], 'minutes' => ['required', 'integer', 'min:5', 'max:720']]);
         $start = CarbonImmutable::parse("{$d['date']} {$d['start']}", $user->timezone);
-        $block = $user->plannerBlocks()->create(['task_id' => $d['task_id'], 'starts_at' => $start->utc(), 'ends_at' => $start->addMinutes($d['minutes'])->utc(), 'pinned' => true]);
+        $block = $user->plannerBlocks()->create(['kind' => $kind, ...$what, 'starts_at' => $start->utc(), 'ends_at' => $start->addMinutes($d['minutes'])->utc(), 'pinned' => true]);
 
         return $this->ok($this->blockOut($block), 201);
     }
 
-    /** Move or resize: any of date, start, minutes. */
+    /**
+     * Move or resize (any of date, start, minutes), lock or unlock ("locked"), or give a task's
+     * time to another task ("task_id"). A locked block moves only with {"anyway": true}: 409 otherwise.
+     */
     public function updateBlock(Request $request, PlannerBlock $block): JsonResponse
     {
         $user = $request->user();
         $this->own($block, $user);
-        $d = $request->validate(['date' => ['nullable', 'date_format:Y-m-d'], 'start' => ['nullable', 'date_format:H:i'], 'minutes' => ['nullable', 'integer', 'min:5', 'max:720']]);
+        $d = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'], 'start' => ['nullable', 'date_format:H:i'], 'minutes' => ['nullable', 'integer', 'min:5', 'max:720'],
+            'locked' => ['nullable', 'boolean'],
+            'task_id' => ['nullable', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereIn('status', Task::OPEN)->whereNull('deleted_at')],
+        ]);
+        $moves = isset($d['date']) || isset($d['start']) || isset($d['minutes']);
+        abort_if($moves && $block->locked && ! $request->boolean('anyway'), 409, 'This block is locked. Send {"anyway": true} to move it anyway.');
+        abort_if(isset($d['task_id']) && $block->kind !== 'task', 422, 'Only time booked for a task can change its task.');
+        $block->update(array_filter(['locked' => $d['locked'] ?? null, 'task_id' => $d['task_id'] ?? null], fn ($v) => $v !== null));
+        if (! $moves) {
+            return $this->ok($this->blockOut($block));
+        }
         $local = $block->starts_at->timezone($user->timezone);
         $start = CarbonImmutable::parse(($d['date'] ?? $local->toDateString()).' '.($d['start'] ?? $local->format('H:i')), $user->timezone);
         $block->update(['starts_at' => $start->utc(), 'ends_at' => $start->addMinutes($d['minutes'] ?? $block->minutes())->utc(), 'pinned' => true]);
@@ -110,7 +135,7 @@ class PlannerApiController extends ApiController
         $user = request()->user();
         $overlaps = PlannerOverlaps::find($user, CarbonImmutable::instance($block->starts_at), CarbonImmutable::instance($block->ends_at), $block->id);
 
-        return PlannerController::block($block->fresh('task'), $this->ranking->rank($user)) + [
+        return PlannerController::block($block->fresh(['task', 'project']), $this->ranking->rank($user)) + [
             'overlaps' => array_map(fn ($o) => ['title' => $o['title'], 'start' => $o['start']->toIso8601ZuluString(), 'end' => $o['end']->toIso8601ZuluString()], $overlaps),
         ];
     }
@@ -155,6 +180,32 @@ class PlannerApiController extends ApiController
         return $this->ok($this->eventRecord($event->fresh(), $user->timezone));
     }
 
+    /**
+     * Move one time an event happens: {"occurrence": "2026-11-19", "date": "2026-11-20", "start": "10:00", "minutes": 90,
+     * "scope": "all"|"one"}. A weekly event moves every week, or only that week ("one": a one-off copy takes its
+     * place). A locked one needs {"anyway": true}.
+     */
+    public function moveEvent(Request $request, Event $event): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($event, $user);
+        $m = EventController::applyMove($request, $user, $event);
+
+        return $this->ok($this->eventRecord($event->fresh(), $user->timezone) + ['copy' => $m['copy'] ? $this->eventRecord($m['copy'], $user->timezone) : null]);
+    }
+
+    /** Cancel the day an event happens {"date": "2026-11-18"} (it stays, crossed out, and takes no time), or {"cancelled": false} to take it back. */
+    public function cancelEvent(Request $request, Event $event): JsonResponse
+    {
+        $this->own($event, $request->user());
+        $d = $request->validate(['date' => ['required', 'date_format:Y-m-d'], 'cancelled' => ['nullable', 'boolean']]);
+        $on = (bool) ($d['cancelled'] ?? true);
+        $dates = array_values(array_diff($event->cancelled ?? [], [$d['date']]));
+        $event->update(['cancelled' => $on ? [...$dates, $d['date']] : ($dates ?: null)]);
+
+        return $this->ok(['id' => $event->id, 'cancelled' => $event->cancelled ?? []]);
+    }
+
     /** The whole event, or with {"date": "2026-11-16"} only that week of a weekly one. */
     public function destroyEvent(Request $request, Event $event): JsonResponse
     {
@@ -179,6 +230,8 @@ class PlannerApiController extends ApiController
             'calendar' => $e->calendar,
             'location' => $e->location,
             'allDay' => $e->all_day,
+            'locked' => $e->locked,
+            'cancelled' => $o['cancelled'],
             'date' => $o['date'],
             'start' => $o['start']->toIso8601ZuluString(),
             'end' => $o['end']->toIso8601ZuluString(),

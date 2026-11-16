@@ -34,7 +34,7 @@ class TaskApiController extends ApiController
     {
         $user = $request->user();
         $q = $request->validate([
-            'view' => ['nullable', Rule::in(['upnext', 'inbox', 'waiting', 'done', 'cancelled', 'archived'])],
+            'view' => ['nullable', Rule::in(['upnext', 'inbox', 'captured', 'waiting', 'done', 'cancelled', 'archived'])],
             'project_id' => ['nullable', 'integer'],
             'q' => ['nullable', 'string', 'max:100'],
             'limit' => ['nullable', 'integer', 'between:1,200'],
@@ -52,6 +52,8 @@ class TaskApiController extends ApiController
             'waiting' => $this->ranking->notReady($user)->filter(fn ($r) => $keep($r['task']))
                 ->map(fn ($r) => ApiPresent::task($r['task']) + ['kind' => $r['kind'], 'why' => $r['why']]),
             'cancelled' => $user->tasks()->where('status', Task::CANCELLED)->whereNull('archived_at')->with('project.goal')->latest('cancelled_at')->limit(500)->get()
+                ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
+            'captured' => $user->tasks()->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->with('project.goal')->latest('captured_at')->get()
                 ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
             'archived' => $user->tasks()->whereNotNull('archived_at')->with('project.goal')->latest('archived_at')->limit(500)->get()
                 ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
@@ -92,8 +94,9 @@ class TaskApiController extends ApiController
                 'importance' => ['nullable', 'integer', 'between:1,5'],
                 'urgency' => ['nullable', 'integer', 'between:1,5'],
                 'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+                'capture' => ['nullable', 'boolean'],
             ]);
-            $task = $this->actions->quickAdd($user, $d['text'], $d['importance'] ?? null, $d['urgency'] ?? null, $d['project_id'] ?? null);
+            $task = $this->actions->quickAdd($user, $d['text'], $d['importance'] ?? null, $d['urgency'] ?? null, $d['project_id'] ?? null, [], (bool) ($d['capture'] ?? false));
         } else {
             $rules = TaskActions::updateRules($user);
             $rules['title'] = ['required', 'string', 'max:255'];
@@ -235,9 +238,19 @@ class TaskApiController extends ApiController
         $user = $request->user();
         $d = $request->validate(FocusController::startRules($user));
         $task = isset($d['task_id']) ? Task::find($d['task_id']) : null;
-        $session = $this->focus->start($user, $task, $d['minutes'] ?? null, $d['mode'] ?? 'timer', trim($d['intention'] ?? '') ?: null);
+        $session = $this->focus->start($user, $task, $d['minutes'] ?? null, $d['mode'] ?? 'timer', trim($d['intention'] ?? '') ?: null, null, FocusController::subjectOf($d));
 
         return $this->ok($session->fresh('task')->present(), 201);
+    }
+
+    /** "Rank it": a captured task joins the ranking where the formula puts it. */
+    public function rank(Request $request, Task $task): JsonResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $task->update(['captured_at' => null]);
+
+        return $this->ok(ApiPresent::task($task->fresh('project.goal'), $this->ranking->rank($user)));
     }
 
     /** Stops the running session. Under a minute isn't kept (counted: false). */
