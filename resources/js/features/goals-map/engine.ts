@@ -39,6 +39,8 @@ export interface MapGoal {
     tasks?: MapTask[];
     /** Notes linked to the goal. */
     notes?: MapNote[];
+    /** Habits that serve the goal. */
+    habits?: HabitToday[];
     status?: 'active' | 'paused' | 'achieved' | 'dropped';
     targetDate?: string | null;
     progressMode?: 'tasks' | 'milestones' | 'manual';
@@ -289,8 +291,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             );
             return make('project', { id: `p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
         });
+        const habits = (g.habits ?? []).map((h) =>
+            make('habit', { id: `g${g.id}h${h.id}`, habitId: h.id, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: 0 }),
+        );
         root.children.push(
-            make('goal', { id: `g${g.id}`, title: g.title, goal: g, hue: g.color }, [...projects, ...taskNodes(g.tasks ?? [], g.color)]),
+            make('goal', { id: `g${g.id}`, title: g.title, goal: g, hue: g.color }, [...projects, ...taskNodes(g.tasks ?? [], g.color), ...habits]),
         );
     });
     if (data.inbox.length) root.children.push(make('inbox', { id: 'inbox', title: 'Inbox', hue: 0 }, taskNodes(data.inbox, 0)));

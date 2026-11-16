@@ -62,6 +62,10 @@ class HabitsPhase12Test extends TestCase
             ->where('habit.area.name', 'Personal')
             ->where('habit.form.goal_ids', [$goal->id, $health->id]));
 
+        // On the Goals map it shows under each goal it serves.
+        $this->get(route('goals.index'))->assertInertia(fn (Assert $p) => $p
+            ->where('goals', fn ($goals) => collect($goals)->every(fn ($g) => collect($g['habits'])->pluck('name')->all() === ['Read'])));
+
         // An edit that doesn't send them (an older client, the API) leaves them alone.
         $this->patch(route('habits.update', $h), ['name' => 'Read more', 'kind' => 'do', 'schedule' => 'daily', 'target' => 1])->assertSessionHasNoErrors();
         $h->refresh();

@@ -111,7 +111,9 @@ class GoalController extends Controller
         $recentDone = $ranking->now()->subDays(21);
 
         $goals = $user->goals()->whereNull('archived_at')->with([
-            'projects' => fn ($q) => $q->whereNull('archived_at')->with(['notes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')]),
+            'projects' => fn ($q) => $q->whereNull('archived_at')->with(['notes', 'sharedNotes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')]),
+            // Habits that serve the goal (Habits › a habit's goals).
+            'habits' => fn ($q) => $q->whereNull('archived_at')->with(['entries', 'project']),
         ])->get();
 
         $taskNode = function (Task $t) use ($ranked, $notReady) {
@@ -141,7 +143,9 @@ class GoalController extends Controller
                 'done' => $p->tasks->where('status', Task::DONE)->count(),
                 'total' => $p->tasks->whereIn('status', [...Task::OPEN, Task::DONE])->count(),
                 'tasks' => $tasks->map($taskNode)->values(),
-                'notes' => $p->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+                // Its notes, the ones also in it too; archived ones aside.
+                'notes' => $p->notes->concat($p->sharedNotes)->whereNull('archived_at')->unique('id')
+                    ->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
                 'habits' => $p->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
             ];
         };
@@ -149,7 +153,7 @@ class GoalController extends Controller
         // Projects with no goal (or whose goal is archived) get their own branch, so none of their tasks go missing.
         $other = $user->projects()->whereNull('archived_at')
             ->where(fn ($q) => $q->whereNull('goal_id')->orWhereHas('goal', fn ($g) => $g->whereNotNull('archived_at')))
-            ->with(['notes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')])->get();
+            ->with(['notes', 'sharedNotes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')])->get();
         // Tasks that belong straight to a goal (no project).
         $direct = $user->tasks()->whereNull('project_id')->whereIn('goal_id', $goals->pluck('id'))->with('steps')->get()->groupBy('goal_id');
         $branches = $goals->map(fn ($g) => [
@@ -161,6 +165,7 @@ class GoalController extends Controller
             'tasks' => $shown($direct->get($g->id, collect()))->map($taskNode)->values(),
             // Notes linked to the goal (a note's "Link" picker).
             'notes' => NoteLink::notesFor($user, 'goal', $g->id),
+            'habits' => $g->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
         ])->values();
         if ($other->isNotEmpty()) {
             $branches->push(['id' => 0, 'title' => 'Other projects', 'why' => null, 'target' => null, 'color' => 0, 'icon' => 'folder', 'projects' => $other->map($projectNode)->values(), 'notes' => []]);

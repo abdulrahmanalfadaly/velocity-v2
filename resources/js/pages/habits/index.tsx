@@ -232,12 +232,29 @@ function ListView({ props, clock, rowProps, onNew, all }: { props: Props; clock:
     // Today leaves out habits whose end date has passed (All habits keeps them under Finished).
     const by = (g: HabitToday['group']) => props.habits.filter((h) => h.group === g && h.status !== 'finished');
     const todo = by('todo');
+    // All habits: a search and filters (kind, project, paused).
+    const [q, setQ] = useState('');
+    const [kind, setKind] = useState('');
+    const [project, setProject] = useState('');
+    const [pausedOnly, setPausedOnly] = useState(false);
+    const words = q.trim().toLowerCase();
+    const shown = props.habits.filter(
+        (h) =>
+            (!words || `${h.name} ${h.detail ?? ''} ${h.label} ${h.project?.name ?? ''}`.toLowerCase().includes(words)) &&
+            (!kind || (h.kind ?? 'do') === kind) &&
+            (!project || (project === 'none' ? !h.project : String(h.project?.id) === project)) &&
+            (!pausedOnly || h.status === 'paused' || h.group === 'paused'),
+    );
+    const filtering = !!(words || kind || project || pausedOnly);
     return (
         <>
             <header className="page-head">
                 <div>
                     <h1 className="h1">
-                        {all ? 'All habits' : 'Today'} <span className="count">{all ? props.habits.length : `${todo.length} to do`}</span>
+                        {all ? 'All habits' : 'Today'}{' '}
+                        <span className="count">
+                            {all ? (filtering ? `${shown.length} of ${props.habits.length}` : props.habits.length) : `${todo.length} to do`}
+                        </span>
                     </h1>
                     {!all && <p className="page-sub">{clock.today()}</p>}
                 </div>
@@ -257,25 +274,64 @@ function ListView({ props, clock, rowProps, onNew, all }: { props: Props; clock:
                     </button>
                 </section>
             ) : all ? (
-                <section className="card hb-card">
-                    {props.habits
-                        .filter((h) => h.status !== 'finished')
-                        .map((h) => (
-                            <Row key={h.id} h={h} {...rowProps} />
-                        ))}
-                    {props.habits.some((h) => h.status === 'finished') && (
-                        <details className="hb-off">
-                            <summary>
-                                Finished <span>{props.habits.filter((h) => h.status === 'finished').length}</span>
-                            </summary>
-                            {props.habits
-                                .filter((h) => h.status === 'finished')
-                                .map((h) => (
-                                    <Row key={h.id} h={h} {...rowProps} />
-                                ))}
-                        </details>
-                    )}
-                </section>
+                <>
+                    <div className="hb-filters" role="search">
+                        <span className="notes-search hb-search">
+                            <Icon name="search" className="ic-sm" />
+                            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search habits" aria-label="Search habits" />
+                        </span>
+                        <Select
+                            className="btn btn-ghost btn-sm"
+                            label="Kind"
+                            value={kind}
+                            search={false}
+                            onChange={setKind}
+                            options={[
+                                { value: '', label: 'Any kind' },
+                                { value: 'do', label: 'To do' },
+                                { value: 'minutes', label: 'Minutes' },
+                                { value: 'limit', label: 'Limits' },
+                                { value: 'avoid', label: 'To avoid' },
+                            ]}
+                        />
+                        <Select
+                            className="btn btn-ghost btn-sm"
+                            label="Project"
+                            value={project}
+                            onChange={setProject}
+                            options={[
+                                { value: '', label: 'Any project' },
+                                { value: 'none', label: 'No project' },
+                                ...props.projects.map((p) => ({ value: String(p.id), label: p.name })),
+                            ]}
+                        />
+                        <label className="mode-switch">
+                            <input type="checkbox" role="switch" checked={pausedOnly} onChange={(e) => setPausedOnly(e.target.checked)} />
+                            <span className="switch-track" aria-hidden="true" />
+                            <span>Paused</span>
+                        </label>
+                    </div>
+                    <section className="card hb-card">
+                        {shown.length === 0 && <p className="card-empty hb-none">No habits match.</p>}
+                        {shown
+                            .filter((h) => h.status !== 'finished')
+                            .map((h) => (
+                                <Row key={h.id} h={h} {...rowProps} />
+                            ))}
+                        {shown.some((h) => h.status === 'finished') && (
+                            <details className="hb-off" open={filtering}>
+                                <summary>
+                                    Finished <span>{shown.filter((h) => h.status === 'finished').length}</span>
+                                </summary>
+                                {shown
+                                    .filter((h) => h.status === 'finished')
+                                    .map((h) => (
+                                        <Row key={h.id} h={h} {...rowProps} />
+                                    ))}
+                            </details>
+                        )}
+                    </section>
+                </>
             ) : (
                 <section className="card hb-card">
                     <Group title="To do" rows={todo} rowProps={rowProps} />
