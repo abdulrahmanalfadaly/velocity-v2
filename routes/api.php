@@ -138,6 +138,8 @@ Route::prefix('v1')->name('api.')->group(function () {
         Route::middleware('scope:people:write')->group(function () {
             Route::post('people', [PersonApiController::class, 'store'])->name('people.store');
             Route::post('people/{person}/catch-ups', [PersonApiController::class, 'catchUp'])->whereNumber('person')->name('people.catch-up');
+            Route::post('people/{person}/memories', [PersonApiController::class, 'memory'])->whereNumber('person')->name('people.memory');
+            Route::post('people/{person}/follow-up', [PersonApiController::class, 'followUp'])->whereNumber('person')->name('people.follow-up');
             Route::patch('people/{person}', [PersonApiController::class, 'update'])->whereNumber('person')->name('people.update');
             Route::post('people/{person}/archive', [PersonApiController::class, 'archive'])->whereNumber('person')->name('people.archive');
         });

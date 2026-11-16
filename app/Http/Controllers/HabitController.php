@@ -101,7 +101,7 @@ class HabitController extends Controller
     {
         $user = $request->user();
         $habit = $user->habits()->create($this->fields($request, $user));
-        $this->syncGoals($request, $habit);
+        self::syncGoals($request, $habit);
         // Back where the dialog was opened, minus "?new=1" (Ctrl K's New habit), or a reload would open it again.
         $back = rtrim(preg_replace('/([?&])new=1(&|$)/', '$1', url()->previous()), '?&');
 
@@ -114,7 +114,7 @@ class HabitController extends Controller
         $this->own($habit, $user);
         $old = HabitStats::form($habit);
         $habit->update($this->fields($request, $user));
-        $this->syncGoals($request, $habit);
+        self::syncGoals($request, $habit);
 
         return back()->with('toast', "Saved “{$habit->name}”")->with('undo', $this->undo('patch-habit', $habit->id, $old));
     }
@@ -388,8 +388,8 @@ class HabitController extends Controller
             + ($request->has('area_id') ? ['area_id' => $d['area_id'] ?? null] : []);
     }
 
-    /** The goals it serves, when the dialog sends them ("goal_ids"). */
-    private function syncGoals(Request $request, Habit $habit): void
+    /** The goals it serves, when the dialog (or the API) sends them ("goal_ids"). */
+    public static function syncGoals(Request $request, Habit $habit): void
     {
         if (! $request->has('goal_ids')) {
             return;

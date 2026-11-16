@@ -146,10 +146,10 @@ full document the editor uses.
 
 | | |
 |---|---|
-| `GET /notes?in=all` | `in`: `all` (not the journal), `journal`, `pinned`; `q`, `project_id`, `limit` |
+| `GET /notes?in=all` | `in`: `all` (not the journal), `journal`, `pinned`, `archived` (archived notes show only here); `q`, `project_id` (its first project or one of the others), `area_id`, `limit`. Each note has `projectIds`, `areaId`, `archivedAt` |
 | `GET /notes/{id}` | with `text`, `doc`, linked tasks and people |
 | `POST /notes` | `{"title", "text", "project_id"?, "task_id"?}` |
-| `PATCH /notes/{id}` | `title`, `text` (replaces), `append` (adds lines at the end), `pinned`, `project_id` |
+| `PATCH /notes/{id}` | `title`, `text` (replaces), `append` (adds lines at the end), `pinned`, `project_id` (moves it), `project_ids` (all its projects, its own first), `area_id`, `archived` (an archived note is read-only: `422` until `{"archived": false}`) |
 | `GET /journal?date=` | that day's entry (today if no date), or `null` |
 | `POST /journal` | `{"text": "Chapter 3 approved.", "date"?}`: adds to the entry, starting it if needed |
 | `POST /notes/{id}/links` · `DELETE /notes/{id}/links/{linkId}` | link to a note, goal or habit `{"type": "goal", "id": 3}`; unlink |
@@ -157,21 +157,24 @@ full document the editor uses.
 ### Habits (`habits`)
 
 `GET /habits?date=` (each habit's state that day, streak, due or not) ·
-`POST /habits` `{"name", "schedule": "daily"/"days"/"weekly", "days"?, "per_week"?, "target"?, "unit"?, "at_time"?, "minutes"?}` ·
+`POST /habits` `{"name", "schedule": "daily"/"days"/"weekly", "days"?, "per_week"?, "target"?, "unit"?, "at_time"?, "minutes"?, "starts_on"?, "ends_on"?, "description"?, "why"?, "goal_ids"?, "area_id"?}` ·
 `POST /habits/{id}/check` `{"date"?, "count"?}` (no count = all of it, `0` = not
 done; not ahead of today) · `POST /habits/{id}/skip` `{"date"?}` ·
-`GET /habits/{id}` (streak, best, rate, 16 weeks, notes) · `PATCH /habits/{id}` (any field: `kind` do / minutes / limit / avoid,
-`schedule` daily / days / weekly / monthly / every with `per_month`, `every_days`, `starts_on` …) ·
+`GET /habits/{id}?range=30` (streak, best, rate, 16 weeks, notes, `status`, `description`, `why`, `goals`, `area`, and `stats` for
+`range` 30 / 90 / 365 / all: `rate` with partly done days as half, `trend`, `bounceBacks`, `hardestDay` 1–7, `perWeek`, `average`) ·
+`PATCH /habits/{id}` (any field: `kind` do / minutes / limit / avoid, `schedule` daily / days / weekly / monthly / every with
+`per_month`, `every_days`, `starts_on`, `ends_on` (not due before or after), `goal_ids` …) ·
 `PUT /habits/{id}/day` `{"date", "count", "skipped"?, "note"?}` · `POST /habits/{id}/pause` `{"until"?}` · `POST /habits/{id}/resume` ·
 `POST /habits/{id}/archive` (`{"undo": true}` brings it back)
 
 ### People (`people`)
 
 `GET /people?view=all` (`attention`: catch-up due or a date within a week;
-`dates`: dates in the next 60 days) · `GET /people/{id}` · `POST /people`
-`{"name", "relationship"?, "organisation"?, "catch_up_days"?, "contacts"?: [{"kind": "email", "value": "…"}]}` ·
-`POST /people/{id}/catch-ups` `{"kind": "message"/"call"/"met"/"other", "on"?, "note"?}` ·
-`PATCH /people/{id}` `{"name"?, "relationship"?, "organisation"?, "catch_up_days"?}` · `POST /people/{id}/archive` (`{"undo": true}` brings them back)
+`dates`: dates in the next 60 days) · `GET /people/{id}` (with `memories`) · `POST /people`
+`{"name", "nickname"?, "relationship"?, "organisation"?, "location"?, "catch_up_days"?, "contacts"?: [{"kind": "email"/"phone"/"link"/"username"/"other", "label"?, "value": "…"}]}` ·
+`POST /people/{id}/catch-ups` `{"kind": "message"/"call"/"met"/"other", "on"?, "at"?: "18:30", "note"?, "counts"?: false}` (one that doesn't count leaves the catch-up clock alone) ·
+`PATCH /people/{id}` `{"name"?, "nickname"?, "relationship"?, "organisation"?, "location"?, "catch_up_days"?}` · `POST /people/{id}/archive` (`{"undo": true}` brings them back) ·
+`POST /people/{id}/memories` `{"text", "on"?}` · `POST /people/{id}/follow-up` `{"on", "title"?}`: a task waiting on them until that day (it stays a task)
 
 ### GitHub (`github`)
 

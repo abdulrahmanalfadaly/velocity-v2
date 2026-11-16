@@ -85,7 +85,8 @@ organised. Left for the very end, after the backlog (user, 16 Nov).
 | 8 | API for Mark (personal tokens with scopes) + GitHub | done |
 | 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | top picks done; the rest of the list next |
 | 10 | The GPT list, batch 2: finishing tasks and projects | done |
-| 11 | The GPT list, batch 3: Planner, Focus, Home, Search and Capture | done (browser check to come) |
+| 11 | The GPT list, batch 3: Planner, Focus, Home, Search and Capture | done |
+| 12 | The GPT list, batch 4: Notes, Habits and People | done (browser check to come) |
 
 ## Phase 0 / 1 checklist
 
@@ -646,6 +647,39 @@ history.
       out of the ranking, until "Rank it" (`tasks.captured_at`)
 - [x] The API for all of it (`docs/api.md`); the launcher now brings the
       database up to date when it starts
+
+## Phase 12 checklist
+
+The fourth batch from `docs/backlog.md`: Notes, Habits and People. Approved
+on 16 Nov as suggested: follow-ups stay tasks (a "Follow up" button makes
+one), PDF page zoom is left out, and drawing is a tool inside the note
+editor (decision 9), not a mode.
+
+- [x] Notes toolbar: underline, code in a line, a divider line
+- [x] Drawing and shapes inside a note (`components/velocity/note-drawing.tsx`,
+      a "drawing" block saved in the note: pen, line, arrow, rectangle,
+      circle, eraser, three colours, two widths, undo, taller / shorter)
+- [x] PDFs shown inside the note, with "Open full size"
+- [x] A task made from a note's words keeps them (`note_task.quote`): "From
+      note: …" opens the note at those words
+- [x] Archive a note: read-only, out of the lists, Notes › Archived
+- [x] A note in several projects (`note_project`; `project_id` stays its
+      own, first one) and in an area (`notes.area_id`)
+- [x] Habits: start and end dates for any schedule, a status (not started,
+      finished), "What it is", "Why it matters", goals (`goal_habit`) and an
+      area; editing from a row loads the whole habit first
+- [x] Routines: a description, archive / restore
+- [x] Habits › This month, and Numbers in a habit's panel (30 days, 3
+      months, a year, all): consistency with half credit, trend, bounce-backs,
+      hardest weekday, a week, a day on average (`HabitStats::stats`)
+- [x] All habits: search, kind, project, paused; habits under their goals on
+      the Goals map
+- [x] People: nickname, location, usernames, contacts in order, a search
+- [x] Date reminders: up to six each at their own times, snooze (an hour,
+      tomorrow), the next 30 / 60 / 90 days
+- [x] Interactions: a time, change one, "Doesn't count"
+- [x] Memories, and "Follow up" (a waiting task with a follow-up day)
+- [x] The API for all of it (`docs/api.md`)
 
 ## Run it
 

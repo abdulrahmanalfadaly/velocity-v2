@@ -23,9 +23,10 @@ class NoteApiController extends ApiController
     public function index(Request $request): JsonResponse
     {
         $d = $request->validate([
-            'in' => ['nullable', Rule::in(['all', 'journal', 'pinned'])],
+            'in' => ['nullable', Rule::in(['all', 'journal', 'pinned', 'archived'])],
             'q' => ['nullable', 'string', 'max:100'],
             'project_id' => ['nullable', 'integer'],
+            'area_id' => ['nullable', 'integer'],
             'limit' => ['nullable', 'integer', 'between:1,200'],
         ]);
         $in = $d['in'] ?? 'all';
@@ -34,6 +35,9 @@ class NoteApiController extends ApiController
             ->when($in === 'journal', fn (Builder $b) => $b->whereNotNull('journal_date')->orderByDesc('journal_date'))
             ->when($in === 'pinned', fn (Builder $b) => $b->where('pinned', true))
             ->when($in === 'all', fn (Builder $b) => $b->whereNull('journal_date'))
+            // Archived notes only when asked for.
+            ->when($in === 'archived', fn (Builder $b) => $b->whereNotNull('archived_at'), fn (Builder $b) => $b->whereNull('archived_at'))
+            ->when(isset($d['area_id']), fn (Builder $b) => $b->where('area_id', (int) $d['area_id']))
             ->when(isset($d['project_id']), fn (Builder $b) => $b->inProject((int) $d['project_id']))
             ->when($like, fn (Builder $b) => $b->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like)))
             // Untouched blank notes (opened and left) are not shown, as on the screens.
@@ -80,7 +84,20 @@ class NoteApiController extends ApiController
             'append' => ['sometimes', 'string', 'max:200000'],
             'pinned' => ['sometimes', 'boolean'],
             'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            'project_ids' => ['sometimes', 'array', 'max:20'],
+            'project_ids.*' => ['integer', 'distinct', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            'area_id' => ['sometimes', 'nullable', 'integer', Rule::exists('areas', 'id')->where('user_id', $user->id)],
+            'archived' => ['sometimes', 'boolean'],
         ]);
+        if (array_key_exists('archived', $d)) {
+            $note->archived_at = $d['archived'] ? ($note->archived_at ?? now()) : null;
+        }
+        abort_if($note->archived_at && (array_key_exists('title', $d) || array_key_exists('text', $d) || isset($d['append'])), 422, 'The note is archived: send {"archived": false} to change it.');
+        if (array_key_exists('project_ids', $d)) {
+            $ids = array_values(array_map('intval', $d['project_ids']));
+            $note->project_id = $ids[0] ?? null;
+            $note->extraProjects()->sync(array_slice($ids, 1));
+        }
         if (array_key_exists('title', $d)) {
             $note->title = (string) $d['title'];
         }
@@ -90,8 +107,11 @@ class NoteApiController extends ApiController
         if (isset($d['append'])) {
             $note->fill($this->body($this->appended($note, $d['append'])));
         }
-        $note->fill(Arr::only($d, ['pinned', 'project_id']));
+        $note->fill(Arr::only($d, ['pinned', 'project_id', 'area_id']));
         $note->save();
+        if (array_key_exists('project_id', $d)) {
+            $note->extraProjects()->detach($note->project_id);
+        }
 
         return $this->ok(ApiPresent::note($note->fresh(['project', 'event', 'tasks', 'people']), true));
     }

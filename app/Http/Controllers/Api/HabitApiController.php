@@ -9,6 +9,7 @@ use App\Services\HabitStats;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /** Habits: how each stands on a day, ticking (or setting a count), skipping, adding. */
 class HabitApiController extends ApiController
@@ -29,6 +30,7 @@ class HabitApiController extends ApiController
         $user = $request->user();
         $request->mergeIfMissing(['schedule' => 'daily', 'target' => 1]);
         $habit = $user->habits()->create(HabitController::fields($request, $user));
+        HabitController::syncGoals($request, $habit);
 
         return $this->ok($this->row($user, $habit, $this->today($user)), 201);
     }
@@ -69,7 +71,10 @@ class HabitApiController extends ApiController
         $user = $request->user();
         $this->own($habit, $user);
 
-        return $this->ok((new HabitStats($habit->load(['entries', 'project', 'routines', 'pauses']), $this->today($user)))->detail());
+        $range = $request->validate(['range' => ['nullable', Rule::in(['30', '90', '365', 'all'])]])['range'] ?? '30';
+        $stats = new HabitStats($habit->load(['entries', 'project', 'routines', 'pauses', 'goals:id,title,color', 'area:id,name']), $this->today($user));
+
+        return $this->ok($stats->detail() + ['stats' => $stats->stats($range === 'all' ? 0 : (int) $range)]);
     }
 
     /** Change any of the habit's fields (the rest stay as they are). */
@@ -79,6 +84,7 @@ class HabitApiController extends ApiController
         $this->own($habit, $user);
         $request->merge(array_merge(HabitStats::form($habit), $request->all()));
         $habit->update(HabitController::fields($request, $user));
+        HabitController::syncGoals($request, $habit);
 
         return $this->ok($this->row($user, $habit->fresh(), $this->today($user)));
     }

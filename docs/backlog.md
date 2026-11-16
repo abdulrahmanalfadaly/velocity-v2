@@ -54,7 +54,7 @@ list only covers what's missing or partly there.
 - [x] ★10 An "All projects" page. **Add**
 - [x] Delete a project or goal that still has things in it, with Undo. **Add**
 - [x] ★10 Goal dates, status, and progress by milestones or by hand. **Add** (the Goals map already shows progress from tasks)
-- [ ] Several goals for one project or habit. **Add**
+- [ ] Several goals for one project or habit. **Add** (habits: done in Phase 12; projects still one goal)
 - [x] ★10 Areas: rename, remove, collapse, a menu on each. **Add**
 
 ## Planner
@@ -103,14 +103,14 @@ list only covers what's missing or partly there.
 ## Notes
 
 - [x] ★8 Tables. **Add**
-- [ ] Toolbar buttons for underline, inline code, a divider line. **Add**
-- [ ] PDF preview inside a note. **Add** (page zoom: **Low**)
-- [ ] Turn selected text into a task, with a jump back to that paragraph. **Partly** (Make task exists, no jump back)
+- [x] Toolbar buttons for underline, inline code, a divider line. **Add**
+- [x] PDF preview inside a note. **Add** (page zoom: **Low**, left out)
+- [x] Turn selected text into a task, with a jump back to that paragraph. **Partly** (Make task exists, no jump back)
 - [x] ★8 Links to goals, habits and other notes, with a "linked from" list. **Add**
-- [ ] A note in several projects. **Add**
-- [ ] Note areas. **Add**
-- [ ] Archive a note as read-only. **Add**
-- [ ] Drawing and shapes in notes. **Add**. Decided 16 Nov: no separate drawing board or mode; a drawing tool (pen and shapes) is added to the note editor as it is.
+- [x] A note in several projects. **Add**
+- [x] Note areas. **Add**
+- [x] Archive a note as read-only. **Add**
+- [x] Drawing and shapes in notes. **Add**. Decided 16 Nov: no separate drawing board or mode; a drawing tool (pen and shapes) is added to the note editor as it is.
 - [ ] The "clash" text. **Skip**
 
 ## Habits
@@ -121,24 +121,24 @@ them after seeing this list.
 - [x] ★6 Minutes habits ("read 20 min"). **Add**
 - [x] ★6 Limit habits ("at most 2 coffees") and avoid habits ("no smoking"). **Add**
 - [x] ★6 "5 times a month" and "every 3 days". **Add**
-- [ ] Start and end dates, and a status. **Add**
+- [x] Start and end dates, and a status. **Add**
 - [x] ★6 Pause and resume. **Add**
 - [x] ★6 A note on each check-in. **Add**
-- [ ] Month view and deeper stats: date range, half credit, bounce-backs, trends, hardest weekday, averages. **Add**
-- [ ] Search and filters. **Add**
-- [ ] A description and a "why". **Add**
-- [ ] Several goals and an area for each habit. **Add**
-- [ ] A routine description, and archiving routines. **Add**
+- [x] Month view and deeper stats: date range, half credit, bounce-backs, trends, hardest weekday, averages. **Add**
+- [x] Search and filters. **Add**
+- [x] A description and a "why". **Add**
+- [x] Several goals and an area for each habit. **Add**
+- [x] A routine description, and archiving routines. **Add**
 - [x] Focus on a habit. **Add** (Phase 11)
 
 ## People
 
-- [ ] Nickname, location, usernames as a contact type, reorder contacts. **Add**
-- [ ] Search the people list. **Add**
-- [ ] Several reminders per date, at any time ahead; snooze; next 30 / 60 / 90 days. **Add**
-- [ ] Time of an interaction, edit it, a "doesn't count" switch. **Add**
-- [ ] A memories list. **Add** (left out on purpose in Phase 6)
-- [ ] Follow-ups as their own items. **Your call** (v2 makes them tasks on purpose)
+- [x] Nickname, location, usernames as a contact type, reorder contacts. **Add**
+- [x] Search the people list. **Add**
+- [x] Several reminders per date, at any time ahead; snooze; next 30 / 60 / 90 days. **Add**
+- [x] Time of an interaction, edit it, a "doesn't count" switch. **Add**
+- [x] A memories list. **Add** (left out on purpose in Phase 6)
+- [x] Follow-ups as their own items. **Your call** (v2 makes them tasks on purpose): decided 16 Nov, they stay tasks; a "Follow up" button on a person makes one
 - [x] Follow-ups and catch-ups on the planner, with a switch. **Add** (Phase 11)
 
 ## Mark's API and GitHub
