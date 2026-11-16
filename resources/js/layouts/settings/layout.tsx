@@ -12,6 +12,7 @@ const PERSONAL = [
     { title: 'Focus', url: '/settings/focus' },
     { title: 'Planner', url: '/settings/planner' },
     { title: 'Integrations', url: '/settings/integrations' },
+    { title: 'Data', url: '/settings/data' },
 ];
 
 /** Settings in the Velocity design: a row of tabs, then the page's cards. */

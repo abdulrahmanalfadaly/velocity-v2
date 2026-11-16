@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AppearanceController;
+use App\Http\Controllers\Settings\DataController;
 use App\Http\Controllers\Settings\FocusSettingsController;
 use App\Http\Controllers\Settings\IntegrationController;
 use App\Http\Controllers\Settings\ModeController;
@@ -38,6 +39,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('settings/keys/{id}', [IntegrationController::class, 'destroy'])->whereNumber('id')->name('keys.destroy');
         Route::post('settings/github', [IntegrationController::class, 'connectGitHub'])->name('github.connect');
         Route::delete('settings/github', [IntegrationController::class, 'disconnectGitHub'])->name('github.disconnect');
+        // Everything as one .zip, and back into an empty account.
+        Route::get('settings/data', [DataController::class, 'edit'])->name('data.edit');
+        Route::get('settings/data/export', [DataController::class, 'export'])->name('data.export');
+        Route::post('settings/data/import', [DataController::class, 'import'])->name('data.import');
         // The wallpaper behind the pages.
         Route::put('settings/wallpaper', [AppearanceController::class, 'update'])->name('wallpaper.update');
         Route::post('settings/wallpaper/picture', [AppearanceController::class, 'upload'])->name('wallpaper.upload');
