@@ -64,9 +64,11 @@ the same tasks and the same report formula, so the order is always the same.
    together (an event's day and times, a habit's schedule), autosave for single
    fields (15 Nov).
 8. The Goals map stays under Tasks (15 Nov).
+9. Notes get drawing and shapes, but no separate drawing mode or board: a
+   drawing tool (pen and shapes) is added to the note editor as it is (16 Nov).
 
 **Pending feedback from the user:** small changes to how the side menus are
-organised (to be given later – ask before Phase 2 is finished).
+organised. Left for the very end, after the backlog (user, 16 Nov).
 
 ## Phases
 
@@ -74,9 +76,9 @@ organised (to be given later – ask before Phase 2 is finished).
 |---|---|---|
 | 0 | Project setup, design system, app shell, demo data | in progress |
 | 1 | The report's core: tasks, inbox, areas, projects, goals, statuses; waiting/blocked tasks leave the ranking; formula, explanations, weights, history; Study mode | in progress |
-| 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | done (side-menu feedback still to come) |
+| 2 | Recurring tasks, templates, bulk actions, board/timeline, reminders, files, delete with undo | done (side-menu feedback: at the very end) |
 | 3 | Focus timer + Planner (books hours from the workload criterion, in rank order) | in progress |
-| 4 | Notes (editor, links to tasks, journal, files, canvas last) | in progress (drawing still to decide) |
+| 4 | Notes (editor, links to tasks, journal, files, canvas last) | in progress (drawing: yes, as a tool in the editor; comes with Phase 12) |
 | 5 | Habits (schedules, check-ins, streaks, routines) | done |
 | 6 | People (contacts, dates, follow-ups) | done |
 | 7 | Home, Review charts, global search | done |

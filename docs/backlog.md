@@ -110,7 +110,7 @@ list only covers what's missing or partly there.
 - [ ] A note in several projects. **Add**
 - [ ] Note areas. **Add**
 - [ ] Archive a note as read-only. **Add**
-- [ ] A drawing board (pen, shapes, arrows, sticky notes, sticky → task, zoom). **Add**; the user decides after using notes
+- [ ] Drawing and shapes in notes. **Add**. Decided 16 Nov: no separate drawing board or mode; a drawing tool (pen and shapes) is added to the note editor as it is.
 - [ ] The "clash" text. **Skip**
 
 ## Habits
