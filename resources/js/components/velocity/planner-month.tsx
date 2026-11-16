@@ -15,6 +15,7 @@ export interface MonthEvent {
     title: string;
     calendar: CalendarKey;
     allDay: boolean;
+    cancelled?: boolean;
 }
 
 interface Entry {
@@ -74,7 +75,11 @@ export function MonthGrid<E extends MonthEvent>({
     events.forEach((ev) => {
         const s = local(ev.start);
         const node = (time: string | null) => (
-            <button className={`mg-item is-event is-${ev.calendar}`} onClick={() => onEvent(ev)} title={ev.title}>
+            <button
+                className={`mg-item is-event is-${ev.calendar}${ev.cancelled ? ' is-cancelled' : ''}`}
+                onClick={() => onEvent(ev)}
+                title={ev.cancelled ? `${ev.title} (cancelled)` : ev.title}
+            >
                 <Icon name={ICON[ev.calendar]} className="ic-xs" />
                 {time && <span className="mg-time">{time}</span>}
                 <span className="mg-t">{ev.title}</span>

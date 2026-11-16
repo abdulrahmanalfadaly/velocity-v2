@@ -210,12 +210,17 @@ class ReviewService
         ];
     }
 
-    /** Time in classes and events in [from, to), by calendar (minutes), and how many all-day ones. */
+    /** Time in classes and events in [from, to), by calendar (minutes), how many all-day ones, and how many were cancelled. */
     private function eventTime(User $user, CarbonImmutable $from, CarbonImmutable $to): array
     {
-        $out = ['class' => 0, 'work' => 0, 'personal' => 0, 'allDay' => 0, 'count' => 0];
+        $out = ['class' => 0, 'work' => 0, 'personal' => 0, 'allDay' => 0, 'count' => 0, 'cancelled' => 0];
         foreach ($user->events()->get() as $e) {
-            foreach ($e->occurrences($from->utc(), $to->utc(), $user->timezone) as $o) {
+            foreach ($e->occurrences($from->utc(), $to->utc(), $user->timezone, true) as $o) {
+                if ($o['cancelled']) {
+                    $out['cancelled']++;
+
+                    continue;
+                }
                 if ($e->all_day) {
                     $out['allDay']++;
 

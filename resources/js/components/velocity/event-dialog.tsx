@@ -24,16 +24,19 @@ export interface EventForm {
     end_time: string | null;
     repeat_weekly: boolean;
     repeat_until: string | null;
+    /** Asks before it is dragged to another time. */
+    locked?: boolean;
 }
 
 const keep = { preserveScroll: true, preserveState: true };
 
-/** Add or change a class or event. A weekly one can lose a single week, or go altogether. */
+/** Add or change a class or event. The day clicked can be cancelled (it stays, crossed out); the event can go altogether. */
 export function EventDialog({
     initial,
     eventId,
     occurrenceDate,
     day,
+    cancelled = false,
     top,
     onClose,
 }: {
@@ -41,10 +44,12 @@ export function EventDialog({
     top?: ReactNode;
     initial: EventForm;
     eventId?: number;
-    /** The week the user clicked on, for "Remove this week". */
+    /** The week the user clicked on (a weekly event). */
     occurrenceDate?: string;
-    /** The day the user clicked on, for its notes. */
+    /** The day the user clicked on, for its notes and for "Cancel". */
     day?: string;
+    /** Whether that day was cancelled. */
+    cancelled?: boolean;
     onClose: () => void;
 }) {
     const form = useForm({
@@ -59,6 +64,7 @@ export function EventDialog({
         end_time: initial.end_time ?? '10:00',
         repeat_weekly: initial.repeat_weekly,
         repeat_until: initial.repeat_until ?? '',
+        locked: initial.locked ?? false,
     });
     const { data, setData, processing } = form;
     const errors = form.errors as Record<string, string | undefined>;
@@ -77,8 +83,9 @@ export function EventDialog({
         if (eventId) form.patch(route('events.update', eventId), opts);
         else form.post(route('events.store'), opts);
     };
-    const remove = (scope: 'one' | 'all') =>
-        router.delete(route('events.destroy', eventId!), { ...keep, data: { scope, date: occurrenceDate }, onSuccess: onClose });
+    const remove = () => router.delete(route('events.destroy', eventId!), { ...keep, data: { scope: 'all' }, onSuccess: onClose });
+    const cancelDay = (value: boolean) =>
+        router.post(route('events.cancel', eventId!), { date: occurrenceDate ?? day, cancelled: value }, { ...keep, onSuccess: onClose });
 
     return (
         <Modal title={eventId ? 'Edit event' : 'New event'} onClose={onClose}>
@@ -164,6 +171,12 @@ export function EventDialog({
                         <input type="checkbox" checked={data.repeat_weekly} onChange={(e) => setData('repeat_weekly', e.target.checked)} />
                         Every week
                     </label>
+                    {!data.all_day && (
+                        <label className="auth-check" title="Asks before it is dragged to another time">
+                            <input type="checkbox" checked={data.locked} onChange={(e) => setData('locked', e.target.checked)} />
+                            Locked
+                        </label>
+                    )}
                     {data.repeat_weekly && (
                         <span className="ev-until">
                             until
@@ -198,14 +211,14 @@ export function EventDialog({
                 </Field>
                 <div className="vform-foot">
                     <span className="vform-foot-left">
-                        {eventId && initial.repeat_weekly && occurrenceDate && (
-                            <button type="button" className="btn btn-ghost" onClick={() => remove('one')}>
-                                <Icon name="x" />
-                                Remove this week
+                        {eventId && (occurrenceDate ?? day) && (
+                            <button type="button" className="btn btn-ghost" onClick={() => cancelDay(!cancelled)}>
+                                <Icon name={cancelled ? 'refresh' : 'ban'} />
+                                {cancelled ? 'Not cancelled' : initial.repeat_weekly ? 'Cancel this week' : 'Mark as cancelled'}
                             </button>
                         )}
                         {eventId && (
-                            <button type="button" className="btn btn-ghost" onClick={() => remove('all')}>
+                            <button type="button" className="btn btn-ghost" onClick={remove}>
                                 <Icon name="archive" />
                                 {initial.repeat_weekly ? 'Remove every week' : 'Remove'}
                             </button>

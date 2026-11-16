@@ -147,6 +147,90 @@ class EventController extends Controller
             'ends_at' => $end->utc(),
             'repeat_weekly' => $weekly,
             'repeat_until' => $weekly ? ($d['repeat_until'] ?? null) : null,
-        ];
+        ] + ($request->has('locked') ? ['locked' => $request->boolean('locked')] : []);
+    }
+
+    /**
+     * Dragged on the Planner: the time it happens on `occurrence` (a local date) moves to
+     * `date` + `start`, `minutes` long. A weekly event moves every week (`scope` all) or
+     * only that week (`one`: that week is skipped and a one-off copy takes its place).
+     * A locked event moves only with "anyway".
+     */
+    public function move(Request $request, Event $event): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($event, $user);
+        if ($event->locked && ! $request->boolean('anyway')) {
+            throw ValidationException::withMessages(['anyway' => "“{$event->title}” is locked."]);
+        }
+        if ($event->all_day) {
+            throw ValidationException::withMessages(['date' => 'An all-day event is changed in its dialog.']);
+        }
+        $d = $request->validate([
+            'occurrence' => ['required', 'date_format:Y-m-d'],
+            'date' => ['required', 'date_format:Y-m-d'],
+            'start' => ['required', 'date_format:H:i'],
+            'minutes' => ['required', 'integer', 'min:5', 'max:1440'],
+            'scope' => ['nullable', Rule::in(['one', 'all'])],
+        ]);
+        $tz = $user->timezone;
+        $was = $event->starts_at->timezone($tz);
+        $wasMinutes = intdiv($event->ends_at->getTimestamp() - $event->starts_at->getTimestamp(), 60);
+        $newStart = CarbonImmutable::parse("{$d['date']} {$d['start']}", $tz);
+        $label = $newStart->format('D j M');
+
+        if ($event->repeat_weekly && ($d['scope'] ?? 'all') === 'one') {
+            $copy = $user->events()->create([
+                ...$event->only(['calendar', 'title', 'location', 'notes', 'locked']),
+                'all_day' => false, 'repeat_weekly' => false,
+                'starts_at' => $newStart->utc(), 'ends_at' => $newStart->addMinutes($d['minutes'])->utc(),
+            ]);
+            $event->update(['skipped' => array_values(array_unique([...($event->skipped ?? []), $d['occurrence']]))]);
+
+            return back()->with('toast', "Moved “{$event->title}” on {$label}".$this->overlaps($user, $copy))
+                ->with('undo', $this->undo('unmove-event', $event->id, ['copy' => $copy->id, 'date' => $d['occurrence']]));
+        }
+
+        // The whole event (every week of a weekly one) moves by the same number of days, to the new time.
+        $days = (int) round(CarbonImmutable::parse($d['occurrence'], $tz)->diffInDays($newStart->startOfDay(), false));
+        $shift = fn (?array $dates) => $dates ? array_map(fn ($x) => CarbonImmutable::parse($x)->addDays($days)->toDateString(), $dates) : $dates;
+        $start = $was->addDays($days)->setTime($newStart->hour, $newStart->minute);
+        $event->update([
+            'starts_at' => $start->utc(),
+            'ends_at' => $start->addMinutes($d['minutes'])->utc(),
+            'repeat_until' => $event->repeat_until?->addDays($days),
+            'skipped' => $shift($event->skipped),
+            'cancelled' => $shift($event->cancelled),
+        ]);
+        $back = ['occurrence' => $d['date'], 'date' => $d['occurrence'], 'start' => $was->format('H:i'), 'minutes' => $wasMinutes, 'scope' => 'all', 'anyway' => true];
+        $verb = $days === 0 && $start->format('H:i') === $was->format('H:i') ? 'Changed' : 'Moved';
+
+        return back()->with('toast', "{$verb} “{$event->title}”".($event->repeat_weekly ? ' every week' : '').$this->overlaps($user, $event))
+            ->with('undo', $this->undo('move-event', $event->id, $back));
+    }
+
+    /** Undo of moving one week: the copy goes and that week of the weekly event is back. */
+    public function unmove(Request $request, Event $event): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($event, $user);
+        $d = $request->validate(['copy' => ['required', 'integer'], 'date' => ['required', 'date_format:Y-m-d']]);
+        $user->events()->whereKey($d['copy'])->first()?->forceDelete();
+        $event->update(['skipped' => array_values(array_diff($event->skipped ?? [], [$d['date']])) ?: null]);
+
+        return back()->with('toast', "“{$event->title}” is back at its usual time");
+    }
+
+    /** Cancel the day it happens on `date` (it stays on the Planner, crossed out), or take that back. */
+    public function cancel(Request $request, Event $event): RedirectResponse
+    {
+        $this->own($event, $request->user());
+        $d = $request->validate(['date' => ['required', 'date_format:Y-m-d'], 'cancelled' => ['required', 'boolean']]);
+        $dates = array_values(array_diff($event->cancelled ?? [], [$d['date']]));
+        $event->update(['cancelled' => $d['cancelled'] ? [...$dates, $d['date']] : ($dates ?: null)]);
+        $on = $event->repeat_weekly ? ' on '.CarbonImmutable::parse($d['date'])->format('D j M') : '';
+
+        return back()->with('toast', ($d['cancelled'] ? 'Cancelled' : 'Not cancelled any more:')." “{$event->title}”{$on}")
+            ->with('undo', $this->undo('cancel-event', $event->id, ['date' => $d['date'], 'cancelled' => ! $d['cancelled']]));
     }
 }

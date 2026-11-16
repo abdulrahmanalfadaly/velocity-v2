@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Event;
 use App\Models\PlannerBlock;
 use App\Models\Task;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -134,6 +136,70 @@ class PlannerPhase11Test extends TestCase
         $this->get('/planner?date=2026-11-12&view=day')->assertInertia(fn (Assert $p) => $p
             ->where('blocks.1.blocked.kind', 'waiting')
             ->where('blocks.1.blocked.why', 'Waiting for Dr. Lim'));
+    }
+
+    private function lecture(array $extra = []): Event
+    {
+        $this->post(route('events.store'), $extra + [
+            'title' => 'Data Mining', 'calendar' => 'class', 'all_day' => false, 'repeat_weekly' => true,
+            'date' => '2026-11-12', 'start_time' => '09:00', 'end_time' => '11:00',
+        ])->assertSessionHasNoErrors();
+
+        return Event::latest('id')->first();
+    }
+
+    /** Each time the event happens between two local dates, as "Thu 12 Nov 09:00–11:00" (cancelled ones marked). */
+    private function times(Event $e, string $from = '2026-11-09', string $to = '2026-11-30'): array
+    {
+        $e->refresh();
+
+        return array_map(fn ($o) => $o['start']->timezone(self::TZ)->format('D j M H:i').'–'.$o['end']->timezone(self::TZ)->format('H:i').($o['cancelled'] ? ' cancelled' : ''),
+            $e->occurrences(CarbonImmutable::parse($from, self::TZ)->utc(), CarbonImmutable::parse($to, self::TZ)->utc(), self::TZ, true));
+    }
+
+    public function test_a_weekly_event_moves_every_week_or_only_one_week(): void
+    {
+        $e = $this->lecture();
+        $this->post(route('events.cancel', $e), ['date' => '2026-11-26', 'cancelled' => true]);
+
+        // Every week: one day later and an hour later, with the cancelled week moving along.
+        $this->patch(route('events.move', $e), ['occurrence' => '2026-11-19', 'date' => '2026-11-20', 'start' => '10:00', 'minutes' => 90, 'scope' => 'all'])
+            ->assertSessionHas('toast', 'Moved “Data Mining” every week');
+        $this->assertSame(['Fri 13 Nov 10:00–11:30', 'Fri 20 Nov 10:00–11:30', 'Fri 27 Nov 10:00–11:30 cancelled'], $this->times($e));
+        $this->patch(route('events.move', $e), session('undo')['data'])->assertSessionHasNoErrors();
+        $this->assertSame(['Thu 12 Nov 09:00–11:00', 'Thu 19 Nov 09:00–11:00', 'Thu 26 Nov 09:00–11:00 cancelled'], $this->times($e));
+
+        // Only this week: that week is skipped and a one-off copy takes its place; Undo puts it back.
+        $this->patch(route('events.move', $e), ['occurrence' => '2026-11-19', 'date' => '2026-11-19', 'start' => '14:00', 'minutes' => 120, 'scope' => 'one'])
+            ->assertSessionHas('toast', 'Moved “Data Mining” on Thu 19 Nov');
+        $this->assertSame(['Thu 12 Nov 09:00–11:00', 'Thu 26 Nov 09:00–11:00 cancelled'], $this->times($e));
+        $copy = Event::latest('id')->first();
+        $this->assertSame(['Data Mining', false, ['Thu 19 Nov 14:00–16:00']], [$copy->title, $copy->repeat_weekly, $this->times($copy)]);
+        $this->post(route('events.unmove', $e), session('undo')['data']);
+        $this->assertSame(3, count($this->times($e)));
+        $this->assertNull(Event::find($copy->id));
+    }
+
+    public function test_a_locked_event_moves_only_anyway_and_a_cancelled_day_takes_no_time(): void
+    {
+        $e = $this->lecture(['repeat_weekly' => false, 'locked' => true]);
+        $this->assertTrue($e->locked);
+        $this->patch(route('events.move', $e), ['occurrence' => '2026-11-12', 'date' => '2026-11-12', 'start' => '13:00', 'minutes' => 120])
+            ->assertSessionHasErrors('anyway');
+        $this->patch(route('events.move', $e), ['occurrence' => '2026-11-12', 'date' => '2026-11-11', 'start' => '13:00', 'minutes' => 120, 'anyway' => true])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(['Wed 11 Nov 13:00–15:00'], $this->times($e));
+
+        // Cancelled: still on the Planner, crossed out, and planning may use its time; Review counts it.
+        $this->post(route('events.cancel', $e), ['date' => '2026-11-11', 'cancelled' => true])->assertSessionHas('toast', 'Cancelled “Data Mining”');
+        $this->get('/planner?date=2026-11-11&view=day')->assertInertia(fn (Assert $p) => $p
+            ->where('events.0.cancelled', true)
+            ->where('events.0.locked', true));
+        $this->user->update(['planner_hours' => array_fill(0, 7, ['start' => '13:00', 'end' => '15:00'])]);
+        $this->task('Essay', ['est_hours' => 2]);
+        $this->post(route('planner.plan'), ['date' => '2026-11-11', 'span' => 'day']);
+        $this->assertSame(['Essay: Wed 13:00–15:00'], $this->booked());
+        $this->get('/review?view=day&date=2026-11-11')->assertInertia(fn (Assert $p) => $p->where('report.events.cancelled', 1));
     }
 
     public function test_the_month_view_shows_whole_weeks_from_monday(): void

@@ -54,7 +54,7 @@ interface Report {
     highlights: string[];
     activity: Record<ActivityKey, { count: number; items: ActivityItem[]; blocks?: number }>;
     activityBefore: Record<ActivityKey, number>;
-    events: { class: number; work: number; personal: number; allDay: number; count: number };
+    events: { class: number; work: number; personal: number; allDay: number; count: number; cancelled?: number };
 }
 
 interface Weekly {
@@ -170,6 +170,7 @@ function Activity({ r, clock, compareOn }: { r: Report; clock: Clock; compareOn:
         e.work ? `Work ${hm(e.work)}` : null,
         e.personal ? `Personal ${hm(e.personal)}` : null,
         e.allDay ? `${e.allDay} all-day` : null,
+        e.cancelled ? `${e.cancelled} cancelled` : null,
     ].filter(Boolean);
     if (shown.length === 0 && eventText.length === 0) return null;
     const items = open ? r.activity[open].items : [];

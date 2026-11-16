@@ -46,8 +46,9 @@ class PlannerController extends Controller
         $to = $first->addDays($count)->utc();
         $list = $this->ranking->rank($user);
         $events = $user->events()->get();
+        // Cancelled days too: the grid shows them crossed out.
         $occ = fn (CarbonImmutable $from, CarbonImmutable $to) => $events
-            ->flatMap(fn (Event $e) => array_map(fn ($o) => ['event' => $e] + $o, $e->occurrences($from->utc(), $to->utc(), $tz)));
+            ->flatMap(fn (Event $e) => array_map(fn ($o) => ['event' => $e] + $o, $e->occurrences($from->utc(), $to->utc(), $tz, true)));
 
         // Days in the shown month that have something on (dots in the little calendar).
         $monthStart = $anchor->startOfMonth();
@@ -137,6 +138,8 @@ class PlannerController extends Controller
             'location' => $e->location,
             'allDay' => $e->all_day,
             'repeats' => $e->repeat_weekly,
+            'locked' => $e->locked,
+            'cancelled' => $o['cancelled'],
             // The whole event as the edit dialog shows it.
             'form' => $e->formValues($tz),
         ];

@@ -1734,6 +1734,16 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .pblock.is-blocked { background: var(--surface-2); color: var(--text-2); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 .pblock.is-blocked .pblock-title, .pblock.is-blocked .pblock-rank, .pblock.is-blocked .pblock-sub { color: var(--text-2); }
 .mg-item.is-block.is-blocked { background: var(--surface-2); border: 1px dashed var(--line-strong); }
+/* Events can be dragged like blocks; a cancelled day stays, crossed out. */
+.pev.is-movable { cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.pev.is-movable:hover .pblock-resize::after { opacity: .35; }
+.pev.is-moving { opacity: .35; }
+.pev.is-cancelled { opacity: .6; border-style: dashed; }
+.pev.is-cancelled .pev-title { text-decoration: line-through; }
+.pev-lock { margin-left: 4px; color: var(--text-3); }
+.mg-item.is-cancelled { opacity: .6; }
+.mg-item.is-cancelled .mg-t { text-decoration: line-through; }
+.pblock.is-ghost.is-event { background: var(--surface-3); color: var(--text-2); box-shadow: 0 0 0 2px var(--text-3), var(--sh-lg); }
 .mg-item.is-block.is-blocked .mg-t, .mg-item.is-block.is-blocked .mg-time, .mg-item.is-block.is-blocked .mg-rank { color: var(--text-2); }
 
 .ub-list { display: flex; flex-direction: column; gap: 1px; margin: 0 0 10px; padding: 0; list-style: none; }

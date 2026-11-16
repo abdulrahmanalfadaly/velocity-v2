@@ -21,6 +21,9 @@ interface Occurrence {
     location: string | null;
     allDay: boolean;
     repeats: boolean;
+    locked: boolean;
+    /** This day was cancelled: shown crossed out, takes no time. */
+    cancelled: boolean;
     form: EventForm;
 }
 interface Unbooked {
@@ -168,11 +171,15 @@ const blank = (date: string, start = 9 * 60): EventForm => ({
     repeat_until: null,
 });
 
-/** A block being dragged: one already on the grid (move), its bottom edge (resize), or a task from "Not booked yet" (new). */
+/**
+ * A block or event being dragged: one already on the grid (move), its bottom edge (resize),
+ * or a task from "Not booked yet" (new).
+ */
 interface Drag {
     kind: 'move' | 'new' | 'resize';
     length?: number; // resize: the length it had
     blockId?: number;
+    eventKey?: string; // a class or event (one day of it)
     taskId: number;
     title: string;
     rank: number | null;
@@ -186,7 +193,7 @@ interface Drag {
 export default function Planner() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
-    const [dialog, setDialog] = useState<null | { initial: EventForm; id?: number; occurrence?: string; day?: string }>(null);
+    const [dialog, setDialog] = useState<null | { initial: EventForm; id?: number; occurrence?: string; day?: string; cancelled?: boolean }>(null);
     const [newKind, setNewKind] = useState<NewKind>('event');
     const closeDialog = () => {
         setDialog(null);
@@ -255,10 +262,23 @@ export default function Planner() {
         [pending, props.blocks],
     );
 
+    // The same for events dragged to a new time.
+    const [evPending, setEvPending] = useState<{ base: Occurrence[]; moves: Record<string, { s: Spot; e: Spot }> }>({
+        base: props.events,
+        moves: {},
+    });
+    const evMoves = evPending.base === props.events ? evPending.moves : {};
+
     const items = useMemo<Item[]>(() => {
         const evs: Item[] = events
             .filter((e) => !e.allDay)
-            .map((ev) => ({ key: ev.key, kind: 'event', ev, s: local(clock, ev.start), e: local(clock, ev.end) }));
+            .map((ev) => ({
+                key: ev.key,
+                kind: 'event',
+                ev,
+                s: evMoves[ev.key]?.s ?? local(clock, ev.start),
+                e: evMoves[ev.key]?.e ?? local(clock, ev.end),
+            }));
         const bls: Item[] = props.blocks.map((bl) => {
             const moved = mine.moves[bl.id];
             const size = mine.sizes[bl.id];
@@ -273,7 +293,7 @@ export default function Planner() {
             e: local(clock, hb.end),
         }));
         return [...evs, ...hbs, ...bls, ...mine.added];
-    }, [props.events, props.blocks, props.habitTimes, hidden, mine]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [props.events, props.blocks, props.habitTimes, hidden, mine, evPending]); // eslint-disable-line react-hooks/exhaustive-deps
     const pieces = useMemo(() => Object.fromEntries(props.days.map((d) => [d, layoutDay(items, d)])), [items, props.days]);
     // Blocks that share their time with something shown (an event, a habit time, another block): marked, never moved.
     const clashes = useMemo(() => {
@@ -281,7 +301,17 @@ export default function Planner() {
         const out = new Set<number>();
         items.forEach((b) => {
             if (b.kind !== 'block') return;
-            if (items.some((o) => o !== b && !(o.kind === 'habit' && o.hb.done) && abs(o.s) < abs(b.e) && abs(o.e) > abs(b.s))) out.add(b.bl.id);
+            if (
+                items.some(
+                    (o) =>
+                        o !== b &&
+                        !(o.kind === 'habit' && o.hb.done) &&
+                        !(o.kind === 'event' && o.ev.cancelled) &&
+                        abs(o.s) < abs(b.e) &&
+                        abs(o.e) > abs(b.s),
+                )
+            )
+                out.add(b.bl.id);
         });
         return out;
     }, [items]);
@@ -371,11 +401,32 @@ export default function Planner() {
         window.addEventListener('pointercancel', end);
     };
 
-    // A locked block asks before it moves or changes length.
+    // A locked block or event asks before it moves or changes length; a weekly event asks "this week or every week?".
     const [lockedDrop, setLockedDrop] = useState<Drag | null>(null);
-    const drop = (d: Drag, anyway = false) => {
-        const isLocked = d.blockId !== undefined && props.blocks.some((b) => b.id === d.blockId && b.locked);
+    const [scopeDrop, setScopeDrop] = useState<{ d: Drag; anyway: boolean } | null>(null);
+    const drop = (d: Drag, anyway = false, scope?: 'one' | 'all') => {
         const changes = d.kind === 'resize' ? d.minutes !== d.length : !!d.to && !(d.from && d.from.date === d.to.date && d.from.min === d.to.min);
+        if (d.eventKey) {
+            const ev = props.events.find((x) => x.key === d.eventKey);
+            const to = d.kind === 'resize' ? d.from : d.to;
+            if (!ev || !to || !changes) return;
+            if (ev.locked && !anyway) {
+                setLockedDrop(d);
+                return;
+            }
+            if (ev.repeats && !scope) {
+                setScopeDrop({ d, anyway });
+                return;
+            }
+            setEvPending({ base: props.events, moves: { ...evMoves, [ev.key]: { s: to, e: later(to, d.minutes) } } });
+            router.patch(
+                route('events.move', ev.id),
+                { occurrence: ev.date, date: to.date, start: hhmm(to.min), minutes: d.minutes, scope: scope ?? 'all', anyway },
+                keep,
+            );
+            return;
+        }
+        const isLocked = d.blockId !== undefined && props.blocks.some((b) => b.id === d.blockId && b.locked);
         if (isLocked && !anyway && changes) {
             setLockedDrop(d);
             return;
@@ -432,6 +483,16 @@ export default function Planner() {
             from: s,
         });
     };
+    const grabEvent = (e: ReactPointerEvent<HTMLElement>, ev: Occurrence, s: Spot, end: Spot) => {
+        const top = e.currentTarget.getBoundingClientRect().top;
+        const grab = Math.round(((e.clientY - top) / HOUR) * 60);
+        begin(e, { kind: 'move', eventKey: ev.key, taskId: 0, title: ev.title, rank: null, minutes: between(s, end), grab, from: s });
+    };
+    const grabEventResize = (e: ReactPointerEvent<HTMLElement>, ev: Occurrence, s: Spot, end: Spot) => {
+        e.stopPropagation();
+        const length = between(s, end);
+        begin(e, { kind: 'resize', eventKey: ev.key, taskId: 0, title: ev.title, rank: null, minutes: length, length, grab: 0, from: s });
+    };
     const grabUnbooked = (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => {
         if ((e.target as HTMLElement).closest('button')) return;
         begin(e, { kind: 'new', taskId: u.taskId, title: u.title, rank: u.rank, minutes: Math.min(u.minutes, 120), grab: 15 });
@@ -457,7 +518,8 @@ export default function Planner() {
         const min = Math.max(0, Math.min(23 * 60, Math.floor((y / HOUR) * 2) * 30));
         setDialog({ initial: blank(day, min) });
     };
-    const openEvent = (ev: Occurrence) => setDialog({ initial: ev.form, id: ev.id, occurrence: ev.repeats ? ev.date : undefined, day: ev.date });
+    const openEvent = (ev: Occurrence) =>
+        setDialog({ initial: ev.form, id: ev.id, occurrence: ev.repeats ? ev.date : undefined, day: ev.date, cancelled: ev.cancelled });
 
     const sideMenu = () => (
         <PlannerMenu
@@ -698,22 +760,36 @@ export default function Planner() {
                                                 );
                                             }
                                             const ev = p.it.ev;
+                                            const { s: evS, e: evE } = p.it;
+                                            const movable = !ev.cancelled;
                                             return (
                                                 <button
                                                     key={p.it.key}
-                                                    className={`pev is-${ev.calendar}${short ? ' is-short' : ''}`}
+                                                    className={`pev is-${ev.calendar}${short ? ' is-short' : ''}${ev.cancelled ? ' is-cancelled' : ''}${movable ? ' is-movable' : ''}${drag?.eventKey === ev.key ? ' is-moving' : ''}`}
                                                     style={style}
-                                                    onClick={() => openEvent(ev)}
-                                                    aria-label={`${LABEL[ev.calendar]}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}`}
+                                                    onPointerDown={(e2) => movable && grabEvent(e2, ev, evS, evE)}
+                                                    onClick={() => !justDragged.current && openEvent(ev)}
+                                                    onContextMenu={(e2) => movable && e2.preventDefault()}
+                                                    aria-label={`${LABEL[ev.calendar]}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}${ev.cancelled ? ', cancelled' : ''}${ev.locked ? ', locked' : ''}`}
                                                 >
                                                     <span className="pev-title">
                                                         <Icon name={ICON[ev.calendar]} className="ic-xs" />
                                                         {ev.title}
+                                                        {ev.locked && <Icon name="lock" className="ic-xs pev-lock" label="Locked" />}
                                                     </span>
                                                     <span className="pev-sub">
-                                                        {clock.time(ev.start)}–{clock.time(ev.end)}
+                                                        {ev.cancelled ? 'Cancelled · ' : ''}
+                                                        {minLabel(evS.min)}–{minLabel(evE.min)}
                                                         {ev.location ? ` · ${ev.location}` : ''}
                                                     </span>
+                                                    {movable && (
+                                                        <span
+                                                            className="pblock-resize"
+                                                            aria-hidden="true"
+                                                            title="Drag to change the length"
+                                                            onPointerDown={(e2) => grabEventResize(e2, ev, evS, evE)}
+                                                        />
+                                                    )}
                                                 </button>
                                             );
                                         })}
@@ -739,7 +815,7 @@ export default function Planner() {
                                             })}
                                         {drag?.to?.date === d && (
                                             <span
-                                                className="pblock is-ghost"
+                                                className={`pblock is-ghost${drag.eventKey ? ' is-event' : ''}`}
                                                 style={{
                                                     top: (drag.to.min / 60) * HOUR,
                                                     height: Math.max(20, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 2),
@@ -769,6 +845,7 @@ export default function Planner() {
                         eventId={dialog.id}
                         occurrenceDate={dialog.occurrence}
                         day={dialog.day}
+                        cancelled={dialog.cancelled}
                         top={dialog.id ? undefined : <KindSeg value="event" onChange={setNewKind} />}
                         onClose={closeDialog}
                     />
@@ -812,6 +889,40 @@ export default function Planner() {
                     nextUp={props.unbooked.find((u) => u.taskId !== menu.bl.taskId && u.rank !== null) ?? null}
                     onClose={() => setMenu(null)}
                 />
+            )}
+            {scopeDrop && (
+                <Modal title={`Move “${scopeDrop.d.title}”`} onClose={() => setScopeDrop(null)}>
+                    <div className="vform">
+                        <p className="muted">It happens every week.</p>
+                        <div className="vform-foot">
+                            <button type="button" className="btn btn-ghost" onClick={() => setScopeDrop(null)}>
+                                Cancel
+                            </button>
+                            <span className="vform-foot-right">
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => {
+                                        drop(scopeDrop.d, scopeDrop.anyway, 'one');
+                                        setScopeDrop(null);
+                                    }}
+                                >
+                                    Only this week
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    onClick={() => {
+                                        drop(scopeDrop.d, scopeDrop.anyway, 'all');
+                                        setScopeDrop(null);
+                                    }}
+                                >
+                                    Every week
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+                </Modal>
             )}
             {lockedDrop && (
                 <Modal title={`“${lockedDrop.title}” is locked`} onClose={() => setLockedDrop(null)}>

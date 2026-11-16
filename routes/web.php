@@ -190,6 +190,9 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
         Route::post('events/{id}/restore', [EventController::class, 'restore'])->whereNumber('id')->name('events.restore');
         Route::post('events/{event}/unskip', [EventController::class, 'unskip'])->name('events.unskip');
+        Route::patch('events/{event}/move', [EventController::class, 'move'])->name('events.move');
+        Route::post('events/{event}/unmove', [EventController::class, 'unmove'])->name('events.unmove');
+        Route::post('events/{event}/cancel', [EventController::class, 'cancel'])->name('events.cancel');
         Route::post('focus', [FocusController::class, 'start'])->name('focus.start');
         Route::post('focus/{session}/pause', [FocusController::class, 'pause'])->name('focus.pause');
         Route::post('focus/{session}/resume', [FocusController::class, 'resume'])->name('focus.resume');

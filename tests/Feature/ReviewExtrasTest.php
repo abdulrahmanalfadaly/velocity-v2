@@ -96,7 +96,7 @@ class ReviewExtrasTest extends TestCase
 
         $r = $this->report(['view' => 'day']);
         $this->assertSame(['day', '2026-11-11', '2026-11-11', '2026-11-10', 0, 1], [$r['kind'], $r['start'], $r['last'], $r['prev']['start'], $r['now']['tasks'], $r['before']['tasks']]);
-        $this->assertSame(['class' => 0, 'work' => 30, 'personal' => 0, 'allDay' => 1, 'count' => 1], $r['events']);
+        $this->assertSame(['class' => 0, 'work' => 30, 'personal' => 0, 'allDay' => 1, 'count' => 1, 'cancelled' => 0], $r['events']);
 
         $week = $this->report(['view' => 'week']);
         $this->assertSame([120, 30], [$week['events']['class'], $week['events']['work']]);
