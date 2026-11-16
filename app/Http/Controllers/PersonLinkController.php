@@ -80,8 +80,11 @@ class PersonLinkController extends Controller
             'on' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$today],
         ], ['on.after_or_equal' => 'Pick today or a day ahead.']);
         $first = $person->callName();
+        // "What about": “the ethics form” makes “Follow up: the ethics form”, so the task says what it is in any list.
+        $about = trim($d['title'] ?? '');
+        $title = $about === '' ? "Follow up with {$first}" : (Str::startsWith(Str::lower($about), 'follow up') ? $about : "Follow up: {$about}");
         $task = $user->tasks()->create([
-            'title' => Str::limit(trim($d['title'] ?? '') ?: "Follow up with {$first}", 255, ''),
+            'title' => Str::limit($title, 255, ''),
             'importance' => 3, 'urgency' => 3, 'est_hours' => 0.25,
             'status' => Task::WAITING, 'waiting_for' => $person->name, 'waiting_since' => $this->ranking->now(), 'follow_up_on' => $d['on'],
         ]);

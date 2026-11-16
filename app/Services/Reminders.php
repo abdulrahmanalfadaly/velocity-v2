@@ -34,9 +34,9 @@ class Reminders
             if ($task->reminders()->where('kind', 'bug')->exists()) {
                 throw ValidationException::withMessages(['kind' => 'This task already bugs you.']);
             }
-            // It starts now and comes back every so often.
+            // It comes every so often, the first time after one such stretch (not the moment it is switched on).
             $fields['every_minutes'] = (int) $data['every'];
-            $fields['next_at'] = $now;
+            $fields['next_at'] = $now->addMinutes((int) $data['every']);
         }
         $reminder = new TaskReminder($fields);
         $reminder->next_at ??= $reminder->planned($task, $task->user->timezone);

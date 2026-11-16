@@ -117,6 +117,42 @@ class ReviewExtrasTest extends TestCase
         $this->assertSame(0, $r['activityBefore']['created']);
     }
 
+    public function test_what_changed_leaves_out_what_was_undone(): void
+    {
+        // Added, then Undo: it is gone, so it isn't "added".
+        $this->post(route('tasks.store'), ['text' => 'Typo'])->assertSessionHas('undo.action', 'delete-task');
+        $this->delete(route('tasks.destroy', Task::where('title', 'Typo')->sole()));
+        // Done, then Undo: not "opened again".
+        $this->post(route('tasks.store'), ['text' => 'Essay fri']);
+        $essay = Task::where('title', 'Essay')->sole();
+        $this->post(route('tasks.complete', $essay))->assertSessionHas('undo', ['action' => 'reopen', 'id' => $essay->id, 'data' => ['undo' => true]]);
+        $this->post(route('tasks.reopen', $essay), session('undo')['data']);
+        // Cancelled, then Undo: neither "cancelled" nor "opened again".
+        $this->post(route('tasks.cancel', $essay), ['reason' => 'No'])->assertSessionHas('undo.action', 'reopen');
+        $this->post(route('tasks.reopen', $essay), session('undo')['data']);
+        // Postponed, then Undo: from the panel, and from the selection bar.
+        $this->patch(route('tasks.update', $essay), ['due_at' => '2026-11-16T23:59'])->assertSessionHas('undo.action', 'revert-task');
+        $this->post(route('tasks.revert', $essay), session('undo')['data']);
+        $this->post(route('tasks.bulk'), ['ids' => [$essay->id], 'action' => 'due', 'due_at' => '2026-11-18T23:59']);
+        $this->post(route('tasks.bulk-undo'), session('undo')['data']);
+        $this->assertSame('2026-11-13', $essay->fresh()->due_at->timezone(self::TZ)->toDateString());
+        // Opened again on purpose, then Undo: done again, and not "opened again".
+        $this->post(route('tasks.complete', $essay));
+        $this->post(route('tasks.reopen', $essay))->assertSessionHas('undo.action', 'complete');
+        $this->post(route('tasks.complete', $essay), session('undo')['data']);
+        $this->assertSame(Task::DONE, $essay->fresh()->status);
+
+        $a = $this->report()['activity'];
+        $this->assertSame(['created' => 1, 'cancelled' => 0, 'reopened' => 0, 'postponed' => 0], array_map(fn ($x) => $x['count'], array_slice($a, 0, 4)));
+        $this->assertSame('Essay', $a['created']['items'][0]['title']);
+
+        // Opened again on purpose still counts, and so does a cancel that stayed.
+        $this->post(route('tasks.reopen', $essay));
+        $this->post(route('tasks.cancel', $essay), ['reason' => 'Dropped']);
+        $a = $this->report()['activity'];
+        $this->assertSame([1, 1], [$a['reopened']['count'], $a['cancelled']['count']]);
+    }
+
     public function test_the_day_view_compares_with_the_day_before_and_counts_event_time(): void
     {
         $this->post(route('events.store'), [

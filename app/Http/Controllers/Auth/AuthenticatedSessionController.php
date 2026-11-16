@@ -19,7 +19,8 @@ class AuthenticatedSessionController extends Controller
     public function create(Request $request): Response
     {
         return Inertia::render('auth/login', [
-            'canResetPassword' => Route::has('password.request'),
+            // Only when a reset link can really be emailed (a mail server is set up).
+            'canResetPassword' => Route::has('password.request') && PasswordResetLinkController::available(),
             'status' => $request->session()->get('status'),
         ]);
     }

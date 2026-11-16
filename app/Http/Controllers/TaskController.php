@@ -358,6 +358,8 @@ class TaskController extends Controller
             $task->update($snap['before']);
         }
         $task->events()->create(['user_id' => $user->id, 'type' => 'reverted', 'snapshot' => ['event' => $event->id]]);
+        // Taken back: Review no longer counts it (a due date moved later is not "postponed").
+        $event->update(['snapshot' => [...$snap, 'undone' => true]]);
 
         return back()->with('toast', 'Change undone');
     }
@@ -428,6 +430,9 @@ class TaskController extends Controller
         }
         $list = $mode === 'complete' && $kids->isNotEmpty() ? $this->ranking->rank($user) : null;
         $next = $this->actions->complete($task, $user);
+        if ($request->boolean('undo')) {
+            $this->actions->undid($task, 'completed', ['reopened']);
+        }
         if ($list) {
             $kids->each(fn (Task $kid) => $this->actions->complete($kid, $user, $list->scoreOf($kid->id), false));
             $n = $kids->count();
@@ -437,7 +442,7 @@ class TaskController extends Controller
         }
         $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '').$this->freedWords($task, $user);
 
-        return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+        return back()->with('toast', $toast)->with('undo', $this->undo('reopen', $task->id, ['undo' => true]));
     }
 
     /** "Add subtask": a small task under this one, ranked like any other. It starts with the parent's importance, urgency and due date. */
@@ -617,6 +622,7 @@ class TaskController extends Controller
         foreach ($tasks as $t) {
             if (($data['action'] === 'complete' && $t->status === Task::DONE) || ($data['action'] === 'cancel' && $t->status === Task::CANCELLED)) {
                 $this->actions->reopen($t, $user);
+                $this->actions->undid($t, 'reopened', ['completed', 'cancelled']);
             } elseif ($data['action'] === 'delete' && $t->trashed()) {
                 $this->actions->restore($t, $user);
             } elseif ($data['action'] === 'reopen' && $t->isOpen() && isset($data['before'][$t->id]['status'])) {
@@ -625,6 +631,7 @@ class TaskController extends Controller
                 $was['status'] === Task::DONE
                     ? $this->actions->complete($t, $user, isset($was['score']) ? (float) $was['score'] : null, false)
                     : $this->actions->cancel($t, $user, $was['reason'] ?? null);
+                $this->actions->undid($t, $was['status'] === Task::DONE ? 'completed' : 'cancelled', ['reopened']);
                 if (! empty($was['archived'])) {
                     $this->actions->archive($t, $user);
                 }
@@ -634,6 +641,11 @@ class TaskController extends Controller
                 $this->actions->archive($t, $user);
             } elseif (in_array($data['action'], ['move', 'due', 'importance', 'urgency', 'follow_up'], true) && isset($data['before'][$t->id])) {
                 $t->update(array_intersect_key($data['before'][$t->id], ['project_id' => 1, 'due_at' => 1, 'repeat_day' => 1, 'importance' => 1, 'urgency' => 1, 'follow_up_on' => 1]));
+                // The due date it was moved to is taken back: Review no longer counts it as postponed.
+                $moved = $data['action'] === 'due' ? $t->events()->where('type', 'updated')->first() : null;
+                if ($moved && array_key_exists('due_at', $moved->snapshot['after'] ?? [])) {
+                    $moved->update(['snapshot' => [...$moved->snapshot, 'undone' => true]]);
+                }
             } elseif ($data['action'] === 'status' && $t->isOpen() && in_array($data['before'][$t->id]['status'] ?? null, Task::OPEN, true)) {
                 $t->update(['status' => $data['before'][$t->id]['status'], 'waiting_since' => $data['before'][$t->id]['waiting_since'] ?? null]);
             }
@@ -650,17 +662,25 @@ class TaskController extends Controller
             return back();
         }
         $status = $request->validate(['status' => ['sometimes', Rule::in(Task::OPEN)]])['status'] ?? null;
+        // From Undo (of Done or Cancel) it is marked, so Review doesn't count it as "opened again".
+        $fromUndo = $request->boolean('undo');
         if ($task->status === Task::CANCELLED) {
             // Undo cancels it again the same way (skipping a repeat makes the next copy again).
-            $undo = $this->undo('cancel-task', $task->id, ['reason' => $task->cancel_reason, 'skip' => $task->nextRepeat()->open()->exists()]);
+            $undo = $this->undo('cancel-task', $task->id, ['reason' => $task->cancel_reason, 'skip' => $task->nextRepeat()->open()->exists(), 'undo' => true]);
             $this->actions->reopen($task, $user, $status);
+            if ($fromUndo) {
+                $this->actions->undid($task, 'reopened', ['cancelled']);
+            }
 
             return back()->with('toast', "Back: “{$task->title}”".$this->againWords($task, $user))->with('undo', $undo);
         }
         $this->actions->reopen($task, $user, $status);
+        if ($fromUndo) {
+            $this->actions->undid($task, 'reopened', ['completed']);
+        }
 
         // Undo completes it again, even if it is still waiting on something.
-        return back()->with('toast', "Not done: “{$task->title}”".$this->againWords($task, $user))->with('undo', $this->undo('complete', $task->id, ['anyway' => true]));
+        return back()->with('toast', "Not done: “{$task->title}”".$this->againWords($task, $user))->with('undo', $this->undo('complete', $task->id, ['anyway' => true, 'undo' => true]));
     }
 
     /** " · 2 tasks wait on it again": opened again, the tasks after it can't start (personal mode). */
@@ -674,18 +694,32 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
-        $data = $request->validate(['reason' => ['nullable', 'string', 'max:300'], 'skip' => ['sometimes', 'boolean']]);
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:300'],
+            'skip' => ['sometimes', 'boolean'],
+            // Its open subtasks: cancelled with it, or left in the list (the panel asks, as Done and Delete do).
+            'children' => ['sometimes', Rule::in(['cancel', 'leave'])],
+        ]);
         if (! in_array($task->status, Task::OPEN, true)) {
             return back();
         }
         $skip = ($data['skip'] ?? false) && $task->repeat_unit;
         $reason = trim($data['reason'] ?? '') ?: ($skip ? 'Skipped' : null);
+        $kids = ($data['children'] ?? null) === 'cancel' && ! $user->fyp_mode ? $task->children()->open()->get() : collect();
         $next = $this->actions->cancel($task, $user, $reason, (bool) $skip);
+        if ($request->boolean('undo')) {
+            $this->actions->undid($task, 'cancelled', ['reopened']);
+        }
+        $kids->each(fn (Task $kid) => $this->actions->cancel($kid, $user, $reason));
+        $n = $kids->count();
+        $and = $n ? " and {$n} ".($n === 1 ? 'subtask' : 'subtasks') : '';
         $toast = $skip
-            ? "Skipped “{$task->title}”".($next?->due_at ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '')
-            : "Cancelled “{$task->title}”".$this->freedWords($task, $user);
+            ? "Skipped “{$task->title}”{$and}".($next?->due_at ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '')
+            : "Cancelled “{$task->title}”{$and}".$this->freedWords($task, $user);
 
-        return back()->with('toast', $toast)->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+        return back()->with('toast', $toast)->with('undo', $n
+            ? $this->undo('bulk-undo', 0, ['action' => 'cancel', 'ids' => [$task->id, ...$kids->pluck('id')->all()], 'before' => []])
+            : $this->undo('reopen', $task->id, ['undo' => true]));
     }
 
     /** A done or cancelled task goes to the archive (out of project pages, Done today and search). */

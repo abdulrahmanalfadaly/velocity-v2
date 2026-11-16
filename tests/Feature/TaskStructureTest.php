@@ -121,6 +121,16 @@ class TaskStructureTest extends TestCase
         $this->assertSame(Task::TODO, Task::where('title', 'Method')->sole()->status);
         $this->post(route('tasks.reopen', $report));
 
+        // Cancelling the parent: its open subtasks go with it (same reason) and Undo brings them all back; or they stay open.
+        $this->post(route('tasks.cancel', $report), ['reason' => 'Dropped', 'children' => 'cancel'])->assertSessionHas('toast', 'Cancelled “Write the report” and 1 subtask');
+        $method = Task::where('title', 'Method')->sole();
+        $this->assertSame([Task::CANCELLED, Task::CANCELLED, 'Dropped', Task::DONE], [$report->fresh()->status, $method->status, $method->cancel_reason, $intro->fresh()->status]);
+        $this->post(route('tasks.bulk-undo'), session('undo')['data']);
+        $this->assertSame([Task::TODO, Task::TODO], [$report->fresh()->status, $method->fresh()->status]);
+        $this->post(route('tasks.cancel', $report), ['children' => 'leave'])->assertSessionHas('toast', 'Cancelled “Write the report”')->assertSessionHas('undo.action', 'reopen');
+        $this->assertSame(Task::TODO, $method->fresh()->status);
+        $this->post(route('tasks.reopen', $report), session('undo')['data']);
+
         // Deleting the parent: its subtasks too, and Undo brings them all back; or they stay on their own.
         $this->delete(route('tasks.destroy', $report), ['children' => 'delete'])->assertSessionHas('toast', 'Deleted “Write the report” and its 2 subtasks');
         $this->assertSame(0, $this->user->tasks()->count());

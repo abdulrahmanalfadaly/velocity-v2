@@ -187,7 +187,9 @@ class ReviewService
         $events = TaskEvent::where('user_id', $user->id)->whereIn('type', ['created', 'promoted', 'reopened', 'updated', 'cancelled'])
             ->where('created_at', '>=', $from->utc())->where('created_at', '<', $to->utc())
             ->with(['task' => fn ($q) => $q->withTrashed()->select('id', 'title', 'deleted_at')])
-            ->orderByDesc('created_at')->orderByDesc('id')->get();
+            ->orderByDesc('created_at')->orderByDesc('id')->get()
+            // Not what Undo did, and not what Undo took back: only the changes that stayed.
+            ->reject(fn (TaskEvent $e) => ! empty($e->snapshot['undo']) || ! empty($e->snapshot['undone']));
         $day = fn ($at) => CarbonImmutable::parse($at)->timezone($tz)->format('D j M');
         $later = function (TaskEvent $e): bool {
             $b = $e->snapshot['before']['due_at'] ?? null;
@@ -203,7 +205,8 @@ class ReviewService
         $moves = DB::table('planner_moves')->where('user_id', $user->id)->where('moved_at', '>=', $from->utc())->where('moved_at', '<', $to->utc())->get();
 
         return [
-            'created' => $list($events->filter(fn ($e) => in_array($e->type, ['created', 'promoted'], true) && empty($e->snapshot['repeatOf'])), $task()),
+            // Added, and still there: one added and deleted again (Undo, or by hand) is not counted.
+            'created' => $list($events->filter(fn ($e) => in_array($e->type, ['created', 'promoted'], true) && empty($e->snapshot['repeatOf']) && $e->task && ! $e->task->trashed()), $task()),
             'cancelled' => $list($events->where('type', 'cancelled'), $task(fn ($e) => $e->snapshot['reason'] ?? null)),
             'reopened' => $list($events->where('type', 'reopened'), $task()),
             'postponed' => $list($events->filter($later), $task(fn ($e) => $day($e->snapshot['before']['due_at']).' → '.$day($e->snapshot['after']['due_at']))),

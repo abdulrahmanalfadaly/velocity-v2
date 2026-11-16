@@ -1308,6 +1308,9 @@ select.input { padding-right: 8px; }
     .row { grid-template-columns: 20px minmax(0, 1fr) auto; gap: 12px; padding: 12px 14px; }
     .row .rank, .row > .chip { display: none; }
     .row-sub .due-mobile { display: inline-flex; }
+    /* Up next keeps its rank numbers on a phone. */
+    .rank-list.is-ranked .row { grid-template-columns: 20px 20px minmax(0, 1fr) auto; gap: 10px; }
+    .rank-list.is-ranked .row .rank { display: block; }
     .tie { padding-left: 46px; }
     .filters { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px; scrollbar-width: none; }
     .filters::-webkit-scrollbar { display: none; }

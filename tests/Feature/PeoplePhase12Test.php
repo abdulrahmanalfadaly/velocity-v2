@@ -111,6 +111,10 @@ class PeoplePhase12Test extends TestCase
         $task = $sara->tasks()->sole();
         $this->assertSame(['Follow up with Sara', 'waiting', 'Sara Lim', '2026-11-14'], [$task->title, $task->status, $task->waiting_for, $task->follow_up_on->toDateString()]);
         $this->post(route('people.follow-up', $sara), ['on' => '2026-11-01'])->assertSessionHasErrors('on');
+        // "What about" goes into the title, after "Follow up:" (unless it already says so).
+        $this->post(route('people.follow-up', $sara), ['on' => '2026-11-14', 'title' => 'the ethics form']);
+        $this->post(route('people.follow-up', $sara), ['on' => '2026-11-14', 'title' => 'Follow up on the grant']);
+        $this->assertSame(['Follow up with Sara', 'Follow up: the ethics form', 'Follow up on the grant'], $sara->tasks()->orderBy('tasks.id')->pluck('title')->all());
 
         // A title stays with the name: "Dr. Lim", not "Dr.".
         $lim = $this->user->people()->create(['name' => 'Dr. Lim Wei']);

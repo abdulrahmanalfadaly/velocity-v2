@@ -66,7 +66,7 @@ class RemindersTest extends TestCase
 
         $r = $task->reminders()->get();
         $this->assertSame(['at', 'before', 'before', 'bug'], $r->pluck('kind')->all());
-        $this->assertSame(['2026-11-11 15:30', '2026-11-12 16:00', '2026-11-12 09:00', '2026-11-11 10:00'], $r->map(fn ($x) => $this->nextAt($x))->all());
+        $this->assertSame(['2026-11-11 15:30', '2026-11-12 16:00', '2026-11-12 09:00', '2026-11-11 11:00'], $r->map(fn ($x) => $this->nextAt($x))->all());
         $this->get(route('tasks.index', ['task' => $task->id]))->assertInertia(fn ($page) => $page->count('selected.reminders', 4)
             ->where('selected.reminders.1.minutesBefore', 60)->where('selected.reminders.2.daysBefore', 0));
 
@@ -130,17 +130,21 @@ class RemindersTest extends TestCase
         $task = $this->task();
         $this->post(route('reminders.store', $task), ['kind' => 'bug', 'every' => 30]);
         $bug = $task->reminders()->sole();
-        $this->assertSame([$bug->id], array_column($this->due(), 'id'));
+        // The first one comes after the first 30 minutes, not the moment it is switched on.
         $this->assertSame([], $this->due());
         $this->assertSame('2026-11-11 10:30', $this->nextAt($bug));
+        config(['velocity.fixed_now' => '2026-11-11 10:30']);
+        $this->assertSame([$bug->id], array_column($this->due(), 'id'));
+        $this->assertSame([], $this->due());
+        $this->assertSame('2026-11-11 11:00', $this->nextAt($bug));
 
         // Missed ones never pile up: an hour and a half later it shows once, then waits another 30 minutes.
-        config(['velocity.fixed_now' => '2026-11-11 11:31']);
+        config(['velocity.fixed_now' => '2026-11-11 12:31']);
         $this->assertSame([$bug->id], array_column($this->due(), 'id'));
-        $this->assertSame('2026-11-11 12:01', $this->nextAt($bug));
+        $this->assertSame('2026-11-11 13:01', $this->nextAt($bug));
 
         $this->post(route('tasks.complete', $task));
-        config(['velocity.fixed_now' => '2026-11-11 13:00']);
+        config(['velocity.fixed_now' => '2026-11-11 14:00']);
         $this->assertSame([], $this->due());
         $this->post(route('tasks.reopen', $task));
         $this->assertSame([$bug->id], array_column($this->due(), 'id')); // back with the task

@@ -173,6 +173,11 @@ class ApiMoreTest extends TestCase
         $this->api('POST', "tasks/{$slides->id}/complete")->assertStatus(409);
         $this->api('POST', "tasks/{$report->id}/complete", ['children' => 'complete'])->assertOk();
         $this->assertSame(Task::DONE, Task::where('title', 'Intro')->sole()->status);
+        // Cancelling can take the open subtasks with it.
+        $deck = $this->task('Deck');
+        $this->api('POST', "tasks/{$deck->id}/subtasks", ['title' => 'Outline'])->assertCreated();
+        $this->api('POST', "tasks/{$deck->id}/cancel", ['children' => 'cancel'])->assertOk();
+        $this->assertSame(Task::CANCELLED, Task::where('title', 'Outline')->sole()->status);
 
         // Finished views, and the selection bar's new actions.
         $this->api('POST', 'tasks/bulk', ['ids' => [$report->id], 'action' => 'archive'])->assertOk()->assertJsonPath('data.ids', [$report->id]);

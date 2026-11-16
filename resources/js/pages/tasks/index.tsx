@@ -478,7 +478,7 @@ export default function TasksIndex() {
                             })()
                         ) : (
                             <>
-                                <ol className={`rank-list${picked ? ' is-picking' : ''}`} aria-label="Tasks in priority order">
+                                <ol className={`rank-list is-ranked${picked ? ' is-picking' : ''}`} aria-label="Tasks in priority order">
                                     {shown.length === 0 && <li className="list-empty">Nothing here right now.</li>}
                                     {shown.map((t) => {
                                         const due = dueInfo(t, clock);

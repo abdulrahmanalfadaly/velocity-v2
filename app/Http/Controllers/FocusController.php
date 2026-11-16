@@ -236,7 +236,7 @@ class FocusController extends Controller
         $tasks->complete($task, $user);
         $focused = $seconds !== null && $seconds >= self::MIN_SECONDS ? ' · focused '.self::duration($seconds) : '';
 
-        return back()->with('toast', "Done: “{$task->title}”{$focused}")->with('undo', ['action' => 'reopen', 'id' => $task->id]);
+        return back()->with('toast', "Done: “{$task->title}”{$focused}")->with('undo', $this->undo('reopen', $task->id, ['undo' => true]));
     }
 
     /** The note after a session ("What got done?"), from the stop card or the history. */

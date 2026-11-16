@@ -133,7 +133,7 @@ class PagesTest extends TestCase
     public function test_completing_and_undoing_a_task(): void
     {
         $task = Task::where('title', 'Test plan for Assignment 2')->first();
-        $this->actingAs($this->user)->post("/tasks/{$task->id}/complete")->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id]);
+        $this->actingAs($this->user)->post("/tasks/{$task->id}/complete")->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id, 'data' => ['undo' => true]]);
         $this->assertSame(Task::DONE, $task->fresh()->status);
         $this->assertSame(78.7, $task->fresh()->score_at_completion);
 

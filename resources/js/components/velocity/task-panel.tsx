@@ -975,10 +975,13 @@ export function TaskPanel({
 function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }) {
     const [reason, setReason] = useState('');
     const waiting = (task.blocks ?? []).filter((b) => isOpen(b.status)).length;
+    // Open subtasks go with it unless unticked (Done and Delete ask the same).
+    const openKids = task.children.filter((c) => isOpen(c.status)).length;
+    const [withKids, setWithKids] = useState(true);
     const send = (skip: boolean) =>
         router.post(
             route('tasks.cancel', task.id),
-            { reason: reason.trim() || null, skip },
+            { reason: reason.trim() || null, skip, ...(openKids ? { children: withKids ? 'cancel' : 'leave' } : {}) },
             { preserveScroll: true, preserveState: true, onSuccess: onClose },
         );
     return (
@@ -1016,6 +1019,12 @@ function CancelTask({ task, onClose }: { task: TaskDetail; onClose: () => void }
                         }}
                     />
                 </div>
+                {openKids > 0 && (
+                    <label className="auth-check">
+                        <input type="checkbox" checked={withKids} onChange={(e) => setWithKids(e.target.checked)} />
+                        Cancel its {openKids === 1 ? 'open subtask' : `${openKids} open subtasks`} too
+                    </label>
+                )}
                 <div className="vform-foot">
                     <button type="button" className="btn btn-ghost" onClick={onClose}>
                         Keep it

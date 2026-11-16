@@ -31,17 +31,20 @@ class TaskMoreApiController extends ApiController
         parent::__construct($ranking);
     }
 
-    /** {"reason": "…", "skip": true}: a repeating task with skip makes its next copy. */
+    /** {"reason": "…", "skip": true, "children": "cancel"}: a repeating task with skip makes its next copy; "children": "cancel" cancels its open subtasks too. */
     public function cancel(Request $request, Task $task): JsonResponse
     {
         $user = $request->user();
         $this->own($task, $user);
-        $d = $request->validate(['reason' => ['nullable', 'string', 'max:300'], 'skip' => ['sometimes', 'boolean']]);
+        $d = $request->validate(['reason' => ['nullable', 'string', 'max:300'], 'skip' => ['sometimes', 'boolean'], 'children' => ['sometimes', Rule::in(['cancel', 'leave'])]]);
         if (! $task->isOpen()) {
             throw ValidationException::withMessages(['task' => 'Only an open task can be cancelled.']);
         }
         $skip = ($d['skip'] ?? false) && $task->repeat_unit;
-        $next = $this->actions->cancel($task, $user, trim($d['reason'] ?? '') ?: ($skip ? 'Skipped' : null), (bool) $skip);
+        $reason = trim($d['reason'] ?? '') ?: ($skip ? 'Skipped' : null);
+        $kids = ($d['children'] ?? null) === 'cancel' ? $task->children()->open()->get() : collect();
+        $next = $this->actions->cancel($task, $user, $reason, (bool) $skip);
+        $kids->each(fn (Task $kid) => $this->actions->cancel($kid, $user, $reason));
         $list = $this->ranking->rank($user);
 
         return $this->ok(ApiPresent::task($task->fresh(['project.goal'])) + ['next' => $next ? ApiPresent::task($next->fresh(['project.goal']), $list) : null]);

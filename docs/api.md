@@ -101,7 +101,7 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 | `POST /tasks/{id}/reopen` | not done again |
 | `DELETE /tasks/{id}` · `POST /tasks/{id}/restore` | delete (`{"children": "delete"}` takes its subtasks too), and bring back (with them) |
 | `POST /tasks/{id}/steps` · `PATCH /steps/{id}` | add a step `{"title"}`; tick `{"done": true}` or rename |
-| `POST /tasks/{id}/cancel` | `{"reason"?, "skip"?}`: it won't be done; `skip` on a repeating task makes the next copy (in `next`) |
+| `POST /tasks/{id}/cancel` | `{"reason"?, "skip"?, "children"?: "cancel"}`: it won't be done; `skip` on a repeating task makes the next copy (in `next`); `"children": "cancel"` cancels its open subtasks too (they stay open otherwise) |
 | `POST /tasks/{id}/archive` · `/unarchive` | a done or cancelled task out of the lists (still in History and Review) |
 | `POST /tasks/bulk` | `{"ids": […≤100], "action": …}`: `complete`, `cancel`, `delete`, `move` (`project_id`), `due` (`due_at`), `importance` / `urgency` (1–5), `status` (todo / doing / waiting), `follow_up` (`follow_up_on` or `null`) on open tasks; `reopen`, `archive`, `unarchive` on finished ones |
 | `GET /tasks/next` | Next actions: each project's best task by the formula (`rows`), and projects with nothing ready (`idle`, with `why`) |

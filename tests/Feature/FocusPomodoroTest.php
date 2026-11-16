@@ -137,7 +137,7 @@ class FocusPomodoroTest extends TestCase
         $this->at('10:30');
         $id = $this->timer()['id'];
         $this->post(route('focus.done-task', $id))->assertSessionHas('toast', 'Done: “Chapter 4” · focused 30 min')
-            ->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id]);
+            ->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id, 'data' => ['undo' => true]]);
         $this->assertSame([Task::DONE, 1800], [$task->fresh()->status, FocusSession::sole()->seconds]);
         $this->assertNull($this->timer());
     }

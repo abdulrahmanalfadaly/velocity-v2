@@ -269,6 +269,17 @@ class TaskActions
     }
 
     /**
+     * Marks what Undo just did: its own entry in the task's history ($made) and the entry it
+     * took back (the newest of $reversed). Review's "What changed" leaves both out.
+     */
+    public function undid(Task $task, string $made, array $reversed): void
+    {
+        $flag = fn (?TaskEvent $e, string $key) => $e?->update(['snapshot' => [...($e->snapshot ?? []), $key => true]]);
+        $flag($task->events()->where('type', $made)->first(), 'undo');
+        $flag($task->events()->whereIn('type', $reversed)->first(), 'undone');
+    }
+
+    /**
      * Deletes a task (Undo can bring it back). With $children its subtasks go too, and
      * come back with it; without, they stay as tasks of their own.
      */
