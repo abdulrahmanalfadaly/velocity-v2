@@ -171,12 +171,6 @@ export function EventDialog({
                         <input type="checkbox" checked={data.repeat_weekly} onChange={(e) => setData('repeat_weekly', e.target.checked)} />
                         Every week
                     </label>
-                    {!data.all_day && (
-                        <label className="auth-check" title="Asks before it is dragged to another time">
-                            <input type="checkbox" checked={data.locked} onChange={(e) => setData('locked', e.target.checked)} />
-                            Locked
-                        </label>
-                    )}
                     {data.repeat_weekly && (
                         <span className="ev-until">
                             until
@@ -188,6 +182,12 @@ export function EventDialog({
                                 min={data.date}
                             />
                         </span>
+                    )}
+                    {!data.all_day && (
+                        <label className="auth-check" title="Asks before it is dragged to another time">
+                            <input type="checkbox" checked={data.locked} onChange={(e) => setData('locked', e.target.checked)} />
+                            Locked
+                        </label>
                     )}
                 </div>
                 {errors.repeat_until && <p className="field-error">{errors.repeat_until}</p>}

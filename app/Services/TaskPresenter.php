@@ -77,7 +77,7 @@ class TaskPresenter
             'importance' => 'Importance '.$level($after),
             'urgency' => 'Urgency '.$level($after),
             'est_hours' => 'Work '.rtrim(rtrim(number_format((float) $after, 2), '0'), '.').' h',
-            'energy' => $after === null ? 'Energy taken off' : 'Energy: '.$after,
+            'energy' => $after === null ? 'Energy taken off' : 'Energy: '.ucfirst((string) $after),
             'captured_at' => $after === null ? 'Put in the ranking' : 'Back to To sort',
             'title' => 'Renamed',
             'notes' => 'Notes changed',

@@ -551,7 +551,8 @@ export default function Planner() {
     const allDay = events.filter((e) => e.allDay);
 
     const newAt = (day: string, e: MouseEvent<HTMLDivElement>) => {
-        if (e.target !== e.currentTarget) return;
+        // Not the click that ends a drag (a locked block or event left where it was).
+        if (e.target !== e.currentTarget || justDragged.current) return;
         const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
         const min = Math.max(0, Math.min(23 * 60, Math.floor((y / HOUR) * 2) * 30));
         setDialog({ initial: blank(day, min) });
@@ -691,7 +692,7 @@ export default function Planner() {
                                                 </Link>
                                             ))}
                                         {markers
-                                            .filter((m) => m.date === d)
+                                            .filter((m) => m.date === d && m.kind !== 'habit')
                                             .map((m) => (
                                                 <Link
                                                     key={m.key}
@@ -699,10 +700,30 @@ export default function Planner() {
                                                     href={m.href}
                                                     title={m.title}
                                                 >
-                                                    <Icon name={m.done ? 'check' : MARKER_ICON[m.kind]} className="ic-xs" />
+                                                    <Icon name={MARKER_ICON[m.kind]} className="ic-xs" />
                                                     <span className="pev-title">{m.title}</span>
                                                 </Link>
                                             ))}
+                                        {(() => {
+                                            // Habits with no set time: one chip a day ("Habits 2/5"), so they don't push the grid down.
+                                            const hs = markers.filter((m) => m.date === d && m.kind === 'habit');
+                                            if (hs.length === 0) return null;
+                                            const done = hs.filter((m) => m.done).length;
+                                            return (
+                                                <Link
+                                                    key={`habits-${d}`}
+                                                    className={`pev is-date is-habit${done === hs.length ? ' is-done' : ''}`}
+                                                    href="/habits"
+                                                    title={hs.map((m) => `${m.done ? '✓ ' : ''}${m.title}`).join('\n')}
+                                                    aria-label={`Habits: ${done} of ${hs.length} done`}
+                                                >
+                                                    <Icon name={done === hs.length ? 'check' : 'habits'} className="ic-xs" />
+                                                    <span className="pev-title">
+                                                        Habits {done}/{hs.length}
+                                                    </span>
+                                                </Link>
+                                            );
+                                        })()}
                                     </div>
                                 ))}
                             </div>
@@ -1082,7 +1103,8 @@ function PlannerMenu({
     const cells = Array.from({ length: 42 }, (_, i) => shift(first, i - lead));
     const month = props.date.slice(0, 7);
     const busy = new Set(props.busy);
-    const inView = new Set(props.days);
+    // The month view shows the whole month: no need to mark its days.
+    const inView = new Set(props.view === 'month' ? [] : props.days);
     return (
         <>
             <div className="side-head">

@@ -1,7 +1,7 @@
 import { fmtHours } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
@@ -259,6 +259,12 @@ export function BlockMenu({
     };
     const { props } = usePage<VelocityShared>();
     const box = useRef<HTMLDivElement>(null);
+    // Opens where it was clicked, moved up as far as needed to fit on the screen.
+    const [top, setTop] = useState(() => Math.max(8, y));
+    useLayoutEffect(() => {
+        const h = box.current?.offsetHeight ?? 0;
+        setTop((t) => Math.max(8, Math.min(t, window.innerHeight - h - 8)));
+    }, []);
     useEffect(() => {
         const onDown = (e: PointerEvent) => {
             const t = e.target as Element;
@@ -282,7 +288,7 @@ export function BlockMenu({
             role="menu"
             aria-label={block.title}
             ref={box}
-            style={{ left: Math.max(8, Math.min(x, window.innerWidth - 268)), top: Math.max(8, Math.min(y, window.innerHeight - 300)) }}
+            style={{ left: Math.max(8, Math.min(x, window.innerWidth - 268)), top }}
         >
             <div className="bmenu-head">
                 <b>{block.title}</b>
