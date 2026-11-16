@@ -1214,6 +1214,11 @@ select.input { padding-right: 8px; }
     .gsearch span, .gsearch kbd { display: none; }
     .gsearch { width: 36px; justify-content: center; padding: 0; }
 }
+/* A running focus timer needs the search box's room on a laptop: the search keeps just its icon. */
+@media (max-width: 1479px) and (min-width: 721px) {
+    .app.has-focus .gsearch span, .app.has-focus .gsearch kbd { display: none; }
+    .app.has-focus .gsearch { width: 36px; justify-content: center; padding: 0; }
+}
 /* Below 1240px: the logo keeps only its mark; the focus timer shows only the time. */
 @media (max-width: 1239px) and (min-width: 721px) {
     .gtop .brand-name, .focus-chip .focus-task { display: none; }
@@ -1477,7 +1482,8 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* Board and timeline: columns of cards. Cards keep the formula's order inside each column. */
-.vboard { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; margin-top: 4px; }
+/* Columns never get narrower than a readable card (the task panel takes room on a laptop): the board scrolls sideways instead. */
+.vboard { display: grid; grid-template-columns: repeat(4, minmax(210px, 1fr)); gap: 12px; align-items: start; margin-top: 4px; overflow-x: auto; padding-bottom: 8px; }
 .vtimeline { display: grid; grid-auto-flow: column; grid-auto-columns: 230px; gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 12px; margin-top: 4px; scroll-snap-type: x proximity; }
 .vcol { display: flex; flex-direction: column; min-height: 120px; border-radius: 14px; background: var(--surface-2, var(--surface-3)); border: 1px solid var(--line); transition: border-color .12s, background .12s; scroll-snap-align: start; }
 .vcol.is-over { border-color: var(--violet); background: var(--violet-soft); }

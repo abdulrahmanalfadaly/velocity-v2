@@ -54,6 +54,8 @@ class HandleInertiaRequests extends Middleware
             'flash' => fn () => [
                 'toast' => $request->session()->get('toast'),
                 'undo' => $request->session()->get('undo'),
+                // "Open" on a message that asks you to open something (a task with open subtasks).
+                'open' => $request->session()->get('toastOpen'),
                 'focusDone' => $request->session()->get('focusDone'),
                 'focusHabit' => $request->session()->get('focusHabit'),
             ],

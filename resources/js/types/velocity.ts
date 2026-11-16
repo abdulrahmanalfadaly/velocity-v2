@@ -234,6 +234,8 @@ export interface VelocityShared {
     flash: {
         toast: string | null;
         undo: { action: string; id: number; data?: Record<string, unknown> | null } | null;
+        /** Where "Open" on the message goes, when it asks you to open something. */
+        open?: string | null;
         /** After stopping focus on a task: asks whether to update its hours left. */
         focusDone?: { sessionId: number; taskId: number; title: string; seconds: number; estHours: number; hoursLeft: number } | null;
         /** After focus on a habit: what ticking it off today would set. */

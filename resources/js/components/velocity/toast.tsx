@@ -3,7 +3,7 @@ import { router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
 type Undo = NonNullable<VelocityShared['flash']['undo']>;
-export type ToastState = { text: string; undo: Undo | null } | null;
+export type ToastState = { text: string; undo: Undo | null; open?: string | null } | null;
 
 /** What each kind of Undo calls. The server names the action; this maps it to a route. */
 const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route: string }> = {
@@ -71,6 +71,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'put-hours': { method: 'put', route: 'planner.hours' },
     'put-wallpaper': { method: 'put', route: 'wallpaper.update' },
     'restore-note': { method: 'post', route: 'notes.restore' },
+    'delete-note': { method: 'delete', route: 'notes.destroy' },
     'patch-note': { method: 'patch', route: 'notes.update' },
     'link-note-task': { method: 'post', route: 'notes.link' },
     'link-note': { method: 'post', route: 'notes.links.store' },
@@ -121,12 +122,12 @@ export function useToast() {
     const { props } = usePage<VelocityShared>();
     const [toast, setToast] = useState<ToastState>(null);
     useEffect(() => {
-        if (props.flash?.toast) setToast({ text: props.flash.toast, undo: props.flash.undo });
+        if (props.flash?.toast) setToast({ text: props.flash.toast, undo: props.flash.undo, open: props.flash.open });
     }, [props.flash]);
     // Messages with an Undo stay a little longer.
     useEffect(() => {
         if (!toast) return;
-        const t = setTimeout(() => setToast(null), toast.undo ? 8000 : 5000);
+        const t = setTimeout(() => setToast(null), toast.undo || toast.open ? 8000 : 5000);
         return () => clearTimeout(t);
     }, [toast]);
     // Ctrl+Z (outside a text box) undoes the last thing while its message is still showing.
@@ -151,6 +152,18 @@ export function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void
     return (
         <div className="toast" role="status">
             <span>{toast.text}</span>
+            {toast.open && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        const href = toast.open!;
+                        onDone();
+                        router.visit(href, { preserveScroll: true });
+                    }}
+                >
+                    Open
+                </button>
+            )}
             {toast.undo && (
                 <button
                     type="button"

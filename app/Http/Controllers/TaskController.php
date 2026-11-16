@@ -409,7 +409,8 @@ class TaskController extends Controller
         // Still waiting on another task: done only when asked for ("Complete anyway" in the panel).
         $waiting = $user->fyp_mode ? null : TaskLinks::waitingOn($task);
         if ($waiting && ! $request->boolean('anyway')) {
-            return back()->with('toast', "“{$task->title}” is still waiting on “{$waiting->title}”. Open it to complete it anyway.");
+            return back()->with('toast', "“{$task->title}” is still waiting on “{$waiting->title}”. Open it to complete it anyway.")
+                ->with('toastOpen', route('tasks.index', ['task' => $task->id], false));
         }
         // Open subtasks: complete them too, or only this one (the panel asks).
         $mode = $request->validate(['children' => ['sometimes', Rule::in(['complete', 'leave'])]])['children'] ?? null;
@@ -417,7 +418,8 @@ class TaskController extends Controller
         if ($kids->isNotEmpty() && ! $mode) {
             $n = $kids->count();
 
-            return back()->with('toast', "“{$task->title}” has {$n} open ".($n === 1 ? 'subtask' : 'subtasks').'. Open it to choose.');
+            return back()->with('toast', "“{$task->title}” has {$n} open ".($n === 1 ? 'subtask' : 'subtasks').'. Open it to choose.')
+                ->with('toastOpen', route('tasks.index', ['task' => $task->id], false));
         }
         $list = $mode === 'complete' && $kids->isNotEmpty() ? $this->ranking->rank($user) : null;
         $next = $this->actions->complete($task, $user);

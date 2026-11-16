@@ -48,7 +48,8 @@ class PersonLinkController extends Controller
         $person->{$table}()->detach($d['id']);
         $name = $item->getAttribute('title') ?? $item->getAttribute('name') ?? '';
 
-        return back()->with('toast', 'Unlinked'.($name !== '' ? " “{$name}”" : ''))->with('undo', $this->undo('link-person', $person->id, $d));
+        // Names both ends: it reads right from the person's page and from the task's.
+        return back()->with('toast', "Unlinked {$person->name}".($name !== '' ? " from “{$name}”" : ''))->with('undo', $this->undo('link-person', $person->id, $d));
     }
 
     /** A new task about this person: in the Inbox, linked, ranked by the formula like any task. */

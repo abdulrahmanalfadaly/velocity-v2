@@ -138,7 +138,7 @@ class PeopleTest extends TestCase
         $this->get(route('projects.show', $project))->assertInertia(fn ($page) => $page->where('people.0.name', 'Dr Lee'));
 
         // Unlink, then Undo links it again.
-        $this->post(route('people.unlink', $lee), ['type' => 'task', 'id' => $task->id])->assertSessionHas('toast', 'Unlinked “Feedback on chapter 4”');
+        $this->post(route('people.unlink', $lee), ['type' => 'task', 'id' => $task->id])->assertSessionHas('toast', 'Unlinked Dr Lee from “Feedback on chapter 4”');
         $this->post(route('people.link', $lee), session('undo')['data'])->assertSessionHasNoErrors();
         $this->assertTrue($lee->tasks()->whereKey($task->id)->exists());
     }

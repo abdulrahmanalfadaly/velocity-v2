@@ -100,7 +100,9 @@ class NoteController extends Controller
             $note->people()->attach($person->id);
         }
         if ($data['stay'] ?? false) {
-            return back()->with('toast', "Added note “{$note->displayTitle()}”");
+            return back()->with('toast', "Added note “{$note->displayTitle()}”")
+                ->with('undo', $this->undo('delete-note', $note->id))
+                ->with('toastOpen', route('notes.index', ['note' => $note->id], false));
         }
         $in = $note->project_id ? "p{$note->project_id}" : (($data['in'] ?? null) === 'loose' ? 'loose' : 'all');
 
