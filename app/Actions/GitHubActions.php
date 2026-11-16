@@ -7,6 +7,8 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\GitHub;
 use App\Services\GitHubException;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
 /** Linking GitHub issues and pull requests to tasks, shared by the screens and the API. */
@@ -27,6 +29,33 @@ class GitHubActions
         $item = $this->github->item($user, $ref['repo'], $ref['number']);
 
         return $this->save($task, $user, $item);
+    }
+
+    /**
+     * A new issue on GitHub for the task, unless the task already has one with this title in
+     * that repository (a double click, two tabs, a retry after slow internet): then that one
+     * comes back and nothing is posted. One at a time per task, so two at once can't both post.
+     *
+     * @return array{link: GithubLink, created: bool}
+     */
+    public function createIssue(Task $task, User $user, string $repo, string $title, ?string $body): array
+    {
+        $same = fn () => $task->githubLinks()->where('kind', 'issue')->get()
+            ->first(fn (GithubLink $l) => strcasecmp($l->repo, $repo) === 0 && mb_strtolower(trim($l->title)) === mb_strtolower(trim($title)));
+        if ($link = $same()) {
+            return ['link' => $link, 'created' => false];
+        }
+        try {
+            return Cache::lock("github-issue:{$task->id}", 30)->block(15, function () use ($same, $task, $user, $repo, $title, $body) {
+                if ($link = $same()) {
+                    return ['link' => $link, 'created' => false];
+                }
+
+                return ['link' => $this->save($task, $user, $this->github->createIssue($user, $repo, $title, $body)), 'created' => true];
+            });
+        } catch (LockTimeoutException) {
+            throw new GitHubException('An issue for this task is still being created. Try again in a moment.');
+        }
     }
 
     /** Keeps what GitHub showed, linked to the task. */

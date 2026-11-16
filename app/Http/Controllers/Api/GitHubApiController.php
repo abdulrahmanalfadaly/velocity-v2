@@ -53,9 +53,10 @@ class GitHubApiController extends ApiController
         ]);
         $repo = $d['repo'] ?? $task->project?->github_repo;
         abort_unless($repo, 422, 'Give a repository (owner/name), or set one for the project.');
-        $issue = $github->createIssue($user, $repo, $d['title'], $d['body'] ?? null);
+        // The same title in the same repository again: the issue already made comes back (200), nothing is posted.
+        $made = $this->actions->createIssue($task, $user, $repo, $d['title'], $d['body'] ?? null);
 
-        return $this->ok($this->actions->save($task, $user, $issue)->present(), 201);
+        return $this->ok($made['link']->present(), $made['created'] ? 201 : 200);
     }
 
     /** Read the task's links again from GitHub now. */

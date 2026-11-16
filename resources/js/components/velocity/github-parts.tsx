@@ -70,24 +70,33 @@ export function TaskGitHub({
     const [error, setError] = useState<string | null>(null);
     const [checking, setChecking] = useState(false);
     const [mode, setMode] = useState<'none' | 'link' | 'create'>('none');
-
-    // Links a few minutes old are read again in the background; the panel redraws only if something changed.
+    const gone = useRef(false);
     useEffect(() => {
-        if (!github.connected || !github.stale) return;
-        let gone = false;
-        setChecking(true);
-        sendJson<{ changed: boolean; error: string | null }>('POST', route('tasks.github.refresh', taskId))
-            .then((r) => {
-                if (gone || !r) return;
-                setError(r.error);
-                if (r.changed) router.reload({ only: ['selected'] });
-            })
-            .catch(() => !gone && setError('GitHub can’t be reached right now.'))
-            .finally(() => !gone && setChecking(false));
+        gone.current = false;
         return () => {
-            gone = true;
+            gone.current = true;
         };
-    }, [taskId, github.connected, github.stale]);
+    }, [taskId]);
+
+    // Reads the links again: by itself when they are a few minutes old, or now with Refresh.
+    // The panel redraws only if something changed.
+    const check = useCallback(
+        (force: boolean) => {
+            setChecking(true);
+            sendJson<{ changed: boolean; error: string | null }>('POST', route('tasks.github.refresh', taskId), force ? { force: true } : undefined)
+                .then((r) => {
+                    if (gone.current || !r) return;
+                    setError(r.error);
+                    if (r.changed) router.reload({ only: ['selected'] });
+                })
+                .catch(() => !gone.current && setError('GitHub can’t be reached right now.'))
+                .finally(() => !gone.current && setChecking(false));
+        },
+        [taskId],
+    );
+    useEffect(() => {
+        if (github.connected && github.stale) check(false);
+    }, [check, github.connected, github.stale]);
 
     const finished = github.links.find((l) => l.state === 'closed' || l.state === 'merged');
     return (
@@ -95,6 +104,17 @@ export function TaskGitHub({
             <div className="p-section-head">
                 <h3 className="p-section-title">GitHub</h3>
                 {(checking || error) && <span className="card-sub">{checking ? 'Checking GitHub…' : error}</span>}
+                {github.connected && github.links.length > 0 && (
+                    <button
+                        className={`icon-btn gh-refresh${checking ? ' is-spinning' : ''}`}
+                        disabled={checking}
+                        onClick={() => check(true)}
+                        aria-label="Refresh from GitHub"
+                        title="Refresh from GitHub"
+                    >
+                        <Icon name="refresh" className="ic-sm" />
+                    </button>
+                )}
             </div>
             {finished && !done && (
                 <div className="gh-finished">
@@ -300,15 +320,18 @@ export function ProjectGitHub({ projectId, repo }: { projectId: number; repo: st
     const [repos, setRepos] = useState<{ name: string; private: boolean }[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [adding, setAdding] = useState<number | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const load = useCallback(() => {
         if (!repo) return;
+        setLoading(true);
         getJson<{ issues: Issue[] }>(route('projects.github.issues', projectId))
             .then((r) => {
                 setIssues(r.issues);
                 setError(null);
             })
-            .catch((e: Error) => setError(e.message));
+            .catch((e: Error) => setError(e.message))
+            .finally(() => setLoading(false));
     }, [projectId, repo]);
     useEffect(() => {
         setIssues(null);
@@ -340,6 +363,15 @@ export function ProjectGitHub({ projectId, repo }: { projectId: number; repo: st
                         <a className="card-sub" href={`https://github.com/${repo}`} target="_blank" rel="noopener noreferrer">
                             {repo}
                         </a>
+                        <button
+                            className={`icon-btn${loading ? ' is-spinning' : ''}`}
+                            disabled={loading}
+                            onClick={load}
+                            aria-label="Refresh issues from GitHub"
+                            title={loading ? 'Loading…' : 'Refresh issues from GitHub'}
+                        >
+                            <Icon name="refresh" className="ic-sm" />
+                        </button>
                         <button className="btn btn-ghost btn-sm" onClick={() => setRepo(null)}>
                             Change
                         </button>

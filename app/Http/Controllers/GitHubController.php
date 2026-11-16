@@ -134,12 +134,12 @@ class GitHubController extends Controller
             'body' => ['nullable', 'string', 'max:20000'],
         ], ['repo.regex' => 'Write it as owner/name.']);
         try {
-            $issue = $this->github->createIssue($user, $d['repo'], $d['title'], $d['body'] ?? null);
+            $made = $this->actions->createIssue($task, $user, $d['repo'], $d['title'], $d['body'] ?? null);
         } catch (GitHubException $e) {
             throw ValidationException::withMessages(['title' => $e->getMessage()]);
         }
-        $this->actions->save($task, $user, $issue);
+        $n = $made['link']->number;
 
-        return back()->with('toast', "Created #{$issue['number']} on GitHub");
+        return back()->with('toast', $made['created'] ? "Created #{$n} on GitHub" : "Already created #{$n} for this task");
     }
 }

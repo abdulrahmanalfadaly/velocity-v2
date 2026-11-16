@@ -158,6 +158,30 @@ class GitHubTest extends TestCase
 
         $this->post(route('tasks.github.issue', $this->task), ['repo' => 'velo', 'title' => 'x'])->assertSessionHasErrors('repo');
         Http::assertSentCount(1);
+
+        // The same title again (a double click, another tab, a retry): nothing is posted.
+        $this->post(route('tasks.github.issue', $this->task), ['repo' => 'Velo/App', 'title' => ' fix the login page '])
+            ->assertSessionHas('toast', 'Already created #43 for this task');
+        Http::assertSentCount(1);
+        $this->assertSame(1, $this->task->githubLinks()->count());
+        $key = $this->user->createToken('Mark', ['github:read', 'github:write'])->plainTextToken;
+        $this->postJson("/api/v1/tasks/{$this->task->id}/github/issue", ['repo' => 'velo/app', 'title' => 'Fix the login page'], ['Authorization' => "Bearer {$key}"])
+            ->assertOk()->assertJsonPath('data.number', 43);
+        Http::assertSentCount(1);
+    }
+
+    public function test_refresh_reads_fresh_links_again_when_asked(): void
+    {
+        $this->connect();
+        $this->actingAs($this->user);
+        $this->task->githubLinks()->create(['user_id' => $this->user->id, 'repo' => 'velo/app', 'number' => 42, 'kind' => 'issue', 'title' => 'Old title', 'state' => 'open', 'url' => 'https://github.com/velo/app/issues/42', 'fetched_at' => now()]);
+        Http::fake(['api.github.com/repos/velo/app/issues/42' => Http::response(self::issue(42, 'New title', 'closed'))]);
+
+        // Just read: left alone, unless Refresh asks.
+        $this->postJson(route('tasks.github.refresh', $this->task))->assertJson(['changed' => false]);
+        Http::assertSentCount(0);
+        $this->postJson(route('tasks.github.refresh', $this->task), ['force' => true])->assertJson(['changed' => true, 'error' => null]);
+        $this->assertSame(['New title', 'closed'], [$this->task->githubLinks()->first()->title, $this->task->githubLinks()->first()->state]);
     }
 
     public function test_the_api_needs_the_github_area(): void
