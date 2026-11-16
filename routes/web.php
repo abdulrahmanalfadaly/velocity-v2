@@ -167,9 +167,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('people/{person}/dates', [PersonDateController::class, 'store'])->name('person-dates.store');
         Route::patch('person-dates/{date}', [PersonDateController::class, 'update'])->name('person-dates.update');
         Route::delete('person-dates/{date}', [PersonDateController::class, 'destroy'])->name('person-dates.destroy');
+        Route::post('person-dates/{date}/snooze', [PersonDateController::class, 'snooze'])->name('person-dates.snooze');
         Route::post('person-dates/{id}/restore', [PersonDateController::class, 'restore'])->whereNumber('id')->name('person-dates.restore');
         Route::post('people/{person}/catch-ups', [CatchUpController::class, 'store'])->name('catch-ups.store');
         Route::delete('catch-ups/{catchUp}', [CatchUpController::class, 'destroy'])->name('catch-ups.destroy');
+        Route::patch('catch-ups/{catchUp}', [CatchUpController::class, 'update'])->name('catch-ups.update');
         Route::post('catch-ups/{id}/restore', [CatchUpController::class, 'restore'])->whereNumber('id')->name('catch-ups.restore');
         Route::post('people/{person}/link', [PersonLinkController::class, 'link'])->name('people.link');
         Route::post('people/{person}/unlink', [PersonLinkController::class, 'unlink'])->name('people.unlink');

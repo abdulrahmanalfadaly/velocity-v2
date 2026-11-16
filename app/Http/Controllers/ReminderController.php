@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\TaskReminder;
 use App\Services\RankingService;
 use App\Services\Reminders;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,18 +36,39 @@ class ReminderController extends Controller
             $r->update($r->kind === 'bug' ? ['sent_at' => $now, 'next_at' => $now->addMinutes($r->every_minutes ?: 60)] : ['sent_at' => $now]);
         }
 
-        // Birthdays and other dates: at 9:00 on the day (or the days before that were asked for), once for each time it comes round.
-        $today = $now->timezone($user->timezone)->startOfDay();
-        $dates = PersonDate::whereNotNull('remind_days')
+        // Birthdays and other dates: each reminder at its time, the days before that were asked for, once for each
+        // time the date comes round (several gone by while Velocity was closed: one card). A snoozed one comes back later.
+        $tz = $user->timezone;
+        $today = $now->timezone($tz)->startOfDay();
+        $dates = PersonDate::where(fn ($q) => $q->whereNotNull('remind_days')->orWhereNotNull('reminders'))
             ->whereHas('person', fn ($p) => $p->where('user_id', $user->id)->whereNull('archived_at')->whereNull('deleted_at'))
             ->with('person')->get()
-            ->map(fn (PersonDate $d) => ['d' => $d, 'next' => $d->next($today)])
-            ->filter(fn ($x) => $x['next']
-                && $x['d']->reminded_for?->toDateString() !== $x['next']->toDateString()
-                && $now >= $x['next']->subDays($x['d']->remind_days)->setTime(9, 0))
-            ->take(20)->values();
+            ->map(function (PersonDate $d) use ($today, $now, $tz) {
+                $next = $d->next($today);
+                if (! $next) {
+                    return null;
+                }
+                if ($d->snoozed_until) {
+                    return $now >= $d->snoozed_until ? ['d' => $d, 'next' => $next, 'keys' => []] : null;
+                }
+                $keys = [];
+                foreach ($d->reminderList() as $r) {
+                    $key = $next->toDateString().'#'.$r['days'];
+                    $at = CarbonImmutable::parse($next->subDays($r['days'])->toDateString().' '.$r['at'], $tz);
+                    if ($now >= $at && ! in_array($key, $d->reminded ?? [], true)) {
+                        $keys[] = $key;
+                    }
+                }
+
+                return $keys ? ['d' => $d, 'next' => $next, 'keys' => $keys] : null;
+            })
+            ->filter()->take(20)->values();
         foreach ($dates as $x) {
-            $x['d']->update(['reminded_for' => $x['next']->toDateString()]);
+            $x['d']->update([
+                'reminded' => array_slice(array_values(array_unique([...($x['d']->reminded ?? []), ...$x['keys']])), -24),
+                'reminded_for' => $x['next']->toDateString(),
+                'snoozed_until' => null,
+            ]);
         }
 
         return response()->json([

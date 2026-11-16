@@ -137,6 +137,18 @@ export function Reminders({ clock, onOpen }: { clock: Clock; onOpen: (taskId: nu
                             >
                                 Open
                             </button>
+                            {(['1h', 'tomorrow'] as const).map((f) => (
+                                <button
+                                    key={f}
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => {
+                                        dropDate(d.id);
+                                        router.post(route('person-dates.snooze', d.id), { for: f }, { preserveScroll: true, preserveState: true });
+                                    }}
+                                >
+                                    {f === '1h' ? 'In an hour' : 'Tomorrow'}
+                                </button>
+                            ))}
                         </div>
                     </div>
                     <button className="icon-btn reminder-close" aria-label="Dismiss" title="Dismiss" onClick={() => dropDate(d.id)}>

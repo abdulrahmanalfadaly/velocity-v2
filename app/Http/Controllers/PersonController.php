@@ -23,7 +23,7 @@ class PersonController extends Controller
     {
         $user = $request->user();
         $today = $this->today($user);
-        $q = $request->validate(['view' => ['nullable', 'string', 'max:12'], 'person' => ['nullable', 'integer']]);
+        $q = $request->validate(['view' => ['nullable', 'string', 'max:12'], 'person' => ['nullable', 'integer'], 'days' => ['nullable', Rule::in(['30', '60', '90'])]]);
         $view = $q['view'] ?? 'all';
         $group = preg_match('/^g(\d+)$/', $view, $m) ? $user->personGroups()->find((int) $m[1]) : null;
         if (str_starts_with($view, 'g') && ! $group) {
@@ -40,7 +40,9 @@ class PersonController extends Controller
             $rows = $rows->filter(fn ($r) => $r['attention'])
                 ->sortBy(fn ($r) => min($r['catchUp'] && $r['catchUp']['late'] >= 0 ? -$r['catchUp']['late'] : 999, $r['date']['days'] ?? 999))->values();
         }
-        $upcoming = PeopleInfo::upcoming($user, $today, 60);
+        // Birthdays & dates: the next 30, 60 or 90 days.
+        $days = (int) ($q['days'] ?? 60);
+        $upcoming = PeopleInfo::upcoming($user, $today, $days);
 
         $open = isset($q['person']) ? $user->people()->with(['contacts', 'dates', 'groups', 'catchUps', 'tasks', 'notes.event', 'projects'])->find($q['person']) : null;
         // The side menu's counts are over everyone not archived, whatever the list shows.
@@ -53,6 +55,7 @@ class PersonController extends Controller
             'today' => $today->toDateString(),
             'people' => $view === 'dates' ? [] : $rows->values(),
             'upcoming' => $view === 'dates' ? $upcoming : [],
+            'days' => $days,
             'group' => $group ? ['id' => $group->id, 'name' => $group->name] : null,
             'person' => $open ? PeopleInfo::detail($open, $today, $this->ranking->rank($user)) : null,
             'menu' => [

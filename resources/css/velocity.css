@@ -1802,6 +1802,17 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .pp-loc { display: inline-flex; align-items: center; gap: 4px; }
 .pp-contact-move { display: inline-flex; flex-direction: column; }
 .pp-contact-move .icon-btn { width: 22px; height: 16px; }
+/* People: several reminders per date, the 30/60/90 switch, interactions with a time or not counted. */
+.pd-reminders { display: grid; gap: 6px; }
+.pd-reminder { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.pd-reminder .sel { min-width: 150px; }
+.pp-days { margin-top: 6px; }
+.pp-catch-when { display: flex; gap: 6px; }
+.pp-catch-when > * { flex: 1; min-width: 0; }
+button.pp-history-day { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+button.pp-history-day:hover { text-decoration: underline; }
+.pp-history .is-not-counted { opacity: .7; }
+.pp-nocount { margin-left: 6px; padding: 0 5px; border-radius: 5px; background: var(--surface-3); font-size: 11px; color: var(--text-3); }
 /* Home: "I have [30 min] [low energy]" on Do next, the Inbox link, Refresh. */
 .fit-pick { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-right: auto; margin-left: 10px; font-size: 13px; color: var(--text-3); }
 .fit-label { margin-right: 2px; }

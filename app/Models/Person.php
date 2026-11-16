@@ -79,7 +79,8 @@ class Person extends Model
         if (! $this->catch_up_days) {
             return null;
         }
-        $last = $this->relationLoaded('catchUps') ? $this->catchUps->first()?->on : $this->catchUps()->value('on');
+        // The last one that counts ("Doesn't count": a quick like or a wave keeps the clock running).
+        $last = $this->relationLoaded('catchUps') ? $this->catchUps->firstWhere('counts', true)?->on : $this->catchUps()->where('counts', true)->value('on');
         $base = $last
             ? CarbonImmutable::parse($last instanceof \DateTimeInterface ? $last->format('Y-m-d') : $last, $today->timezone)
             : CarbonImmutable::instance($this->created_at ?? $today)->timezone($today->timezone)->startOfDay()->min($today);

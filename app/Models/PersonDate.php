@@ -17,11 +17,31 @@ class PersonDate extends Model
 
     public const KINDS = ['birthday', 'anniversary', 'other'];
 
-    protected $fillable = ['kind', 'label', 'month', 'day', 'year', 'yearly', 'remind_days', 'reminded_for'];
+    /** How long before a date a reminder can be: on the day, 1 day … a month. */
+    public const BEFORE = [0, 1, 3, 7, 14, 30];
+
+    protected $fillable = ['kind', 'label', 'month', 'day', 'year', 'yearly', 'remind_days', 'reminders', 'reminded_for', 'reminded', 'snoozed_until'];
 
     protected function casts(): array
     {
-        return ['month' => 'integer', 'day' => 'integer', 'year' => 'integer', 'yearly' => 'boolean', 'remind_days' => 'integer', 'reminded_for' => 'immutable_date'];
+        return [
+            'month' => 'integer', 'day' => 'integer', 'year' => 'integer', 'yearly' => 'boolean', 'remind_days' => 'integer', 'reminded_for' => 'immutable_date',
+            'reminders' => 'array', 'reminded' => 'array', 'snoozed_until' => 'immutable_datetime',
+        ];
+    }
+
+    /**
+     * Its reminders: [{days, at}] (the old single one, remind_days at 9:00, if that is all there is).
+     *
+     * @return list<array{days: int, at: string}>
+     */
+    public function reminderList(): array
+    {
+        if (is_array($this->reminders)) {
+            return array_values($this->reminders);
+        }
+
+        return $this->remind_days !== null ? [['days' => (int) $this->remind_days, 'at' => '09:00']] : [];
     }
 
     public function person(): BelongsTo

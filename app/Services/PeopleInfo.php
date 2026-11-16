@@ -62,9 +62,9 @@ class PeopleInfo
             'keepInTouch' => [
                 'every' => $p->catch_up_days,
                 'next' => $catch?->toDateString(),
-                'last' => $p->catchUps->first()?->on->toDateString(),
+                'last' => $p->catchUps->firstWhere('counts', true)?->on->toDateString(),
                 'history' => $p->catchUps->take(20)->map(fn (CatchUp $c) => [
-                    'id' => $c->id, 'on' => $c->on->toDateString(), 'kind' => $c->kind, 'note' => $c->note,
+                    'id' => $c->id, 'on' => $c->on->toDateString(), 'at' => $c->at, 'kind' => $c->kind, 'note' => $c->note, 'counts' => $c->counts,
                 ])->values(),
             ],
             'tasks' => $p->tasks->sortBy(fn ($t) => [$t->status === 'done' ? 1 : 0, $list->rankOf($t->id) ?? 9999, $t->title])
@@ -107,6 +107,7 @@ class PeopleInfo
             'year' => $d->year,
             'yearly' => $d->yearly,
             'remindDays' => $d->remind_days,
+            'reminders' => $d->reminderList(),
             'next' => $next?->toDateString(),
             'days' => $next ? (int) round($today->diffInDays($next)) : null,
             'turns' => $d->turns($next),

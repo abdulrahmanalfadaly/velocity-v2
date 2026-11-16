@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Person;
 use App\Models\PersonDate;
+use App\Support\Clock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -25,7 +26,7 @@ class PersonDateController extends Controller
         $person = $this->owner($request, $date);
         $old = $this->form($date);
         // A changed date or reminder may need reminding again this year.
-        $date->update($this->fields($request) + ['reminded_for' => null]);
+        $date->update($this->fields($request) + ['reminded_for' => null, 'reminded' => null, 'snoozed_until' => null]);
 
         return back()->with('toast', 'Saved '.$date->title($person->name))->with('undo', $this->undo('patch-person-date', $date->id, $old));
     }
@@ -57,7 +58,7 @@ class PersonDateController extends Controller
 
     private function form(PersonDate $d): array
     {
-        return ['kind' => $d->kind, 'label' => $d->label, 'month' => $d->month, 'day' => $d->day, 'year' => $d->year, 'yearly' => $d->yearly, 'remind_days' => $d->remind_days];
+        return ['kind' => $d->kind, 'label' => $d->label, 'month' => $d->month, 'day' => $d->day, 'year' => $d->year, 'yearly' => $d->yearly, 'reminders' => $d->reminderList()];
     }
 
     private function fields(Request $request): array
@@ -69,7 +70,11 @@ class PersonDateController extends Controller
             'day' => ['required', 'integer', 'between:1,31'],
             'year' => ['nullable', 'integer', 'between:1900,2100'],
             'yearly' => ['sometimes', 'boolean'],
-            'remind_days' => ['nullable', 'integer', Rule::in([0, 1, 3, 7, 14])],
+            'remind_days' => ['nullable', 'integer', Rule::in(PersonDate::BEFORE)],
+            // Several reminders: how many days before, and at what time.
+            'reminders' => ['sometimes', 'array', 'max:6'],
+            'reminders.*.days' => ['required', 'integer', Rule::in(PersonDate::BEFORE)],
+            'reminders.*.at' => ['required', 'date_format:H:i'],
         ], ['label.required_if' => 'Say what the date is.']);
 
         $yearly = $d['kind'] !== 'other' || ($d['yearly'] ?? true);
@@ -88,7 +93,32 @@ class PersonDateController extends Controller
             'day' => (int) $d['day'],
             'year' => isset($d['year']) ? (int) $d['year'] : null,
             'yearly' => $yearly,
-            'remind_days' => isset($d['remind_days']) ? (int) $d['remind_days'] : null,
-        ];
+        ] + self::reminders($request, $d);
+    }
+
+    /** The reminders sent ("reminders"), or the old single one ("remind_days" at 9:00); the earliest also kept in remind_days. */
+    private static function reminders(Request $request, array $d): array
+    {
+        if (! $request->has('reminders') && ! $request->has('remind_days')) {
+            return [];
+        }
+        $list = $request->has('reminders')
+            ? collect($d['reminders'] ?? [])->map(fn ($r) => ['days' => (int) $r['days'], 'at' => $r['at']])
+            : collect(isset($d['remind_days']) ? [['days' => (int) $d['remind_days'], 'at' => '09:00']] : []);
+        $list = $list->unique(fn ($r) => $r['days'].$r['at'])->sortByDesc('days')->values();
+
+        return ['reminders' => $list->all() ?: null, 'remind_days' => $list->max('days')];
+    }
+
+    /** "Snooze" on the reminder card: again in an hour, or tomorrow at nine. */
+    public function snooze(Request $request, PersonDate $date): RedirectResponse
+    {
+        $person = $this->owner($request, $date);
+        $for = $request->validate(['for' => ['required', Rule::in(['1h', 'tomorrow'])]])['for'];
+        $now = app(Clock::class)->now();
+        $until = $for === '1h' ? $now->addHour() : $now->timezone($request->user()->timezone)->addDay()->setTime(9, 0)->utc();
+        $date->update(['snoozed_until' => $until]);
+
+        return back()->with('toast', $date->title($person->name).($for === '1h' ? ': again in an hour' : ': again tomorrow at 9:00 am'));
     }
 }

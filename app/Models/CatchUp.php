@@ -11,11 +11,11 @@ class CatchUp extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['on', 'kind', 'note'];
+    protected $fillable = ['on', 'at', 'kind', 'counts', 'note'];
 
     protected function casts(): array
     {
-        return ['on' => 'immutable_date'];
+        return ['on' => 'immutable_date', 'counts' => 'boolean'];
     }
 
     public function person(): BelongsTo

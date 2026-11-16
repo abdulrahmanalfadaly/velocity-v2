@@ -19,7 +19,7 @@ import {
 } from '@/components/velocity/people-parts';
 import { Picker } from '@/components/velocity/pick';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock } from '@/lib/velocity';
+import { Clock, hm12 } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
@@ -29,6 +29,8 @@ interface Props extends VelocityShared {
     today: string;
     people: PersonRow[];
     upcoming: PersonDate[];
+    /** Birthdays & dates: how many days ahead. */
+    days?: number;
     group: { id: number; name: string } | null;
     person: PersonDetail | null;
     menu: { all: number; attention: number; dates: number; archived: number; groups: { id: number; name: string; count: number }[] };
@@ -89,7 +91,20 @@ export default function People() {
                         <h1 className="h1">
                             {title} <span className="count">{view === 'dates' ? props.upcoming.length : props.people.length}</span>
                         </h1>
-                        {view === 'dates' && <p className="page-sub">The next 60 days</p>}
+                        {view === 'dates' && (
+                            <div className="layout-seg pp-days" role="radiogroup" aria-label="How far ahead">
+                                {[30, 60, 90].map((n) => (
+                                    <button
+                                        key={n}
+                                        role="radio"
+                                        aria-checked={(props.days ?? 60) === n}
+                                        onClick={() => router.get(route('people.index', { view: 'dates', days: n === 60 ? undefined : n }), {}, keep)}
+                                    >
+                                        Next {n} days
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="page-actions">
                         {props.group && <GroupTools group={props.group} />}
@@ -264,7 +279,7 @@ function PersonPanel({
     onEdit: () => void;
     onDate: (d?: PersonDate) => void;
 }) {
-    const [catchAt, setCatchAt] = useState<null | { x: number; y: number }>(null);
+    const [catchAt, setCatchAt] = useState<null | { x: number; y: number; edit?: PersonDetail['keepInTouch']['history'][number] }>(null);
     const [about, setAbout] = useState(p.about ?? '');
     const [newTask, setNewTask] = useState('');
     useEffect(() => setAbout(p.about ?? ''), [p.about]);
@@ -395,10 +410,23 @@ function PersonPanel({
                     {k.history.length > 0 && (
                         <ul className="pp-history">
                             {k.history.map((h) => (
-                                <li key={h.id}>
+                                <li key={h.id} className={h.counts === false ? 'is-not-counted' : undefined}>
                                     <Icon name={CATCH_ICON[h.kind]} className="ic-sm" />
-                                    <span className="pp-history-day">{dayLabel(h.on, clock)}</span>
-                                    <span className="pp-history-note">{h.note}</span>
+                                    <button
+                                        className="pp-history-day"
+                                        title="Change it"
+                                        onClick={(e) => {
+                                            const r = e.currentTarget.getBoundingClientRect();
+                                            setCatchAt({ x: Math.max(8, r.left), y: r.bottom + 6, edit: h });
+                                        }}
+                                    >
+                                        {dayLabel(h.on, clock)}
+                                        {h.at ? `, ${hm12(h.at)}` : ''}
+                                    </button>
+                                    <span className="pp-history-note">
+                                        {h.note}
+                                        {h.counts === false && <small className="pp-nocount">doesn’t count</small>}
+                                    </span>
                                     <button
                                         className="note-task-x"
                                         aria-label={`Remove ${dayLabel(h.on, clock)}`}
@@ -438,7 +466,13 @@ function PersonPanel({
                                                 {dateLine(d, clock).split(' · ').slice(1).join(' · ')}
                                             </small>
                                         </span>
-                                        {d.remindDays !== null && <Icon name="bell" className="ic-xs" label="Reminder on" />}
+                                        {(d.reminders?.length ?? (d.remindDays !== null ? 1 : 0)) > 0 && (
+                                            <Icon
+                                                name="bell"
+                                                className="ic-xs"
+                                                label={`${d.reminders?.length ?? 1} reminder${(d.reminders?.length ?? 1) === 1 ? '' : 's'}`}
+                                            />
+                                        )}
                                     </button>
                                 </li>
                             ))}
@@ -548,7 +582,17 @@ function PersonPanel({
                     />
                 </section>
             </div>
-            {catchAt && <CatchUpPop personId={p.id} today={props.today} x={catchAt.x} y={catchAt.y} onClose={() => setCatchAt(null)} />}
+            {catchAt && (
+                <CatchUpPop
+                    key={catchAt.edit?.id ?? 'new'}
+                    personId={p.id}
+                    today={props.today}
+                    x={catchAt.x}
+                    y={catchAt.y}
+                    edit={catchAt.edit}
+                    onClose={() => setCatchAt(null)}
+                />
+            )}
         </>
     );
 }

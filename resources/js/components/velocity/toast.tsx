@@ -19,6 +19,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'capture-task': { method: 'post', route: 'tasks.capture' },
     'unarchive-note': { method: 'post', route: 'notes.unarchive' },
     'unarchive-routine': { method: 'post', route: 'routines.unarchive' },
+    'patch-catch-up': { method: 'patch', route: 'catch-ups.update' },
     'revert-task': { method: 'post', route: 'tasks.revert' },
     unpromote: { method: 'post', route: 'tasks.unpromote' },
     'bulk-undo': { method: 'post', route: 'tasks.bulk-undo' },

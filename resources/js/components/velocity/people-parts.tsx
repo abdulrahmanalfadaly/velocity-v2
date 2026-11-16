@@ -24,6 +24,8 @@ export interface PersonDate {
     year: number | null;
     yearly: boolean;
     remindDays: number | null;
+    /** Its reminders: how many days before, and at what time. */
+    reminders?: { days: number; at: string }[];
     /** The next time it comes round; null for a one-off date that has passed. */
     next: string | null;
     days: number | null;
@@ -67,7 +69,7 @@ export interface PersonDetail extends PersonRow {
         every: number | null;
         next: string | null;
         last: string | null;
-        history: { id: number; on: string; kind: CatchUpKind; note: string | null }[];
+        history: { id: number; on: string; at?: string | null; kind: CatchUpKind; note: string | null; counts?: boolean }[];
     };
     tasks: { id: number; title: string; status: string; rank: number | null }[];
     notes: { id: number; title: string }[];
@@ -90,12 +92,12 @@ const EVERY: [number, string][] = [
     [180, 'Every 6 months'],
 ];
 const REMIND: [string, string][] = [
-    ['', 'No reminder'],
     ['0', 'On the day'],
     ['1', 'The day before'],
     ['3', '3 days before'],
     ['7', 'A week before'],
     ['14', 'Two weeks before'],
+    ['30', 'A month before'],
 ];
 
 export const at = (d: string) => new Date(`${d}T12:00:00Z`);
@@ -468,7 +470,8 @@ export function DateDialog({ personId, date, onClose }: { personId: number; date
         month: String(date?.month ?? ''),
         year: date?.year ? String(date.year) : '',
         yearly: date?.yearly ?? true,
-        remind: date?.remindDays != null ? String(date.remindDays) : '0',
+        // Several reminders: how long before, at what time (a new date starts with one on the day at 9).
+        reminders: date ? (date.reminders ?? (date.remindDays != null ? [{ days: date.remindDays, at: '09:00' }] : [])) : [{ days: 0, at: '09:00' }],
     });
     const { data, setData, processing } = form;
     const errors = form.errors as Record<string, string | undefined>;
@@ -481,7 +484,7 @@ export function DateDialog({ personId, date, onClose }: { personId: number; date
             month: Number(d.month),
             year: d.year ? Number(d.year) : null,
             yearly: d.kind !== 'other' || d.yearly,
-            remind_days: d.remind === '' ? null : Number(d.remind),
+            reminders: d.reminders,
         }));
         const opts = { ...keep, onSuccess: onClose };
         if (date) form.patch(route('person-dates.update', date.id), opts);
@@ -554,13 +557,62 @@ export function DateDialog({ personId, date, onClose }: { personId: number; date
                         Every year
                     </label>
                 )}
-                <Field id="pd-remind" label="Remind me" error={errors.remind_days}>
-                    <Select
-                        id="pd-remind"
-                        value={String(data.remind)}
-                        onChange={(v) => setData('remind', v)}
-                        options={REMIND.map(([v, label]) => ({ value: String(v), label }))}
-                    />
+                <Field id="pd-remind" label="Remind me" error={errors.reminders ?? errors['reminders.0.at']}>
+                    <div className="pd-reminders" id="pd-remind">
+                        {data.reminders.map((r, i) => (
+                            <div key={i} className="pd-reminder">
+                                <Select
+                                    value={String(r.days)}
+                                    label="How long before"
+                                    search={false}
+                                    onChange={(v) =>
+                                        setData(
+                                            'reminders',
+                                            data.reminders.map((x, j) => (j === i ? { ...x, days: Number(v) } : x)),
+                                        )
+                                    }
+                                    options={REMIND.map(([v, label]) => ({ value: v, label }))}
+                                />
+                                <span>at</span>
+                                <DatePick
+                                    mode="time"
+                                    label="At"
+                                    value={r.at}
+                                    clearable={false}
+                                    onChange={(v) =>
+                                        v &&
+                                        setData(
+                                            'reminders',
+                                            data.reminders.map((x, j) => (j === i ? { ...x, at: v } : x)),
+                                        )
+                                    }
+                                />
+                                <button
+                                    type="button"
+                                    className="icon-btn"
+                                    aria-label="Remove this reminder"
+                                    onClick={() =>
+                                        setData(
+                                            'reminders',
+                                            data.reminders.filter((_, j) => j !== i),
+                                        )
+                                    }
+                                >
+                                    <Icon name="x" className="ic-sm" />
+                                </button>
+                            </div>
+                        ))}
+                        {data.reminders.length < 6 && (
+                            <button
+                                type="button"
+                                className="note-add"
+                                onClick={() => setData('reminders', [...data.reminders, { days: data.reminders.length ? 7 : 0, at: '09:00' }])}
+                            >
+                                <Icon name="plus" className="ic-xs" />
+                                {data.reminders.length ? 'Another reminder' : 'Add a reminder'}
+                            </button>
+                        )}
+                    </div>
                 </Field>
                 <div className="vform-foot">
                     {date ? (
@@ -589,14 +641,32 @@ export function DateDialog({ personId, date, onClose }: { personId: number; date
     );
 }
 
-/** "Talked today": how, which day, and a line about it. */
-export function CatchUpPop({ personId, today, x, y, onClose }: { personId: number; today: string; x: number; y: number; onClose: () => void }) {
-    const [kind, setKind] = useState<CatchUpKind>('message');
-    const [on, setOn] = useState(today);
-    const [note, setNote] = useState('');
+/** "Talked today" (or a change to one already saved): how, which day and time, a line about it, and whether it counts. */
+export function CatchUpPop({
+    personId,
+    today,
+    x,
+    y,
+    edit,
+    onClose,
+}: {
+    personId: number;
+    today: string;
+    x: number;
+    y: number;
+    edit?: PersonDetail['keepInTouch']['history'][number];
+    onClose: () => void;
+}) {
+    const [kind, setKind] = useState<CatchUpKind>(edit?.kind ?? 'message');
+    const [on, setOn] = useState(edit?.on ?? today);
+    const [at, setAt] = useState(edit?.at ?? '');
+    const [note, setNote] = useState(edit?.note ?? '');
+    const [counts, setCounts] = useState(edit?.counts ?? true);
     const submit = (e: FormEvent) => {
         e.preventDefault();
-        router.post(route('catch-ups.store', personId), { kind, on, note: note || null }, keep);
+        const data = { kind, on, at: at || null, note: note || null, counts };
+        if (edit) router.patch(route('catch-ups.update', edit.id), data, keep);
+        else router.post(route('catch-ups.store', personId), data, keep);
         onClose();
     };
     return (
@@ -610,7 +680,10 @@ export function CatchUpPop({ personId, today, x, y, onClose }: { personId: numbe
                         </button>
                     ))}
                 </div>
-                <DatePick label="Day" value={on} max={today} onChange={setOn} clearable={false} />
+                <div className="pp-catch-when">
+                    <DatePick label="Day" value={on} max={today} onChange={setOn} clearable={false} />
+                    <DatePick mode="time" label="Time" value={at} onChange={setAt} placeholder="Time" />
+                </div>
                 <input
                     className="input"
                     value={note}
@@ -619,6 +692,10 @@ export function CatchUpPop({ personId, today, x, y, onClose }: { personId: numbe
                     maxLength={500}
                     aria-label="Note"
                 />
+                <label className="auth-check" title="A quick like or a wave: noted, but the catch-up clock keeps running">
+                    <input type="checkbox" checked={!counts} onChange={(e) => setCounts(!e.target.checked)} />
+                    Doesn’t count
+                </label>
                 <button type="submit" className="btn btn-primary btn-sm">
                     Save
                 </button>
