@@ -7,17 +7,22 @@ import { type FormEvent, useState } from 'react';
 
 interface Props extends VelocityShared {
     q: string;
+    archived: boolean;
     groups: { label: string; items: Found[] }[];
 }
 
-/** Every match for what was typed in Ctrl K, with the matching words of notes. */
+/** Every match for what was typed in Ctrl K, with the matching words of notes; one kind at a time, archived things too. */
 export default function SearchResults() {
     const { props } = usePage<Props>();
     const [q, setQ] = useState(props.q);
+    const [only, setOnly] = useState<string | null>(null);
     const count = props.groups.reduce((n, g) => n + g.items.length, 0);
+    const shown = only ? props.groups.filter((g) => g.label === only) : props.groups;
+    const search = (text: string, archived = props.archived) =>
+        router.get(route('search.all'), { q: text.trim(), ...(archived ? { archived: 1 } : {}) }, { preserveState: true, replace: true });
     const submit = (e: FormEvent) => {
         e.preventDefault();
-        router.get(route('search.all', { q: q.trim() }), {}, { preserveState: true });
+        search(q);
     };
     return (
         <VelocityShell title={props.q ? `“${props.q}”` : 'Search'} section="search">
@@ -37,8 +42,27 @@ export default function SearchResults() {
                         autoFocus
                     />
                 </form>
+                <div className="sr-filters">
+                    {props.groups.length > 1 && (
+                        <div className="layout-seg" role="radiogroup" aria-label="Show">
+                            <button role="radio" aria-checked={only === null} onClick={() => setOnly(null)}>
+                                All <span className="count">{count}</span>
+                            </button>
+                            {props.groups.map((g) => (
+                                <button key={g.label} role="radio" aria-checked={only === g.label} onClick={() => setOnly(g.label)}>
+                                    {g.label} <span className="count">{g.items.length}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <label className="mode-switch sr-archived">
+                        <input type="checkbox" role="switch" checked={props.archived} onChange={(e) => search(props.q, e.target.checked)} />
+                        <span className="switch-track" aria-hidden="true" />
+                        <span>Include archived</span>
+                    </label>
+                </div>
                 {props.q.length >= 2 && count === 0 && <p className="sr-none">Nothing found for “{props.q}”.</p>}
-                {props.groups.map((g) => (
+                {shown.map((g) => (
                     <section key={g.label} className="card sr-group" aria-label={g.label}>
                         <h2 className="rv-title">
                             {g.label} <span className="rv-count">{g.items.length}</span>

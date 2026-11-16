@@ -1750,6 +1750,11 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .page-sub-link:hover { color: var(--text); }
 .icon-btn.is-spinning .ic { animation: spin .8s linear infinite; }
 .hero-top:has(.fit-pick) { flex-wrap: wrap; }
+/* Search results: one kind at a time, and archived things too. */
+.sr-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 14px; }
+.sr-filters .layout-seg { flex-wrap: wrap; }
+.sr-filters .count { margin-left: 4px; color: var(--text-3); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sr-archived { margin-left: auto; }
 .mg-item.is-cancelled { opacity: .6; }
 .mg-item.is-cancelled .mg-t { text-decoration: line-through; }
 .pblock.is-ghost.is-event { background: var(--surface-3); color: var(--text-2); box-shadow: 0 0 0 2px var(--text-3), var(--sh-lg); }

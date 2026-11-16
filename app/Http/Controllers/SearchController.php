@@ -15,7 +15,8 @@ use Inertia\Response;
 
 /**
  * Ctrl K: find tasks, projects, goals, notes (by the words inside too), habits,
- * people and classes or events. "See all results" shows more of each on a page.
+ * people and classes or events. "See all results" shows more of each on a page,
+ * can be narrowed to one kind there, and can include what was archived.
  */
 class SearchController extends Controller
 {
@@ -33,33 +34,37 @@ class SearchController extends Controller
         return response()->json(['groups' => mb_strlen($q) < 2 ? [] : $this->find($user, $q, $list, 1), 'top' => $top]);
     }
 
-    /** "See all results": the same search, more of each kind, with the matching words of notes. */
+    /** "See all results": the same search, more of each kind, with the matching words of notes; archived things too when asked. */
     public function all(Request $request): Response
     {
         $user = $request->user();
         $q = trim((string) $request->query('q', ''));
+        $archived = $request->boolean('archived');
 
         return Inertia::render('search/index', [
             'q' => $q,
-            'groups' => mb_strlen($q) < 2 ? [] : $this->find($user, $q, $this->ranking->rank($user), 6),
+            'archived' => $archived,
+            'groups' => mb_strlen($q) < 2 ? [] : $this->find($user, $q, $this->ranking->rank($user), 6, $archived),
         ]);
     }
 
-    /** Each kind's matches; $more multiplies how many of each. */
-    public function find(User $user, string $q, RankedList $list, int $more): array
+    /** Each kind's matches; $more multiplies how many of each. With $archived, archived tasks, projects, goals, habits and people too. */
+    public function find(User $user, string $q, RankedList $list, int $more, bool $archived = false): array
     {
         $like = '%'.addcslashes($q, '%_\\').'%';
-        $tasks = $user->tasks()->whereNull('archived_at')->where('title', 'like', $like)->with('project')
+        $live = fn ($query) => $archived ? $query : $query->whereNull('archived_at');
+        $tag = fn ($item, string $sub) => $item->archived_at ? 'Archived'.($sub !== '' ? " · {$sub}" : '') : $sub;
+        $tasks = $live($user->tasks())->where('title', 'like', $like)->with('project')
             ->orderByRaw("case when status in ('done', 'cancelled') then 1 else 0 end")->latest('updated_at')->limit(6 * $more)->get()
             ->map(fn ($t) => [
                 'kind' => 'task', 'id' => $t->id, 'title' => $t->title,
-                'sub' => collect([$list->rankOf($t->id) ? '#'.$list->rankOf($t->id) : ucfirst($t->status), $t->project?->name])->filter()->join(' · '),
+                'sub' => $tag($t, collect([$list->rankOf($t->id) ? '#'.$list->rankOf($t->id) : ucfirst($t->status), $t->project?->name])->filter()->join(' · ')),
                 'url' => route('tasks.index', ['task' => $t->id]),
             ]);
-        $projects = $user->projects()->whereNull('archived_at')->where('name', 'like', $like)->limit(4 * $more)->get()
-            ->map(fn ($p) => ['kind' => 'project', 'id' => $p->id, 'title' => $p->name, 'sub' => 'Project', 'url' => route('projects.show', $p)]);
-        $goals = $user->goals()->whereNull('archived_at')->where('title', 'like', $like)->limit(3 * $more)->get()
-            ->map(fn ($g) => ['kind' => 'goal', 'id' => $g->id, 'title' => $g->title, 'sub' => 'Goal', 'url' => route('goals.index', ['focus' => 'g'.$g->id])]);
+        $projects = $live($user->projects())->where('name', 'like', $like)->limit(4 * $more)->get()
+            ->map(fn ($p) => ['kind' => 'project', 'id' => $p->id, 'title' => $p->name, 'sub' => $tag($p, 'Project'), 'url' => route('projects.show', $p)]);
+        $goals = $live($user->goals())->where('title', 'like', $like)->limit(3 * $more)->get()
+            ->map(fn ($g) => ['kind' => 'goal', 'id' => $g->id, 'title' => $g->title, 'sub' => $tag($g, 'Goal'), 'url' => route('goals.index', ['focus' => 'g'.$g->id])]);
         $notes = $user->notes()->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like))->with(['project', 'event'])
             ->orderByRaw('case when title like ? then 0 else 1 end', [$like])->latest('updated_at')->limit(5 * $more)->get()
             ->map(fn ($n) => [
@@ -68,13 +73,13 @@ class SearchController extends Controller
                 'url' => route('notes.index', ['in' => $n->journal_date ? 'journal' : ($n->project_id ? "p{$n->project_id}" : null), 'note' => $n->id]),
                 'snippet' => $more > 1 ? self::snippet((string) $n->body_text, $q) : null,
             ]);
-        $habits = $user->habits()->whereNull('archived_at')->where('name', 'like', $like)->with('project')->orderBy('name')->limit(4 * $more)->get()
-            ->map(fn ($h) => ['kind' => 'habit', 'id' => $h->id, 'title' => $h->name, 'sub' => $h->project?->name ?? $h->scheduleLabel(), 'url' => route('habits.index', ['habit' => $h->id])]);
-        $people = $user->people()->whereNull('archived_at')
+        $habits = $live($user->habits())->where('name', 'like', $like)->with('project')->orderBy('name')->limit(4 * $more)->get()
+            ->map(fn ($h) => ['kind' => 'habit', 'id' => $h->id, 'title' => $h->name, 'sub' => $tag($h, $h->project?->name ?? $h->scheduleLabel()), 'url' => route('habits.index', ['habit' => $h->id])]);
+        $people = $live($user->people())
             ->where(fn ($w) => $w->where('name', 'like', $like)->orWhere('relationship', 'like', $like)->orWhere('organisation', 'like', $like)
                 ->orWhereHas('contacts', fn ($c) => $c->where('value', 'like', $like)))
             ->orderBy('name')->limit(4 * $more)->get()
-            ->map(fn ($p) => ['kind' => 'person', 'id' => $p->id, 'title' => $p->name, 'sub' => collect([$p->relationship, $p->organisation])->filter()->join(' · ') ?: 'Person', 'url' => route('people.index', ['person' => $p->id])]);
+            ->map(fn ($p) => ['kind' => 'person', 'id' => $p->id, 'title' => $p->name, 'sub' => $tag($p, collect([$p->relationship, $p->organisation])->filter()->join(' · ') ?: 'Person'), 'url' => route('people.index', ['person' => $p->id])]);
         $events = $this->events($user, $like, 4 * $more);
 
         return array_values(array_filter([
