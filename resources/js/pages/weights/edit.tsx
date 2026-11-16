@@ -22,8 +22,12 @@ export default function WeightsEdit() {
     useEffect(() => setH(props.horizonDays), [props.horizonDays]);
     useEffect(() => setCap(props.hoursPerDay), [props.hoursPerDay]);
 
+    // A number outside its range isn't saved: it says so, and goes back when you leave the box.
+    const okH = h >= 1 && h <= 30;
+    const okCap = cap >= 0.5 && cap <= 16;
     const save = (w: WeightSet, horizon = h, hours = cap) => {
         clearTimeout(timer.current);
+        if (!(horizon >= 1 && horizon <= 30 && hours >= 0.5 && hours <= 16)) return;
         timer.current = setTimeout(
             () =>
                 router.put(
@@ -81,9 +85,17 @@ export default function WeightsEdit() {
                                 step={0.5}
                                 value={h}
                                 onChange={(e) => (setH(Number(e.target.value)), save(weights, Number(e.target.value)))}
+                                onBlur={() => !okH && setH(props.horizonDays)}
+                                aria-invalid={!okH}
+                                aria-describedby={okH ? undefined : 'horizon-error'}
                                 style={{ width: 90 }}
                             />{' '}
                             <span className="muted">days</span>
+                            {!okH && (
+                                <span className="field-error w-error" id="horizon-error">
+                                    1 to 30 days
+                                </span>
+                            )}
                         </span>
                     </div>
                     <div className="w-row" style={{ gridTemplateColumns: '120px minmax(0,1fr)' }}>
@@ -98,9 +110,17 @@ export default function WeightsEdit() {
                                 step={0.5}
                                 value={cap}
                                 onChange={(e) => (setCap(Number(e.target.value)), save(weights, h, Number(e.target.value)))}
+                                onBlur={() => !okCap && setCap(props.hoursPerDay)}
+                                aria-invalid={!okCap}
+                                aria-describedby={okCap ? undefined : 'cap-error'}
                                 style={{ width: 90 }}
                             />{' '}
                             <span className="muted">hours</span>
+                            {!okCap && (
+                                <span className="field-error w-error" id="cap-error">
+                                    0.5 to 16 hours
+                                </span>
+                            )}
                         </span>
                     </div>
                     <div className="pop-foot">
@@ -108,7 +128,11 @@ export default function WeightsEdit() {
                         <button
                             className="link"
                             disabled={props.isDefault && h === 7 && cap === 4}
-                            onClick={() => router.delete(route('weights.reset'), { preserveScroll: true })}
+                            onClick={() => {
+                                clearTimeout(timer.current);
+                                // The boxes go back too, even one holding a number that was never saved.
+                                router.delete(route('weights.reset'), { preserveScroll: true, onSuccess: () => (setH(7), setCap(4)) });
+                            }}
                         >
                             Reset
                         </button>

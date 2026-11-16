@@ -271,9 +271,17 @@ class NoteController extends Controller
     {
         $this->own($note, $request->user());
         abort_unless($link->note_id === $note->id, 404);
+        $user = $request->user();
+        // What it pointed at, for the message ("Unlinked “Chapter 4 outline”").
+        $name = match ($link->linkable_type) {
+            'note' => $user->notes()->find($link->linkable_id)?->displayTitle(),
+            'goal' => $user->goals()->find($link->linkable_id)?->title,
+            default => $user->habits()->find($link->linkable_id)?->name,
+        };
         $link->delete();
 
-        return back()->with('toast', 'Unlinked')->with('undo', $this->undo('link-note', $note->id, ['type' => $link->linkable_type, 'id' => $link->linkable_id]));
+        return back()->with('toast', 'Unlinked'.($name ? " “{$name}”" : ''))
+            ->with('undo', $this->undo('link-note', $note->id, ['type' => $link->linkable_type, 'id' => $link->linkable_id]));
     }
 
     /** A note's links with what they point at (gone ones left out). */

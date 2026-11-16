@@ -110,7 +110,11 @@ class PlanBuilder
             }
         }
 
-        return ['added' => $added, 'removed' => $old->pluck('id')->all(), 'short' => $short, 'minutes' => $minutes];
+        // Whether every one of these days already holds its hours of work for a day (Weights › Hours a day):
+        // then that, and not a lack of free time, is why something didn't fit.
+        $full = collect($days)->every(fn ($day) => $limit - ($perDay[$day] ?? 0) < $set['shortest']);
+
+        return ['added' => $added, 'removed' => $old->pluck('id')->all(), 'short' => $short, 'minutes' => $minutes, 'full' => $full, 'limit' => $limit];
     }
 
     /**

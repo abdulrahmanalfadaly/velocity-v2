@@ -41,11 +41,15 @@ class PlannerBlockController extends Controller
         $short = count($r['short']);
         // Work is only booked before it's due (an overdue task: as soon as possible).
         $dueBefore = $task?->due_at && $task->due_at > app(Clock::class)->now() && $task->due_at <= $first->utc();
+        // The day (or every day of the week) already holds its hours of work a day: say that, not "no free time".
+        $full = ($r['full'] ?? false) ? ($d['span'] === 'week' ? 'Every day this week' : $date->format('D')).' already has its '.self::dur($r['limit']).' of work' : null;
         $text = match (true) {
             $task !== null && $r['minutes'] > 0 => 'Booked '.self::dur($r['minutes'])." for “{$task->title}”",
             $task !== null && $dueBefore => "“{$task->title}” is due before then",
+            $task !== null && $full !== null => "{$full}: no room for “{$task->title}”",
             $task !== null => "No free time left for “{$task->title}”",
             $r['minutes'] > 0 => 'Booked '.self::dur($r['minutes']).($short ? " · {$short} didn’t fit" : ''),
+            $short > 0 && $full !== null => $full,
             $short > 0 => 'No free time left',
             default => 'Nothing to book',
         };
@@ -77,8 +81,8 @@ class PlannerBlockController extends Controller
             'task' => ['task_id' => $user->tasks()->whereIn('status', Task::OPEN)->findOrFail($request->validate(['task_id' => ['required', 'integer']])['task_id'])->id],
             'project' => $request->validate([
                 'project_id' => ['required', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)->whereNull('archived_at')->whereNull('deleted_at')],
-            ], [], ['project_id' => 'project']),
-            'reserved' => ['label' => trim($request->validate(['label' => ['required', 'string', 'max:80']], [], ['label' => 'name'])['label'])],
+            ], ['project_id.required' => 'Choose a project.'], ['project_id' => 'project']),
+            'reserved' => ['label' => trim($request->validate(['label' => ['required', 'string', 'max:80']], ['label.required' => 'Give it a name.'], ['label' => 'name'])['label'])],
         };
         $block = $user->plannerBlocks()->create(['kind' => $kind, ...$what, ...$this->times($request, $user), 'pinned' => true]);
         $verb = $kind === 'reserved' ? 'Reserved' : 'Booked';

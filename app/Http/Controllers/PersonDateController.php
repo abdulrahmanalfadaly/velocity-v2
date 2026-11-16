@@ -75,7 +75,12 @@ class PersonDateController extends Controller
             'reminders' => ['sometimes', 'array', 'max:6'],
             'reminders.*.days' => ['required', 'integer', Rule::in(PersonDate::BEFORE)],
             'reminders.*.at' => ['required', 'date_format:H:i'],
-        ], ['label.required_if' => 'Say what the date is.']);
+        ], [
+            'label.required_if' => 'Say what the date is.',
+            'day.required' => 'Pick a day.', 'day.integer' => 'Pick a day.', 'day.between' => 'Pick a day.',
+            'month.required' => 'Pick a month.', 'month.integer' => 'Pick a month.', 'month.between' => 'Pick a month.',
+            'year.between' => 'A year between 1900 and 2100, or leave it empty.',
+        ]);
 
         $yearly = $d['kind'] !== 'other' || ($d['yearly'] ?? true);
         // 29 February is fine without a year (it is kept on 28 February in other years), not in a year that hasn't one.

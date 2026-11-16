@@ -53,7 +53,12 @@ export function Check({ done, onClick, label, size = '' }: { done: boolean; onCl
 
 export function Dots({ n, c, onPick }: { n: number; c: 'I' | 'U'; onPick?: (v: number) => void }) {
     return (
-        <span className="dots" data-c={c} role={onPick ? 'radiogroup' : undefined}>
+        <span
+            className="dots"
+            data-c={c}
+            role={onPick ? 'radiogroup' : undefined}
+            aria-label={onPick ? (c === 'I' ? 'Importance' : 'Urgency') : undefined}
+        >
             {[1, 2, 3, 4, 5].map((i) =>
                 onPick ? (
                     <i

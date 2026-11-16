@@ -29,6 +29,9 @@ export interface EventForm {
 }
 
 const keep = { preserveScroll: true, preserveState: true };
+/** "14:30" → 870 (minutes since midnight), and back. */
+const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 /** Add or change a class or event. The day clicked can be cancelled (it stays, crossed out); the event can go altogether. */
 export function EventDialog({
@@ -144,12 +147,16 @@ export function EventDialog({
                                     id="ev-start"
                                     mode="time"
                                     value={data.start_time}
-                                    onChange={(v) => setData('start_time', v)}
+                                    onChange={(v) => {
+                                        // The end moves with the start, so the event keeps its length.
+                                        const length = (mins(data.end_time) - mins(data.start_time) + 1440) % 1440 || 60;
+                                        setData((d) => ({ ...d, start_time: v, end_time: hhmm((mins(v) + length) % 1440) }));
+                                    }}
                                     clearable={false}
                                     placeholder="Pick a time"
                                 />
                             </Field>
-                            <Field id="ev-end" label="To" error={errors.end_time}>
+                            <Field id="ev-end" label={mins(data.end_time) <= mins(data.start_time) ? 'To (next day)' : 'To'} error={errors.end_time}>
                                 <DatePick
                                     id="ev-end"
                                     mode="time"

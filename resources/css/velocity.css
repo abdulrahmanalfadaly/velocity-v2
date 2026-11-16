@@ -2568,3 +2568,5 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 }
 .skip-link:focus { top: 10px; }
 .main:focus { outline: none; }
+/* Weights: a number outside its range says so beside the box. */
+.w-error { margin-left: 10px; }

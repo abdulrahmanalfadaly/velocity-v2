@@ -127,7 +127,20 @@ export function TimeDialog({
                     </Field>
                     <div className="vform-row ev-times">
                         <Field id="tb-start" label="From" error={errors.start}>
-                            <DatePick id="tb-start" mode="time" value={from} onChange={(v) => v && setFrom(v)} clearable={false} />
+                            <DatePick
+                                id="tb-start"
+                                mode="time"
+                                value={from}
+                                onChange={(v) => {
+                                    if (!v) return;
+                                    // The end moves with the start (same length), staying within the day.
+                                    const m = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+                                    const end = Math.min(m(v) + Math.max(m(to) - m(from), 30), 23 * 60 + 55);
+                                    setFrom(v);
+                                    setTo(`${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`);
+                                }}
+                                clearable={false}
+                            />
                         </Field>
                         <Field id="tb-end" label="To" error={errors.end ?? errors.minutes}>
                             <DatePick id="tb-end" mode="time" value={to} onChange={(v) => v && setTo(v)} clearable={false} />

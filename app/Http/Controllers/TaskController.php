@@ -329,6 +329,11 @@ class TaskController extends Controller
         $changed = array_keys(array_diff_key($event->snapshot['after'] ?? [], ['repeat_day' => 1, 'repeat_every' => 1, 'repeat_anchor' => 1, 'reminder_sent_at' => 1, 'waiting_since' => 1]));
         $what = $deps ? 'Starts after' : (self::LABELS[$changed[0] ?? ''] ?? 'Task');
         $toast = $request->boolean('form') ? $this->placed($task, 'Saved') : "{$what} changed";
+        // A status change says what it became: "Doing: “Essay”".
+        if (! $request->boolean('form') && ! $deps && ($changed[0] ?? null) === 'status') {
+            $toast = ['todo' => 'To do', 'doing' => 'Doing', 'waiting' => 'Waiting'][$task->status] ?? 'Status changed';
+            $toast .= $toast === 'Status changed' ? '' : ": “{$task->title}”";
+        }
 
         return back()->with('toast', $toast)->with('undo', $this->undo('revert-task', $task->id, ['event' => $event->id]));
     }
