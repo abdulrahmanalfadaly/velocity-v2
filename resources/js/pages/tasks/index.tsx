@@ -4,6 +4,7 @@ import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Board, Timeline } from '@/components/velocity/task-views';
+import { ThisOrThat } from '@/components/velocity/this-or-that';
 import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { adjustWeights, Clock, CRIT, DEFAULT_WEIGHTS, dueInfo, fmt1, fmtHours, repeatText, rerank, sameWeights } from '@/lib/velocity';
@@ -83,6 +84,8 @@ export default function TasksIndex() {
     // Select mode: tick several tasks, then act on all of them from the bar at the bottom.
     const [picked, setPicked] = useState<number[] | null>(null);
     const lastPick = useRef<number | null>(null);
+    // This or that: choose between the selected tasks two at a time.
+    const [choosing, setChoosing] = useState(false);
     const [bulkDue, setBulkDue] = useState('');
     // List, board or timeline: remembered on this device.
     const [layout, setLayoutState] = useState<Layout>(() => {
@@ -623,6 +626,15 @@ export default function TasksIndex() {
                         {picked.length === shown.length && shown.length > 0 ? 'None' : 'All'}
                     </button>
                     <span className="bulk-sep" />
+                    <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={picked.length < 2}
+                        onClick={() => setChoosing(true)}
+                        title="Can’t choose? Pick between two at a time"
+                    >
+                        <Icon name="scale" className="ic-sm" />
+                        This or that
+                    </button>
                     <button className="btn btn-primary btn-sm" disabled={!picked.length} onClick={() => bulk('complete')}>
                         <Icon name="check" className="ic-sm" />
                         Done
@@ -668,6 +680,14 @@ export default function TasksIndex() {
                         <Icon name="x" />
                     </button>
                 </div>
+            )}
+            {choosing && picked && (
+                <ThisOrThat
+                    tasks={list.filter((t) => picked.includes(t.id))}
+                    clock={clock}
+                    onOpen={(id) => (setChoosing(false), setPicked(null), open(id))}
+                    onClose={() => setChoosing(false)}
+                />
             )}
         </VelocityShell>
     );
