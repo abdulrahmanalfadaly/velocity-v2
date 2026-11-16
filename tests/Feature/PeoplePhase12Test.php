@@ -94,6 +94,25 @@ class PeoplePhase12Test extends TestCase
         $this->assertSame('met', $dinner->fresh()->kind);
     }
 
+    public function test_memories_and_a_follow_up_task(): void
+    {
+        $sara = $this->sara();
+        $this->post(route('person-memories.store', $sara), ['text' => 'Loves matcha']);
+        $this->post(route('person-memories.store', $sara), ['text' => 'Hiking trip, Cameron Highlands', 'on' => '2025-08-09']);
+        $this->get(route('people.index', ['person' => $sara->id]))->assertInertia(fn (Assert $p) => $p
+            ->where('person.memories', fn ($m) => collect($m)->pluck('text')->all() === ['Hiking trip, Cameron Highlands', 'Loves matcha']));
+        $matcha = $sara->memories()->where('text', 'Loves matcha')->sole();
+        $this->patch(route('memories.update', $matcha), ['text' => 'Loves matcha lattes', 'on' => null])->assertSessionHas('toast', 'Saved');
+        $this->delete(route('memories.destroy', $matcha))->assertSessionHas('undo.action', 'restore-memory');
+        $this->assertSame(1, $sara->memories()->count());
+
+        // Follow up: a task waiting on them until the day picked, linked to them.
+        $this->post(route('people.follow-up', $sara), ['on' => '2026-11-14'])->assertSessionHas('toast', 'Follow up with Sara on Sat 14 Nov');
+        $task = $sara->tasks()->sole();
+        $this->assertSame(['Follow up with Sara', 'waiting', 'Sara Lim', '2026-11-14'], [$task->title, $task->status, $task->waiting_for, $task->follow_up_on->toDateString()]);
+        $this->post(route('people.follow-up', $sara), ['on' => '2026-11-01'])->assertSessionHasErrors('on');
+    }
+
     public function test_nickname_location_usernames_and_contact_order(): void
     {
         $sara = $this->sara();

@@ -50,6 +50,12 @@ class Person extends Model
         return $this->belongsToMany(Task::class, 'person_task');
     }
 
+    /** Things to remember about them, the latest first (undated ones last). */
+    public function memories(): HasMany
+    {
+        return $this->hasMany(PersonMemory::class)->orderByDesc('on')->orderByDesc('id');
+    }
+
     public function notes(): BelongsToMany
     {
         return $this->belongsToMany(Note::class, 'person_note');

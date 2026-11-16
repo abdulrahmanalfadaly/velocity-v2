@@ -44,7 +44,7 @@ class PersonController extends Controller
         $days = (int) ($q['days'] ?? 60);
         $upcoming = PeopleInfo::upcoming($user, $today, $days);
 
-        $open = isset($q['person']) ? $user->people()->with(['contacts', 'dates', 'groups', 'catchUps', 'tasks', 'notes.event', 'projects'])->find($q['person']) : null;
+        $open = isset($q['person']) ? $user->people()->with(['contacts', 'dates', 'groups', 'catchUps', 'tasks', 'notes.event', 'projects', 'memories'])->find($q['person']) : null;
         // The side menu's counts are over everyone not archived, whatever the list shows.
         $activeRows = in_array($view, ['all', 'attention', 'dates'], true)
             ? $people->map(fn (Person $p) => PeopleInfo::row($p, $today))

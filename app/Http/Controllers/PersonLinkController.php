@@ -8,6 +8,7 @@ use App\Models\PersonGroup;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\RankingService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -62,6 +63,32 @@ class PersonLinkController extends Controller
         $rank = $this->ranking->rank($user)->rankOf($task->id);
 
         return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : ''))->with('undo', $this->undo('delete-task', $task->id));
+    }
+
+    /**
+     * "Follow up": a task to check back with them, waiting on them until the day picked
+     * (then it shows under Follow-ups, on Home and on the Planner). It stays a task, linked.
+     */
+    public function followUp(Request $request, Person $person): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($person, $user);
+        $today = $this->ranking->now()->timezone($user->timezone)->toDateString();
+        $d = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'on' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$today],
+        ], ['on.after_or_equal' => 'Pick today or a day ahead.']);
+        $first = Str::before($person->name, ' ');
+        $task = $user->tasks()->create([
+            'title' => Str::limit(trim($d['title'] ?? '') ?: "Follow up with {$first}", 255, ''),
+            'importance' => 3, 'urgency' => 3, 'est_hours' => 0.25,
+            'status' => Task::WAITING, 'waiting_for' => $person->name, 'waiting_since' => $this->ranking->now(), 'follow_up_on' => $d['on'],
+        ]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
+        $person->tasks()->attach($task->id);
+        $when = CarbonImmutable::parse($d['on'])->format('D j M');
+
+        return back()->with('toast', "Follow up with {$first} on {$when}")->with('undo', $this->undo('delete-task', $task->id));
     }
 
     public function renameGroup(Request $request, PersonGroup $group): RedirectResponse

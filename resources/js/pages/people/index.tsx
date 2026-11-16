@@ -10,7 +10,9 @@ import {
     dayLabel,
     everyText,
     firstName,
+    FollowUpPop,
     keep,
+    Memories,
     nextLine,
     type PersonDate,
     type PersonDetail,
@@ -279,6 +281,7 @@ function PersonPanel({
     onEdit: () => void;
     onDate: (d?: PersonDate) => void;
 }) {
+    const [followAt, setFollowAt] = useState<null | { x: number; y: number }>(null);
     const [catchAt, setCatchAt] = useState<null | { x: number; y: number; edit?: PersonDetail['keepInTouch']['history'][number] }>(null);
     const [about, setAbout] = useState(p.about ?? '');
     const [newTask, setNewTask] = useState('');
@@ -482,7 +485,24 @@ function PersonPanel({
 
                 <section className="p-section">
                     <div className="p-section-head">
+                        <h3 className="p-section-title">Memories</h3>
+                    </div>
+                    <Memories personId={p.id} memories={p.memories ?? []} clock={clock} />
+                </section>
+
+                <section className="p-section">
+                    <div className="p-section-head">
                         <h3 className="p-section-title">Tasks</h3>
+                        <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={(e) => {
+                                const r = e.currentTarget.getBoundingClientRect();
+                                setFollowAt({ x: Math.max(8, r.right - 300), y: r.bottom + 6 });
+                            }}
+                        >
+                            <Icon name="followUp" className="ic-sm" />
+                            Follow up
+                        </button>
                     </div>
                     {waiting.length > 0 && (
                         <>
@@ -582,6 +602,7 @@ function PersonPanel({
                     />
                 </section>
             </div>
+            {followAt && <FollowUpPop person={p} today={props.today} x={followAt.x} y={followAt.y} onClose={() => setFollowAt(null)} />}
             {catchAt && (
                 <CatchUpPop
                     key={catchAt.edit?.id ?? 'new'}

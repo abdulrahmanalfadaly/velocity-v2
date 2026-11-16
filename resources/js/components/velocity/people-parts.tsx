@@ -74,6 +74,8 @@ export interface PersonDetail extends PersonRow {
     tasks: { id: number; title: string; status: string; rank: number | null }[];
     notes: { id: number; title: string }[];
     projects: { id: number; name: string }[];
+    /** Things to remember about them, the latest first. */
+    memories?: { id: number; text: string; on: string | null }[];
     form: PersonForm;
 }
 
@@ -638,6 +640,138 @@ export function DateDialog({ personId, date, onClose }: { personId: number; date
                 </div>
             </form>
         </Modal>
+    );
+}
+
+/** "Follow up": a task to check back with them, waiting on them until the day picked. */
+export function FollowUpPop({
+    person,
+    today,
+    x,
+    y,
+    onClose,
+}: {
+    person: { id: number; name: string };
+    today: string;
+    x: number;
+    y: number;
+    onClose: () => void;
+}) {
+    const first = person.name.split(' ')[0];
+    const inThree = new Date(Date.parse(`${today}T12:00:00Z`) + 3 * 864e5).toISOString().slice(0, 10);
+    const [title, setTitle] = useState(`Follow up with ${first}`);
+    const [on, setOn] = useState(inThree);
+    const submit = (e: FormEvent) => {
+        e.preventDefault();
+        router.post(route('people.follow-up', person.id), { title: title.trim() || null, on }, keep);
+        onClose();
+    };
+    return (
+        <Pop x={x} y={y} label="Follow up" onClose={onClose} width={300}>
+            <form className="pp-catch" onSubmit={submit}>
+                <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="What about" maxLength={255} />
+                <DatePick label="Follow up on" value={on} min={today} onChange={(v) => v && setOn(v)} clearable={false} />
+                <button type="submit" className="btn btn-primary btn-sm">
+                    Add follow-up
+                </button>
+            </form>
+        </Pop>
+    );
+}
+
+/** Memories: add one (with the day it happened, if it has one), change one by clicking it, remove one. */
+export function Memories({
+    personId,
+    memories,
+    clock,
+}: {
+    personId: number;
+    memories: { id: number; text: string; on: string | null }[];
+    clock: Clock;
+}) {
+    const [text, setText] = useState('');
+    const [on, setOn] = useState('');
+    const [editing, setEditing] = useState<null | { id: number; text: string; on: string }>(null);
+    const day = (d: string) => clock.date(`${d}T12:00:00Z`, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    const add = (e: FormEvent) => {
+        e.preventDefault();
+        if (!text.trim()) return;
+        router.post(route('person-memories.store', personId), { text, on: on || null }, { ...keep, onSuccess: () => (setText(''), setOn('')) });
+    };
+    const save = (e: FormEvent) => {
+        e.preventDefault();
+        if (!editing || !editing.text.trim()) return;
+        router.patch(
+            route('memories.update', editing.id),
+            { text: editing.text, on: editing.on || null },
+            { ...keep, onSuccess: () => setEditing(null) },
+        );
+    };
+    return (
+        <>
+            {memories.length > 0 && (
+                <ul className="pp-memories">
+                    {memories.map((m) =>
+                        editing?.id === m.id ? (
+                            <li key={m.id}>
+                                <form className="pp-memory-edit" onSubmit={save}>
+                                    <input
+                                        className="input"
+                                        value={editing.text}
+                                        maxLength={500}
+                                        aria-label="Memory"
+                                        autoFocus
+                                        onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                                        onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), setEditing(null))}
+                                    />
+                                    <DatePick
+                                        label="When"
+                                        value={editing.on}
+                                        onChange={(v) => setEditing({ ...editing, on: v })}
+                                        placeholder="No date"
+                                    />
+                                    <button type="submit" className="btn btn-primary btn-sm">
+                                        Save
+                                    </button>
+                                </form>
+                            </li>
+                        ) : (
+                            <li key={m.id}>
+                                <button
+                                    className="pp-memory"
+                                    title="Change it"
+                                    onClick={() => setEditing({ id: m.id, text: m.text, on: m.on ?? '' })}
+                                >
+                                    {m.on && <b>{day(m.on)}</b>}
+                                    <span>{m.text}</span>
+                                </button>
+                                <button
+                                    className="note-task-x"
+                                    aria-label="Remove this memory"
+                                    onClick={() => router.delete(route('memories.destroy', m.id), keep)}
+                                >
+                                    <Icon name="x" className="ic-xs" />
+                                </button>
+                            </li>
+                        ),
+                    )}
+                </ul>
+            )}
+            <form className="pp-memory-add" onSubmit={add}>
+                <input
+                    className="input"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Loves matcha · Hiking trip together"
+                    aria-label="New memory"
+                    maxLength={500}
+                />
+                <DatePick label="When" value={on} onChange={setOn} placeholder="When?" />
+                <button type="submit" className="btn btn-secondary btn-sm" disabled={!text.trim()}>
+                    Add
+                </button>
+            </form>
+        </>
     );
 }
 

@@ -71,6 +71,7 @@ class PeopleInfo
                 ->map(fn ($t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status, 'rank' => $list->rankOf($t->id)])->values(),
             'notes' => $p->notes->sortByDesc('updated_at')->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
             'projects' => $p->projects->map(fn ($pr) => ['id' => $pr->id, 'name' => $pr->name])->values(),
+            'memories' => $p->memories->map(fn ($m) => $m->present())->values(),
             'form' => self::form($p),
         ];
     }
