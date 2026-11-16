@@ -118,6 +118,10 @@ class Note extends Model
         if ($type === 'hardBreak') {
             return "\n";
         }
+        // A drawing has no words; it still counts, so a note holding only a drawing isn't empty.
+        if ($type === 'drawing') {
+            return "(drawing)\n";
+        }
         // A table: one line per row, its cells side by side.
         if ($type === 'tableRow') {
             return implode(' | ', array_map(fn ($c) => is_array($c) ? trim(self::textOf($c)) : '', $node['content'] ?? []))."\n";

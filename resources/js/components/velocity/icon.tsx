@@ -5,7 +5,7 @@ import {
     GitFork, GraduationCap, Heart, Hourglass, House, Inbox, Info, List, Lock, LucideIcon, Maximize2, Menu, Minus, Monitor, Moon, MoreHorizontal, Paperclip,
     Pause, Pin, Play, Plus, Repeat, Search, Settings, SlidersHorizontal, SquareCheck, Sun, Target, Timer, User, Users, WandSparkles, X, Zap,
     ChevronUp, Mail, Phone, MessageCircle, Coffee, Bold, Italic, Strikethrough, Heading2, Heading3, ListOrdered, ListTodo, Quote, Code, Link, Unlink, ImagePlus, Trash2, ArrowLeft, NotebookPen, PinOff,
-    KeyRound, Copy, Reply, Ban, Square, Table2, Underline, SquareCode, SeparatorHorizontal, Eye, EyeOff, Github, GitPullRequest, GitPullRequestDraft, GitPullRequestClosed, GitMerge, CircleDot, CircleCheck, RefreshCw, ExternalLink,
+    KeyRound, Copy, Reply, Ban, Square, Table2, Underline, SquareCode, SeparatorHorizontal, Eye, EyeOff, Pencil, Slash, MoveUpRight, Circle, Eraser, Undo2, PenTool, Github, GitPullRequest, GitPullRequestDraft, GitPullRequestClosed, GitMerge, CircleDot, CircleCheck, RefreshCw, ExternalLink,
 } from 'lucide-react';
 
 const ICONS = {
@@ -21,6 +21,7 @@ const ICONS = {
     chevU: ChevronUp, mail: Mail, phone: Phone, message: MessageCircle, coffee: Coffee, code: Code, link: Link, unlink: Unlink, image: ImagePlus, trash: Trash2, arrowL: ArrowLeft, journal: NotebookPen, pinOff: PinOff,
     key: KeyRound, copy: Copy, followUp: Reply, ban: Ban, stop: Square, table: Table2, github: Github, pr: GitPullRequest, prDraft: GitPullRequestDraft, prClosed: GitPullRequestClosed, merged: GitMerge, issue: CircleDot, issueDone: CircleCheck, refresh: RefreshCw, external: ExternalLink,
     underline: Underline, codeBlock: SquareCode, divider: SeparatorHorizontal, eye: Eye, eyeOff: EyeOff,
+    pencil: Pencil, slash: Slash, arrowLine: MoveUpRight, circle: Circle, eraser: Eraser, undo: Undo2, drawing: PenTool,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

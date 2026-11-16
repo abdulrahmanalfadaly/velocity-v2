@@ -11,6 +11,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { type DragEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { StartFocus } from './focus';
 import { Icon } from './icon';
+import { Drawing, hasDrawing } from './note-drawing';
 import { Picker } from './pick';
 import { Select } from './select';
 import { fileSize } from './task-files';
@@ -179,6 +180,7 @@ export function NoteEditor({
             Placeholder.configure({ placeholder: 'Start writing' }),
             Image.configure({ allowBase64: false }),
             TableKit.configure({ table: { resizable: false } }),
+            Drawing,
         ],
         content: note.doc,
         shouldRerenderOnTransaction: false,
@@ -210,11 +212,11 @@ export function NoteEditor({
             },
         },
         onCreate: ({ editor: e }) => {
-            live.current.empty = e.isEmpty;
+            live.current.empty = e.isEmpty && !hasDrawing(e.state.doc);
         },
         onUpdate: ({ editor: e }) => {
             live.current.doc = e.getJSON();
-            live.current.empty = e.isEmpty;
+            live.current.empty = e.isEmpty && !hasDrawing(e.state.doc);
             changed();
         },
     });
@@ -549,6 +551,11 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
             {b(s.quote, 'quote', 'Quote', () => c().toggleBlockquote().run())}
             {b(s.code, 'codeBlock', 'Code block', () => c().toggleCodeBlock().run())}
             {b(false, 'divider', 'Divider line', () => c().setHorizontalRule().run())}
+            {b(false, 'drawing', 'Drawing', () =>
+                c()
+                    .insertContent({ type: 'drawing', attrs: { strokes: [], height: 300 } })
+                    .run(),
+            )}
             {b(s.table, 'table', 'Table', () => !s.table && c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
             {b(s.link || linking, 'link', 'Link', () => setLinking((v) => !v))}
             <button
