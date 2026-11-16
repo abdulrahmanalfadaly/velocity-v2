@@ -126,6 +126,25 @@ class PeopleInfo
             ->values();
     }
 
+    /**
+     * Catch-ups on the Planner between two local days: each on the day it comes due, or
+     * today when it is already overdue.
+     *
+     * @return list<array{key: string, date: string, title: string, personId: int}>
+     */
+    public static function catchUpsBetween(User $user, CarbonImmutable $today, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $out = [];
+        foreach (self::active($user)->whereNotNull('catch_up_days')->with('catchUps')->orderBy('name')->get() as $p) {
+            $on = $p->nextCatchUp($today)?->max($today);
+            if ($on && $on >= $from && $on < $to) {
+                $out[] = ['key' => "c{$p->id}", 'date' => $on->toDateString(), 'title' => "Catch up with {$p->name}", 'personId' => $p->id];
+            }
+        }
+
+        return $out;
+    }
+
     /** Dates on the Planner between two local days (all-day markers). */
     public static function between(User $user, CarbonImmutable $from, CarbonImmutable $to): Collection
     {

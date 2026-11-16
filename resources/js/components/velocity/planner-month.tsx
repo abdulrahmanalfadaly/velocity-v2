@@ -18,6 +18,23 @@ export interface MonthEvent {
     cancelled?: boolean;
 }
 
+/** An all-day marker: a project or milestone due, a goal's target date, a habit with no set time, a catch-up. */
+export interface Marker {
+    key: string;
+    date: string;
+    kind: 'project' | 'milestone' | 'goal' | 'habit' | 'catchup';
+    title: string;
+    href: string;
+    done?: boolean;
+}
+export const MARKER_ICON: Record<Marker['kind'], string> = {
+    project: 'folder',
+    milestone: 'flag',
+    goal: 'target',
+    habit: 'habits',
+    catchup: 'message',
+};
+
 interface Entry {
     key: string;
     sort: number; // minute of the day; things with no time first
@@ -48,6 +65,7 @@ export function MonthGrid<E extends MonthEvent>({
     dueTasks,
     personDates,
     followUps,
+    markers = [],
     clock,
     onEvent,
     onDay,
@@ -60,6 +78,7 @@ export function MonthGrid<E extends MonthEvent>({
     dueTasks: { id: number; title: string; dueAt: string }[];
     personDates: { key: string; date: string; title: string; kind: 'birthday' | 'anniversary' | 'other'; personId: number }[];
     followUps: { id: number; title: string; date: string }[];
+    markers?: Marker[];
     clock: Clock;
     onEvent: (e: E) => void;
     onDay: (day: string) => void;
@@ -146,6 +165,18 @@ export function MonthGrid<E extends MonthEvent>({
                 <Link className="mg-item is-date" href={`/tasks/waiting?task=${f.id}`} title={`Follow up: ${f.title}`}>
                     <Icon name="followUp" className="ic-xs" />
                     <span className="mg-t">{f.title}</span>
+                </Link>
+            ),
+        }),
+    );
+    markers.forEach((m) =>
+        add(m.date, {
+            key: m.key,
+            sort: -1,
+            node: (
+                <Link className={`mg-item is-date is-${m.kind}`} href={m.href} title={m.title}>
+                    <Icon name={MARKER_ICON[m.kind]} className="ic-xs" />
+                    <span className="mg-t">{m.title}</span>
                 </Link>
             ),
         }),

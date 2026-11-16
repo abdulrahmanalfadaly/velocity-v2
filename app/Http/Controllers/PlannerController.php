@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\Milestone;
 use App\Models\PlannerBlock;
 use App\Models\Task;
+use App\Models\User;
 use App\Services\HabitTimes;
 use App\Services\PeopleInfo;
 use App\Services\PlanBuilder;
@@ -77,6 +79,7 @@ class PlannerController extends Controller
             'habitTimes' => $month ? [] : HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
                 ->map(fn ($o) => HabitTimes::present($o))->values(),
             'personDates' => PeopleInfo::between($user, $first, $first->addDays($count)),
+            'markers' => $this->markers($user, $first, $first->addDays($count), $today, $month),
             'followUps' => $user->tasks()->open()->whereDate('follow_up_on', '>=', $first->toDateString())->whereDate('follow_up_on', '<=', $first->addDays($count - 1)->toDateString())
                 ->get(['id', 'title', 'follow_up_on'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'date' => $t->follow_up_on->toDateString()])->values(),
             'unbooked' => $month ? [] : $this->builder->unbooked($user, $days->all(), $list),
@@ -123,6 +126,42 @@ class PlannerController extends Controller
             'next' => $next ? ['id' => $next->id, 'title' => $next->title, 'rank' => $list->rankOf($next->id)] : null,
             'blocked' => $blocked,
         ];
+    }
+
+    /**
+     * All-day markers for the days shown: project due dates, milestones and goal target
+     * dates still ahead of you, habits with no set time on the days they are due (not in
+     * the month: too many), and catch-ups. Each can be hidden on the Planner ("Show").
+     *
+     * @return list<array{key: string, date: string, kind: string, title: string, href: string, done?: bool}>
+     */
+    private function markers(User $user, CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $today, bool $month): array
+    {
+        $first = $from->toDateString();
+        $last = $to->subDay()->toDateString();
+        $out = [];
+        $projects = $user->projects()->whereNull('archived_at')->where('status', '!=', 'completed')->whereDate('due_date', '>=', $first)->whereDate('due_date', '<=', $last)->orderBy('name')->get(['id', 'name', 'due_date']);
+        foreach ($projects as $p) {
+            $out[] = ['key' => "p{$p->id}", 'date' => $p->due_date->toDateString(), 'kind' => 'project', 'title' => "{$p->name} due", 'href' => "/projects/{$p->id}"];
+        }
+        $milestones = Milestone::whereIn('project_id', $user->projects()->whereNull('archived_at')->select('id'))->whereNull('done_at')
+            ->whereDate('due_date', '>=', $first)->whereDate('due_date', '<=', $last)->orderBy('title')->get(['id', 'project_id', 'title', 'due_date']);
+        foreach ($milestones as $m) {
+            $out[] = ['key' => "m{$m->id}", 'date' => $m->due_date->toDateString(), 'kind' => 'milestone', 'title' => $m->title, 'href' => "/projects/{$m->project_id}"];
+        }
+        foreach ($user->goals()->whereNull('archived_at')->whereNull('achieved_at')->whereDate('target_date', '>=', $first)->whereDate('target_date', '<=', $last)->orderBy('title')->get(['id', 'title', 'target_date']) as $g) {
+            $out[] = ['key' => "g{$g->id}", 'date' => $g->target_date->toDateString(), 'kind' => 'goal', 'title' => $g->title, 'href' => "/goals?focus=g{$g->id}"];
+        }
+        if (! $month) {
+            foreach (HabitTimes::untimed($user, $from, $to) as $h) {
+                $out[] = ['key' => $h['key'], 'date' => $h['date'], 'kind' => 'habit', 'title' => $h['title'], 'href' => "/habits?habit={$h['id']}", 'done' => $h['done']];
+            }
+        }
+        foreach (PeopleInfo::catchUpsBetween($user, $today, $from, $to) as $c) {
+            $out[] = ['key' => $c['key'], 'date' => $c['date'], 'kind' => 'catchup', 'title' => $c['title'], 'href' => "/people?person={$c['personId']}"];
+        }
+
+        return $out;
     }
 
     private function present(Event $e, array $o, string $tz): array

@@ -202,6 +202,29 @@ class PlannerPhase11Test extends TestCase
         $this->get('/review?view=day&date=2026-11-11')->assertInertia(fn (Assert $p) => $p->where('report.events.cancelled', 1));
     }
 
+    public function test_markers_for_projects_milestones_goals_habits_and_catch_ups(): void
+    {
+        $fyp = $this->user->projects()->create(['name' => 'FYP', 'due_date' => '2026-11-13']);
+        $fyp->milestones()->create(['title' => 'Chapter 2 draft', 'due_date' => '2026-11-12']);
+        $fyp->milestones()->create(['title' => 'Done already', 'due_date' => '2026-11-12', 'done_at' => now()]);
+        $this->user->goals()->create(['title' => 'Graduate with a First', 'target_date' => '2026-11-15']);
+        $this->user->habits()->create(['name' => 'Read', 'kind' => 'do', 'target' => 1, 'days' => [4]]);          // Thursdays, no set time
+        $this->user->habits()->create(['name' => 'No sugar', 'kind' => 'avoid', 'target' => 0]);                  // avoid: no marker
+        $this->user->habits()->create(['name' => 'Gym', 'kind' => 'do', 'target' => 1, 'at_time' => '18:00', 'minutes' => 45]); // has its time on the grid
+        $ali = $this->user->people()->create(['name' => 'Ali', 'catch_up_days' => 14]);
+        $ali->forceFill(['created_at' => '2026-10-20 00:00:00'])->save(); // due 3 Nov: overdue, so shown today
+
+        $this->get('/planner?date=2026-11-11&view=week')->assertInertia(fn (Assert $p) => $p->where('markers', [
+            ['key' => "p{$fyp->id}", 'date' => '2026-11-13', 'kind' => 'project', 'title' => 'FYP due', 'href' => "/projects/{$fyp->id}"],
+            ['key' => 'm'.$fyp->milestones()->where('title', 'Chapter 2 draft')->value('id'), 'date' => '2026-11-12', 'kind' => 'milestone', 'title' => 'Chapter 2 draft', 'href' => "/projects/{$fyp->id}"],
+            ['key' => 'g'.$this->user->goals()->value('id'), 'date' => '2026-11-15', 'kind' => 'goal', 'title' => 'Graduate with a First', 'href' => '/goals?focus=g'.$this->user->goals()->value('id')],
+            ['key' => 'hm'.$this->user->habits()->where('name', 'Read')->value('id').':2026-11-12', 'date' => '2026-11-12', 'kind' => 'habit', 'title' => 'Read', 'href' => '/habits?habit='.$this->user->habits()->where('name', 'Read')->value('id'), 'done' => false],
+            ['key' => "c{$ali->id}", 'date' => '2026-11-11', 'kind' => 'catchup', 'title' => 'Catch up with Ali', 'href' => "/people?person={$ali->id}"],
+        ]));
+        // The month leaves habits out.
+        $this->get('/planner?date=2026-11-11&view=month')->assertInertia(fn (Assert $p) => $p->has('markers', 4));
+    }
+
     public function test_the_month_view_shows_whole_weeks_from_monday(): void
     {
         // November 2026 starts on a Sunday: six weeks, from Monday 26 October to Sunday 6 December.

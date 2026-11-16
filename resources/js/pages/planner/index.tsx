@@ -2,7 +2,7 @@ import { CALENDARS, type CalendarKey, EventDialog, type EventForm } from '@/comp
 import { Modal } from '@/components/velocity/forms';
 import { DayEditor } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
-import { MonthGrid } from '@/components/velocity/planner-month';
+import { MARKER_ICON, type Marker, MonthGrid } from '@/components/velocity/planner-month';
 import { BlockMenu, type Hours, HoursDialog, KindSeg, type NewKind, type PlanBlock, TimeDialog } from '@/components/velocity/planner-parts';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, fmtHours, round1 } from '@/lib/velocity';
@@ -59,7 +59,26 @@ interface Props extends VelocityShared {
     followUps: { id: number; title: string; date: string }[];
     free: { date: string; slots: { start: string; end: string }[]; minutes: number }[];
     taskChoices: { id: number; title: string; rank: number }[];
+    markers: Marker[];
 }
+
+/** What "Show" can hide on the Planner, kept on this computer. */
+type ShowKey = 'due' | 'projects' | 'goals' | 'habits' | 'people' | 'followUps';
+const SHOW: [ShowKey, string, string][] = [
+    ['due', 'Task due dates', 'flag'],
+    ['projects', 'Projects and milestones', 'folder'],
+    ['goals', 'Goal dates', 'target'],
+    ['habits', 'Habits', 'habits'],
+    ['people', 'Birthdays and catch-ups', 'gift'],
+    ['followUps', 'Follow-ups', 'followUp'],
+];
+const MARKER_SHOW: Record<Marker['kind'], ShowKey> = {
+    project: 'projects',
+    milestone: 'projects',
+    goal: 'goals',
+    habit: 'habits',
+    catchup: 'people',
+};
 
 /** A habit with a set time, on a day it is due. */
 interface PlanHabit {
@@ -215,6 +234,25 @@ export default function Planner() {
         localStorage.setItem('velocity.hiddenCalendars', JSON.stringify(next));
     };
     const events = props.events.filter((e) => !hidden.includes(e.calendar));
+    // "Show": which kinds of markers and times are on the grid (kept on this computer).
+    const [off, setOff] = useState<ShowKey[]>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('velocity.plannerHidden') ?? '[]');
+        } catch {
+            return [];
+        }
+    });
+    const toggleShow = (k: ShowKey) => {
+        const next = off.includes(k) ? off.filter((x) => x !== k) : [...off, k];
+        setOff(next);
+        localStorage.setItem('velocity.plannerHidden', JSON.stringify(next));
+    };
+    const on = (k: ShowKey) => !off.includes(k);
+    const dueTasks = on('due') ? props.dueTasks : [];
+    const personDates = on('people') ? (props.personDates ?? []) : [];
+    const followUps = on('followUps') ? (props.followUps ?? []) : [];
+    const habitTimes = on('habits') ? (props.habitTimes ?? []) : [];
+    const markers = (props.markers ?? []).filter((m) => on(MARKER_SHOW[m.kind]));
     const go = (date: string, view = props.view) => router.get('/planner', { date, view }, { preserveScroll: true });
     const step = props.view === 'week' ? 7 : 1;
     const firstOfMonth = `${props.date.slice(0, 8)}01`;
@@ -285,7 +323,7 @@ export default function Planner() {
             const s = moved ?? local(clock, bl.start);
             return { key: `b${bl.id}`, kind: 'block', bl, s, e: moved || size ? later(s, size ?? lengthOf(bl)) : local(clock, bl.end) };
         });
-        const hbs: Item[] = (props.habitTimes ?? []).map((hb) => ({
+        const hbs: Item[] = habitTimes.map((hb) => ({
             key: hb.key,
             kind: 'habit',
             hb,
@@ -293,7 +331,7 @@ export default function Planner() {
             e: local(clock, hb.end),
         }));
         return [...evs, ...hbs, ...bls, ...mine.added];
-    }, [props.events, props.blocks, props.habitTimes, hidden, mine, evPending]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [props.events, props.blocks, props.habitTimes, hidden, off, mine, evPending]); // eslint-disable-line react-hooks/exhaustive-deps
     const pieces = useMemo(() => Object.fromEntries(props.days.map((d) => [d, layoutDay(items, d)])), [items, props.days]);
     // Blocks that share their time with something shown (an event, a habit time, another block): marked, never moved.
     const clashes = useMemo(() => {
@@ -527,6 +565,8 @@ export default function Planner() {
             clock={clock}
             hidden={hidden}
             onToggle={toggleCalendar}
+            off={off}
+            onShow={toggleShow}
             onNew={() => setDialog({ initial: blank(props.date) })}
             onHours={() => setHoursOpen(true)}
             onBook={plan}
@@ -582,9 +622,10 @@ export default function Planner() {
                         today={props.today}
                         events={events}
                         blocks={props.blocks}
-                        dueTasks={props.dueTasks}
-                        personDates={props.personDates ?? []}
-                        followUps={props.followUps ?? []}
+                        dueTasks={dueTasks}
+                        personDates={personDates}
+                        followUps={followUps}
+                        markers={markers}
                         clock={clock}
                         onEvent={openEvent}
                         onDay={(d) => go(d, 'day')}
@@ -608,7 +649,7 @@ export default function Planner() {
                                 </button>
                             ))}
                         </div>
-                        {(allDay.length > 0 || (props.personDates ?? []).length > 0 || (props.followUps ?? []).length > 0) && (
+                        {(allDay.length > 0 || personDates.length > 0 || followUps.length > 0 || markers.length > 0) && (
                             <div className="pg-allday">
                                 <span className="pg-gutter">all day</span>
                                 {props.days.map((d) => (
@@ -625,7 +666,7 @@ export default function Planner() {
                                                     <span className="pev-title">{e.title}</span>
                                                 </button>
                                             ))}
-                                        {(props.personDates ?? [])
+                                        {personDates
                                             .filter((pd) => pd.date === d)
                                             .map((pd) => (
                                                 <Link key={pd.key} className="pev is-date" href={`/people?person=${pd.personId}`}>
@@ -636,7 +677,7 @@ export default function Planner() {
                                                     <span className="pev-title">{pd.title}</span>
                                                 </Link>
                                             ))}
-                                        {(props.followUps ?? [])
+                                        {followUps
                                             .filter((f) => f.date === d)
                                             .map((f) => (
                                                 <Link
@@ -647,6 +688,19 @@ export default function Planner() {
                                                 >
                                                     <Icon name="followUp" className="ic-xs" />
                                                     <span className="pev-title">{f.title}</span>
+                                                </Link>
+                                            ))}
+                                        {markers
+                                            .filter((m) => m.date === d)
+                                            .map((m) => (
+                                                <Link
+                                                    key={m.key}
+                                                    className={`pev is-date is-${m.kind}${m.done ? ' is-done' : ''}`}
+                                                    href={m.href}
+                                                    title={m.title}
+                                                >
+                                                    <Icon name={m.done ? 'check' : MARKER_ICON[m.kind]} className="ic-xs" />
+                                                    <span className="pev-title">{m.title}</span>
                                                 </Link>
                                             ))}
                                     </div>
@@ -793,7 +847,7 @@ export default function Planner() {
                                                 </button>
                                             );
                                         })}
-                                        {props.dueTasks
+                                        {dueTasks
                                             .filter((t) => local(clock, t.dueAt).date === d)
                                             .map((t) => {
                                                 const m = local(clock, t.dueAt).min;
@@ -1002,6 +1056,8 @@ function PlannerMenu({
     clock,
     hidden,
     onToggle,
+    off,
+    onShow,
     onNew,
     onHours,
     onBook,
@@ -1012,6 +1068,8 @@ function PlannerMenu({
     clock: Clock;
     hidden: CalendarKey[];
     onToggle: (k: CalendarKey) => void;
+    off: ShowKey[];
+    onShow: (k: ShowKey) => void;
     onNew: () => void;
     onHours: () => void;
     onBook: (taskId: number) => void;
@@ -1086,6 +1144,19 @@ function PlannerMenu({
                         <Icon name={icon} />
                         <span className="label">{label}</span>
                         <span className="count">{hidden.includes(k) ? 'hidden' : props.calendars[k] || ''}</span>
+                    </button>
+                ))}
+                <div className="nav-label">Show</div>
+                {SHOW.map(([k, label, icon]) => (
+                    <button
+                        key={k}
+                        className={`nav-item${off.includes(k) ? ' is-off' : ''}`}
+                        aria-pressed={!off.includes(k)}
+                        onClick={() => onShow(k)}
+                    >
+                        <Icon name={icon} />
+                        <span className="label">{label}</span>
+                        <span className="count">{off.includes(k) ? 'hidden' : ''}</span>
                     </button>
                 ))}
                 <button className="nav-item" onClick={onHours}>

@@ -49,6 +49,38 @@ class HabitTimes
         return $out->sortBy(fn ($o) => $o['start']->getTimestamp())->values();
     }
 
+    /**
+     * Habits with no set time, on the days they are due (the Planner's all-day row): ones
+     * with fixed days or "every N days". Weekly or monthly counts and limits have no day.
+     *
+     * @param  CarbonImmutable  $from  the first day (local midnight)
+     * @param  CarbonImmutable  $to  the day after the last (local midnight)
+     * @return list<array{key: string, id: int, date: string, title: string, done: bool}>
+     */
+    public static function untimed(User $user, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $habits = $user->habits()->whereNull('archived_at')->whereNull('per_week')->whereNull('per_month')
+            ->where(fn ($q) => $q->whereNull('at_time')->orWhereNull('minutes'))
+            ->where(fn ($q) => $q->whereNull('kind')->orWhereNotIn('kind', ['limit', 'avoid']))
+            ->with(['entries' => fn ($q) => $q->where('day', '>=', $from->toDateString())->where('day', '<', $to->toDateString()), 'pauses'])
+            ->orderBy('name')->get();
+
+        $out = [];
+        foreach ($habits as $h) {
+            $entries = $h->entries->keyBy(fn ($e) => $e->day->toDateString());
+            for ($d = $from; $d < $to; $d = $d->addDay()) {
+                $day = $d->toDateString();
+                if (! $h->isDue($d) || $h->pausedOn($day) || ($h->starts_on && $day < $h->starts_on->toDateString())) {
+                    continue;
+                }
+                $e = $entries[$day] ?? null;
+                $out[] = ['key' => "hm{$h->id}:{$day}", 'id' => $h->id, 'date' => $day, 'title' => $h->name, 'done' => $e && ! $e->skipped && $h->achieved($e->count)];
+            }
+        }
+
+        return $out;
+    }
+
     /** As the Planner grid and Home's plan show it. */
     public static function present(array $o): array
     {

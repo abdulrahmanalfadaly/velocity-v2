@@ -1741,6 +1741,7 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .pev.is-cancelled { opacity: .6; border-style: dashed; }
 .pev.is-cancelled .pev-title { text-decoration: line-through; }
 .pev-lock { margin-left: 4px; color: var(--text-3); }
+.pev.is-date.is-done { opacity: .6; }
 .mg-item.is-cancelled { opacity: .6; }
 .mg-item.is-cancelled .mg-t { text-decoration: line-through; }
 .pblock.is-ghost.is-event { background: var(--surface-3); color: var(--text-2); box-shadow: 0 0 0 2px var(--text-3), var(--sh-lg); }
