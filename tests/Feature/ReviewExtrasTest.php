@@ -43,6 +43,40 @@ class ReviewExtrasTest extends TestCase
         return $out;
     }
 
+    public function test_pick_dates_compares_with_the_same_number_of_days_before(): void
+    {
+        $done = fn (string $title, string $at) => $this->user->tasks()->create(['title' => $title, 'importance' => 3, 'urgency' => 3, 'est_hours' => 1, 'status' => 'done', 'completed_at' => $this->local($at)]);
+        $done('Survey', '2026-09-01 09:00');
+        $done('Chapter 2', '2026-10-20 15:00');
+        $done('Proposal', '2026-08-31 20:00'); // the day before: in the stretch before
+        $done('Old', '2026-06-15 10:00'); // too early for either
+
+        // 1 Sep – 11 Nov (today): 72 days, compared with the 72 days before.
+        $r = $this->report(['view' => 'range', 'from' => '2026-09-01', 'to' => '2026-11-11']);
+        $this->assertSame(['range', '2026-09-01', '2026-11-11', 72, false], [$r['kind'], $r['start'], $r['last'], $r['length'], $r['inProgress']]);
+        $this->assertSame(['start' => '2026-06-21', 'last' => '2026-08-31'], $r['prev']);
+        $this->assertSame([2, 1], [$r['now']['tasks'], $r['before']['tasks']]);
+        $this->assertCount(72, $r['days']);
+
+        // The other way round is put in order; no dates: the last 30 days; never longer than a year.
+        $this->assertSame(['2026-09-01', '2026-10-01'], [($x = $this->report(['view' => 'range', 'from' => '2026-10-01', 'to' => '2026-09-01']))['start'], $x['last']]);
+        $this->assertSame(['2026-10-13', '2026-11-11'], [($x = $this->report(['view' => 'range']))['start'], $x['last']]);
+        $this->assertSame(366, $this->report(['view' => 'range', 'from' => '2025-01-01', 'to' => '2026-11-11'])['length']);
+
+        // A stretch running past today is "so far", compared with as many days before.
+        $r = $this->report(['view' => 'range', 'from' => '2026-11-01', 'to' => '2026-11-30']);
+        $this->assertTrue($r['inProgress']);
+        $this->assertSame(['start' => '2026-10-02', 'last' => '2026-10-12'], $r['prev']);
+
+        // The API: the same numbers.
+        $key = $this->user->createToken('Mark', ['*'])->plainTextToken;
+        $this->app['auth']->forgetGuards();
+        $this->getJson('/api/v1/review?period=range&from=2026-09-01&to=2026-11-11', ['Authorization' => "Bearer {$key}"])
+            ->assertOk()->assertJsonPath('data.length', 72)->assertJsonPath('data.now.tasks', 2);
+        $this->getJson('/api/v1/review?period=range&from=2025-01-01&to=2026-11-11', ['Authorization' => "Bearer {$key}"])->assertStatus(422);
+        $this->getJson('/api/v1/review?period=range', ['Authorization' => "Bearer {$key}"])->assertStatus(422);
+    }
+
     public function test_what_changed_counts_each_kind_with_its_items(): void
     {
         // Added (a repeat's next copy is not "added"), cancelled with a reason, opened again, postponed twice.

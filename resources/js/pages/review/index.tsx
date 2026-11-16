@@ -1,4 +1,5 @@
 import { BarChart, SplitBars } from '@/components/velocity/charts';
+import { DatePick } from '@/components/velocity/date-pick';
 import { DayMark } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import VelocityShell from '@/layouts/velocity-shell';
@@ -30,7 +31,9 @@ interface ActivityItem {
 }
 
 interface Report {
-    kind: 'day' | 'week' | 'month';
+    kind: 'day' | 'week' | 'month' | 'range';
+    /** How many days it covers. */
+    length: number;
     start: string;
     last: string;
     inProgress: boolean;
@@ -72,7 +75,7 @@ interface Weekly {
 }
 
 interface Props extends VelocityShared {
-    view: 'day' | 'week' | 'month' | 'weeks' | 'weekly' | 'focus';
+    view: 'day' | 'week' | 'month' | 'range' | 'weeks' | 'weekly' | 'focus';
     today: string;
     report: Report | null;
     weeks: { start: string; done: number; onTime: number; withDue: number; focus: number }[];
@@ -109,13 +112,30 @@ const keep = { preserveScroll: true, preserveState: true };
 const at = (d: string) => new Date(`${d}T12:00:00Z`);
 const day = (d: string, clock: Clock, opts: Intl.DateTimeFormatOptions) => clock.date(at(d), { ...opts, timeZone: 'UTC' });
 const shift = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+/** Days split into weeks from Monday (the first and last may be short). */
+function weeksOf<T extends { date: string }>(days: T[]): T[][] {
+    const out: T[][] = [];
+    days.forEach((d) => {
+        if (out.length === 0 || at(d.date).getUTCDay() === 1) out.push([]);
+        out[out.length - 1].push(d);
+    });
+    return out;
+}
 /** 90 → "1 h 30 min" */
 const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
 
 export default function Review() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
-    const title = { day: 'Today', week: 'This week', month: 'This month', weeks: '12 weeks', weekly: 'Weekly review', focus: 'Focus' }[props.view];
+    const title = {
+        day: 'Today',
+        week: 'This week',
+        month: 'This month',
+        range: 'Pick dates',
+        weeks: '12 weeks',
+        weekly: 'Weekly review',
+        focus: 'Focus',
+    }[props.view];
     return (
         <VelocityShell
             title={title}
@@ -137,15 +157,19 @@ export default function Review() {
 function compare(now: number, before: number, r: Report, fmt: (n: number) => string = String, on = true) {
     if (!on) return undefined;
     const was =
-        r.kind === 'day'
-            ? 'the day before'
-            : r.kind === 'week'
-              ? r.inProgress
-                  ? 'the same days last week'
-                  : 'last week'
-              : r.inProgress
-                ? 'the same days last month'
-                : 'last month';
+        r.kind === 'range'
+            ? r.inProgress
+                ? 'the same days before'
+                : `the ${r.length} days before`
+            : r.kind === 'day'
+              ? 'the day before'
+              : r.kind === 'week'
+                ? r.inProgress
+                    ? 'the same days last week'
+                    : 'last week'
+                : r.inProgress
+                  ? 'the same days last month'
+                  : 'last month';
     if (now === before) return `Same as ${was}`;
     return `${was.charAt(0).toUpperCase() + was.slice(1)} ${fmt(before)} · ${now > before ? '+' : '−'}${fmt(Math.abs(now - before))}`;
 }
@@ -222,35 +246,55 @@ function Activity({ r, clock, compareOn }: { r: Report; clock: Clock; compareOn:
 
 function LookBack({ r, clock }: { r: Report; clock: Clock }) {
     const go = (date?: string) => router.get(route('review.index', { view: r.kind, date }), {}, keep);
+    // Pick dates: both ends; the last day never before the first.
+    const goRange = (from: string, to: string) => router.get(route('review.index', { view: 'range', from, to: to < from ? from : to }), {}, keep);
+    const range = r.kind === 'range';
+    // Long stretches show a bar a week; habit marks only up to two months.
+    const byWeek = r.days.length > 62;
     // Compare with the period before: on unless switched off on this device.
     const [compareOn, setCompareOn] = useState(() => typeof localStorage === 'undefined' || localStorage.getItem('velocity.reviewCompare') !== 'off');
     const toggleCompare = () => {
         localStorage.setItem('velocity.reviewCompare', compareOn ? 'off' : 'on');
         setCompareOn(!compareOn);
     };
-    const heading =
-        r.kind === 'month'
-            ? day(r.start, clock, { month: 'long', year: 'numeric' })
-            : r.kind === 'day'
-              ? r.isCurrent
-                  ? 'Today'
-                  : day(r.start, clock, { weekday: 'long', day: 'numeric', month: 'long' })
-              : r.isCurrent
-                ? 'This week'
-                : `Week of ${day(r.start, clock, { day: 'numeric', month: 'short' })}`;
-    const unit = r.kind === 'day' ? 'day' : r.kind === 'week' ? 'week' : 'month';
+    const heading = range
+        ? `${day(r.start, clock, { day: 'numeric', month: 'short' })} – ${day(r.last, clock, { day: 'numeric', month: 'short' })}`
+        : r.kind === 'month'
+          ? day(r.start, clock, { month: 'long', year: 'numeric' })
+          : r.kind === 'day'
+            ? r.isCurrent
+                ? 'Today'
+                : day(r.start, clock, { weekday: 'long', day: 'numeric', month: 'long' })
+            : r.isCurrent
+              ? 'This week'
+              : `Week of ${day(r.start, clock, { day: 'numeric', month: 'short' })}`;
+    const unit = range ? `${r.length} days` : r.kind === 'day' ? 'day' : r.kind === 'week' ? 'week' : 'month';
     const n = r.now;
     const b = r.before;
     const pct = (d: { done: number; of: number }) => (d.of ? Math.round((d.done / d.of) * 100) : null);
+    const todayKey = clock.localInput(clock.now.toISOString()).slice(0, 10);
     const bars = (pick: (d: Report['days'][number]) => number, what: (v: number) => string) =>
-        r.days.map((d) => ({
-            key: d.date,
-            label: r.kind === 'week' ? day(d.date, clock, { weekday: 'narrow' }) : String(Number(d.date.slice(8))),
-            value: pick(d),
-            future: d.future,
-            now: d.date === clock.localInput(clock.now.toISOString()).slice(0, 10),
-            title: `${day(d.date, clock, { weekday: 'short', day: 'numeric', month: 'short' })}: ${d.future ? 'still to come' : what(pick(d))}`,
-        }));
+        byWeek
+            ? weeksOf(r.days).map((w) => {
+                  const value = w.reduce((s, d) => s + pick(d), 0);
+                  const future = w.every((d) => d.future);
+                  return {
+                      key: w[0].date,
+                      label: day(w[0].date, clock, { day: 'numeric', month: 'short' }),
+                      value,
+                      future,
+                      now: w.some((d) => d.date === todayKey),
+                      title: `Week of ${day(w[0].date, clock, { day: 'numeric', month: 'short' })}: ${future ? 'still to come' : what(value)}`,
+                  };
+              })
+            : r.days.map((d) => ({
+                  key: d.date,
+                  label: r.kind === 'week' ? day(d.date, clock, { weekday: 'narrow' }) : String(Number(d.date.slice(8))),
+                  value: pick(d),
+                  future: d.future,
+                  now: d.date === todayKey,
+                  title: `${day(d.date, clock, { weekday: 'short', day: 'numeric', month: 'short' })}: ${d.future ? 'still to come' : what(pick(d))}`,
+              }));
     const longer = r.estimates.filter((e) => e.focused > e.guess * 60 + 5).length;
 
     return (
@@ -259,7 +303,11 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                 <div>
                     <h1 className="h1">{heading}</h1>
                     <p className="page-sub">
-                        {r.kind === 'day' ? (
+                        {range ? (
+                            <>
+                                {day(r.last, clock, { year: 'numeric' })} · {r.length} {r.length === 1 ? 'day' : 'days'}
+                            </>
+                        ) : r.kind === 'day' ? (
                             day(r.start, clock, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
                         ) : (
                             <>
@@ -281,15 +329,45 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                         <Icon name="columns" className="ic-sm" />
                         Compare
                     </button>
-                    <button className="icon-btn" aria-label={`Previous ${unit}`} onClick={() => go(shift(r.start, -1))}>
+                    {range && (
+                        <span className="rv-range" role="group" aria-label="Dates">
+                            <DatePick
+                                className="input rv-range-pick"
+                                label="First day"
+                                value={r.start}
+                                clearable={false}
+                                onChange={(v) => v && goRange(v, r.last)}
+                            />
+                            <span aria-hidden="true">–</span>
+                            <DatePick
+                                className="input rv-range-pick"
+                                label="Last day"
+                                value={r.last}
+                                min={r.start}
+                                max={shift(r.start, 365)}
+                                clearable={false}
+                                onChange={(v) => v && goRange(r.start, v)}
+                            />
+                        </span>
+                    )}
+                    <button
+                        className="icon-btn"
+                        aria-label={`Previous ${unit}`}
+                        onClick={() => (range ? goRange(shift(r.start, -r.length), shift(r.start, -1)) : go(shift(r.start, -1)))}
+                    >
                         <Icon name="chevL" />
                     </button>
-                    {!r.isCurrent && (
+                    {!r.isCurrent && !range && (
                         <button className="btn btn-secondary btn-sm" onClick={() => go()}>
                             {r.kind === 'day' ? 'Today' : r.kind === 'week' ? 'This week' : 'This month'}
                         </button>
                     )}
-                    <button className="icon-btn" aria-label={`Next ${unit}`} disabled={r.isCurrent} onClick={() => go(shift(r.last, 1))}>
+                    <button
+                        className="icon-btn"
+                        aria-label={`Next ${unit}`}
+                        disabled={r.isCurrent}
+                        onClick={() => (range ? goRange(shift(r.last, 1), shift(r.last, r.length)) : go(shift(r.last, 1)))}
+                    >
                         <Icon name="chevR" />
                     </button>
                 </div>
@@ -334,30 +412,38 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
             {r.kind !== 'day' && (
                 <div className="rv-grid">
                     <section className="card rv-card">
-                        <h2 className="rv-title">Tasks done each day</h2>
+                        <h2 className="rv-title">Tasks done each {byWeek ? 'week' : 'day'}</h2>
                         <BarChart
                             empty={r.inProgress ? 'Nothing done yet' : 'Nothing done'}
                             bars={bars(
                                 (d) => d.done,
                                 (v) => `${v} done`,
                             )}
-                            label={`Tasks done each day: ${r.days
-                                .filter((d) => !d.future)
-                                .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.done}`)
-                                .join(', ')}`}
-                            table={['Day', 'Tasks done']}
+                            label={
+                                byWeek
+                                    ? `Tasks done each week, ${r.length} days`
+                                    : `Tasks done each day: ${r.days
+                                          .filter((d) => !d.future)
+                                          .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.done}`)
+                                          .join(', ')}`
+                            }
+                            table={[byWeek ? 'Week' : 'Day', 'Tasks done']}
                         />
                     </section>
                     <section className="card rv-card">
-                        <h2 className="rv-title">Focus each day</h2>
+                        <h2 className="rv-title">Focus each {byWeek ? 'week' : 'day'}</h2>
                         <BarChart
                             empty={r.inProgress ? 'No focus yet' : 'No focus'}
                             bars={bars((d) => d.focus, hm)}
-                            label={`Minutes focused each day: ${r.days
-                                .filter((d) => !d.future)
-                                .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.focus}`)
-                                .join(', ')}`}
-                            table={['Day', 'Minutes focused']}
+                            label={
+                                byWeek
+                                    ? `Minutes focused each week, ${r.length} days`
+                                    : `Minutes focused each day: ${r.days
+                                          .filter((d) => !d.future)
+                                          .map((d) => `${day(d.date, clock, { weekday: 'short', day: 'numeric' })} ${d.focus}`)
+                                          .join(', ')}`
+                            }
+                            table={[byWeek ? 'Week' : 'Day', 'Minutes focused']}
                         />
                     </section>
                 </div>
@@ -395,11 +481,13 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                                           ? `${h.done} of ${h.of} days`
                                           : 'Nothing due'}
                                 </span>
-                                <span className={`rv-marks${r.kind === 'month' ? ' is-month' : ''}`}>
-                                    {h.marks.map((m) => (
-                                        <DayMark key={m.date} day={m} target={1} clock={clock} />
-                                    ))}
-                                </span>
+                                {!byWeek && (
+                                    <span className={`rv-marks${r.kind === 'month' || r.length > 7 ? ' is-month' : ''}`}>
+                                        {h.marks.map((m) => (
+                                            <DayMark key={m.date} day={m} target={1} clock={clock} />
+                                        ))}
+                                    </span>
+                                )}
                             </li>
                         ))}
                     </ul>
@@ -897,6 +985,7 @@ function ReviewMenu({ view, autoFocus }: { view: Props['view']; autoFocus: boole
                 {item('day', 'sun', 'Today', first)}
                 {item('week', 'calendar', 'This week')}
                 {item('month', 'planner', 'This month')}
+                {item('range', 'calClock', 'Pick dates')}
                 {item('weeks', 'review', '12 weeks')}
                 {item('focus', 'focus', 'Focus')}
                 <div className="nav-label">Look ahead</div>

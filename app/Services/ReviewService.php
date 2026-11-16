@@ -29,20 +29,25 @@ class ReviewService
         return $this->ranking->now()->timezone($user->timezone)->startOfDay();
     }
 
+    /** "Pick dates" in Review: a stretch of days up to a year long. */
+    public const MAX_RANGE_DAYS = 366;
+
     /**
      * The period around a day: its first day, the day after its last, how far it has
-     * got (today included), and the matching stretch of the period before.
+     * got (today included), and the matching stretch of the period before. A "range"
+     * runs from $day to $last, and is compared with the same number of days before it.
      */
-    public static function period(string $kind, CarbonImmutable $day, CarbonImmutable $today): array
+    public static function period(string $kind, CarbonImmutable $day, CarbonImmutable $today, ?CarbonImmutable $last = null): array
     {
         $start = match ($kind) {
             'month' => $day->startOfMonth(),
-            'day' => $day->startOfDay(),
+            'day', 'range' => $day->startOfDay(),
             default => $day->startOfWeek(CarbonImmutable::MONDAY),
         };
         $end = match ($kind) {
             'month' => $start->addMonth(),
             'day' => $start->addDay(),
+            'range' => ($last ?? $start)->max($start)->startOfDay()->addDay()->min($start->addDays(self::MAX_RANGE_DAYS)),
             default => $start->addWeek(),
         };
         $until = $end->min($today->addDay());
@@ -50,6 +55,7 @@ class ReviewService
         $prevStart = match ($kind) {
             'month' => $start->subMonth(),
             'day' => $start->subDay(),
+            'range' => $start->subDays((int) round($start->diffInDays($end))),
             default => $start->subWeek(),
         };
         $prevUntil = $prevStart->addDays($elapsed)->min($start);
@@ -65,10 +71,10 @@ class ReviewService
         ];
     }
 
-    public function report(User $user, string $kind, CarbonImmutable $day): array
+    public function report(User $user, string $kind, CarbonImmutable $day, ?CarbonImmutable $last = null): array
     {
         $today = $this->today($user);
-        $p = self::period($kind, $day->min($today), $today);
+        $p = self::period($kind, $day->min($today), $today, $last);
         $now = $this->numbers($user, $p['start'], $p['until'], $today);
         $before = $this->numbers($user, $p['prevStart'], $p['prevUntil'], $today);
         $days = (int) round($p['start']->diffInDays($p['end']));
@@ -104,6 +110,7 @@ class ReviewService
             'estimates' => $this->estimates($done),
             'habits' => $this->habits($user, $p['start'], $days, $today),
             'highlights' => $kind === 'day' ? [] : $this->highlights($user, $kind, $p, $now, $sessions),
+            'length' => $days,
             // What else happened: created, cancelled, reopened, postponed, finished projects, goals, milestones, moved blocks.
             'activity' => $this->activity($user, $p['start'], $p['until'], true),
             'activityBefore' => array_map(fn ($a) => $a['count'], $this->activity($user, $p['prevStart'], $p['prevUntil'], false)),
@@ -356,7 +363,7 @@ class ReviewService
     private function highlights(User $user, string $kind, array $p, array $now, Collection $sessions): array
     {
         $out = [];
-        if ($now['tasks'] > 0) {
+        if ($now['tasks'] > 0 && $kind !== 'range') {
             // The most tasks done in a period, over the last 12 weeks or 6 months.
             $best = true;
             for ($i = 1; $i <= ($kind === 'month' ? 6 : 12); $i++) {

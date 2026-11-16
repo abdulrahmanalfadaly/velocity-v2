@@ -27,22 +27,42 @@ class ReviewController extends Controller
     {
         $user = $request->user();
         $q = $request->validate([
-            'view' => ['nullable', Rule::in(['day', 'week', 'month', 'weeks', 'weekly', 'focus'])],
+            'view' => ['nullable', Rule::in(['day', 'week', 'month', 'range', 'weeks', 'weekly', 'focus'])],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'range' => ['nullable', Rule::in(['week', 'month'])],
+            // Pick dates: the first and last day (the last 30 days if not given).
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d'],
         ]);
         $view = $q['view'] ?? 'week';
         $today = $this->review->today($user);
         $day = isset($q['date']) ? CarbonImmutable::parse($q['date'], $user->timezone)->startOfDay() : $today;
+        $last = null;
+        if ($view === 'range') {
+            [$day, $last] = self::range($q['from'] ?? null, $q['to'] ?? null, $user, $today);
+        }
 
         return Inertia::render('review/index', [
             'view' => $view,
             'today' => $today->toDateString(),
-            'report' => in_array($view, ['day', 'week', 'month'], true) ? $this->review->report($user, $view, $day) : null,
+            'report' => in_array($view, ['day', 'week', 'month', 'range'], true) ? $this->review->report($user, $view, $day, $last) : null,
             'weeks' => $view === 'weeks' ? $this->review->weeks($user) : [],
             'weekly' => $view === 'weekly' ? $this->weekly($user, $today) : null,
             'focus' => $view === 'focus' ? $this->review->focus($user, $q['range'] ?? 'week', $day) : null,
         ]);
+    }
+
+    /**
+     * Pick dates: the first and last day asked for, in order; the last 30 days when not given.
+     *
+     * @return array{CarbonImmutable, CarbonImmutable}
+     */
+    public static function range(?string $from, ?string $to, User $user, CarbonImmutable $today): array
+    {
+        $a = $from ? CarbonImmutable::parse($from, $user->timezone)->startOfDay() : $today->subDays(29);
+        $b = $to ? CarbonImmutable::parse($to, $user->timezone)->startOfDay() : ($from ? $a->addDays(29)->min($today) : $today);
+
+        return $a <= $b ? [$a, $b] : [$b, $a];
     }
 
     /** "This week's review is done." */

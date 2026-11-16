@@ -2517,3 +2517,6 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .tot-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 560px) { .tot-pair { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .tot-card { transition: none; } button.tot-card:hover { transform: none; } }
+/* Review → Pick dates: the first and last day. */
+.rv-range { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); }
+.rv-range-pick { width: 138px; height: 32px; }

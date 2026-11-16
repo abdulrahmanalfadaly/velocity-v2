@@ -17,6 +17,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /** Who is calling, today at a glance, search across everything, and Review. */
 class OverviewController extends ApiController
@@ -122,15 +123,27 @@ class OverviewController extends ApiController
         return $this->ok($groups);
     }
 
-    /** The week's or month's numbers, as on Review: {"period": "week"|"month", "date"?}. */
+    /** The numbers, as on Review: {"period": "day"|"week"|"month", "date"?}, or {"period": "range", "from", "to"} (up to a year). */
     public function review(Request $request, ReviewService $review): JsonResponse
     {
         $user = $request->user();
-        $d = $request->validate(['period' => ['nullable', Rule::in(['day', 'week', 'month'])], 'date' => ['nullable', 'date_format:Y-m-d']]);
+        $d = $request->validate([
+            'period' => ['nullable', Rule::in(['day', 'week', 'month', 'range'])],
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'from' => ['required_if:period,range', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['required_if:period,range', 'nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
         $today = $review->today($user);
         $day = isset($d['date']) ? CarbonImmutable::parse($d['date'], $user->timezone)->startOfDay() : $today;
+        $last = null;
+        if (($d['period'] ?? null) === 'range') {
+            [$day, $last] = ReviewController::range($d['from'], $d['to'], $user, $today);
+            if ($day->diffInDays($last) >= ReviewService::MAX_RANGE_DAYS) {
+                throw ValidationException::withMessages(['to' => 'A range can be a year long at most.']);
+            }
+        }
 
-        return $this->ok($review->report($user, $d['period'] ?? 'week', $day));
+        return $this->ok($review->report($user, $d['period'] ?? 'week', $day, $last));
     }
 
     /** The weekly review's checklist for this week. */
