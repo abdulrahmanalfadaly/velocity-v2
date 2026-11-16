@@ -158,6 +158,7 @@ function DeleteAccount() {
                 </div>
             ) : (
                 <form onSubmit={submit} className="settings-form">
+                    <p className="settings-note">This removes your account and everything in it. It can’t be undone.</p>
                     <Field id="delete-password" label="Your password" error={errors.password}>
                         <input
                             id="delete-password"
@@ -171,7 +172,7 @@ function DeleteAccount() {
                         />
                     </Field>
                     <div className="settings-actions">
-                        <button type="submit" className="btn btn-secondary" disabled={processing}>
+                        <button type="submit" className="btn btn-danger" disabled={processing}>
                             Delete for good
                         </button>
                         <button type="button" className="btn btn-secondary" onClick={cancel}>

@@ -170,7 +170,8 @@ function compare(now: number, before: number, r: Report, fmt: (n: number) => str
                 : r.inProgress
                   ? 'the same days last month'
                   : 'last month';
-    if (now === before) return `Same as ${was}`;
+    // "Same as last month", not "Same as the same days last month".
+    if (now === before) return `Same as ${was.replace('the same days ', '')}`;
     return `${was.charAt(0).toUpperCase() + was.slice(1)} ${fmt(before)} · ${now > before ? '+' : '−'}${fmt(Math.abs(now - before))}`;
 }
 

@@ -2496,6 +2496,12 @@ a.pp-contact .pp-contact-value { color: var(--violet-ink); }
     .planner-head .planner-nav { gap: 2px; }
     .planner-head .page-actions > .btn { padding: 0 10px; }
 }
+/* On a narrow phone that one row is wider than the screen: Day / Week / Month gets its own full-width row. */
+@media (max-width: 480px) {
+    .planner-head .page-actions { flex-wrap: wrap; row-gap: 8px; }
+    .planner-head .planner-views { order: 3; flex: 1 0 100%; }
+    .planner-head .planner-views button { flex: 1; justify-content: center; }
+}
 
 .vc-empty { display: grid; place-items: center; margin: 0; padding: 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; color: var(--text-3); }
 
@@ -2570,3 +2576,10 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .main:focus { outline: none; }
 /* Weights: a number outside its range says so beside the box. */
 .w-error { margin-left: 10px; }
+/* The one button that deletes for good (the account): red, so it can't be mistaken for Cancel beside it. */
+.btn-danger { background: var(--critical); color: #fff; border: 1px solid transparent; }
+.btn-danger:hover { background: var(--critical-ink); }
+:root.dark .btn-danger { background: #c23b3b; }
+:root.dark .btn-danger:hover { background: #a93030; }
+/* A short value that must stay on one line ("1 min"). */
+.nowrap { white-space: nowrap; }

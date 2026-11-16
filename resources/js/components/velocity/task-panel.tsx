@@ -492,7 +492,7 @@ export function TaskPanel({
                                 Focused
                             </div>
                             <div className="prop-value">
-                                {fmtHours(task.focused.seconds / 3600)}
+                                <span className="nowrap">{fmtHours(task.focused.seconds / 3600)}</span>
                                 <span className="muted">
                                     · {task.focused.sessions} {task.focused.sessions === 1 ? 'session' : 'sessions'} · {fmtHours(task.estHours)}{' '}
                                     estimated

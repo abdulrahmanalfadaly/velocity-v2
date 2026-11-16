@@ -32,6 +32,25 @@ class PagesTest extends TestCase
         $this->get('/tasks')->assertRedirect('/login');
     }
 
+    public function test_a_wrong_link_shows_velocitys_own_page_and_the_api_still_answers_in_json(): void
+    {
+        $this->actingAs($this->user);
+        $this->get('/projects/999999')->assertNotFound()->assertInertia(fn (Assert $p) => $p->component('error')->where('status', 404));
+        $this->get('/nowhere-at-all')->assertNotFound()->assertInertia(fn (Assert $p) => $p->component('error')->where('status', 404));
+        $this->getJson('/api/v1/tasks/999999')->assertStatus(401)->assertJsonStructure(['error' => ['code', 'message']]);
+    }
+
+    public function test_a_task_with_open_subtasks_says_so_with_a_way_to_open_it(): void
+    {
+        $this->actingAs($this->user);
+        $parent = $this->user->tasks()->create(['title' => 'Report', 'importance' => 3, 'urgency' => 3, 'est_hours' => 1]);
+        $this->user->tasks()->create(['title' => 'Intro', 'parent_id' => $parent->id, 'importance' => 3, 'urgency' => 3, 'est_hours' => 1]);
+
+        $this->post(route('tasks.complete', $parent))->assertSessionHas('toast', '“Report” has 1 open subtask. Open it to choose.')
+            ->assertSessionHas('toastOpen', "/tasks?task={$parent->id}");
+        $this->assertNotSame('done', $parent->fresh()->status);
+    }
+
     public function test_every_screen_renders_with_the_demo_data(): void
     {
         $this->actingAs($this->user);

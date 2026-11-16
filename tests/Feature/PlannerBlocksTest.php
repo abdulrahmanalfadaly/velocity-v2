@@ -117,6 +117,18 @@ class PlannerBlocksTest extends TestCase
         $this->assertSame(['Thesis: Wed 10:00–11:30', 'Thesis: Thu 08:00–09:30', 'Thesis: Fri 08:00–09:30', 'Thesis: Sat 08:00–09:30'], $this->booked());
     }
 
+    public function test_a_day_that_holds_its_hours_says_so_instead_of_no_free_time(): void
+    {
+        $this->task('Thesis', ['est_hours' => 4]);
+        $email = $this->task('Email', ['est_hours' => 0.25, 'importance' => 1]);
+        $this->plan('day');
+        $this->assertSame('Booked 4 h · 1 didn’t fit', session('toast'));
+
+        // The afternoon is free, but Wednesday already has its 4 hours of work.
+        $this->plan('day', '2026-11-11', ['task_id' => $email->id]);
+        $this->assertSame('Wed already has its 4 h of work: no room for “Email”', session('toast'));
+    }
+
     public function test_working_hours_and_days_off_are_kept(): void
     {
         $hours = array_fill(0, 7, ['start' => '08:00', 'end' => '22:00']);
