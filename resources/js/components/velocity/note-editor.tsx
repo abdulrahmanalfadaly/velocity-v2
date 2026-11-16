@@ -501,7 +501,9 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
             h3: e.isActive('heading', { level: 3 }),
             bold: e.isActive('bold'),
             italic: e.isActive('italic'),
+            underline: e.isActive('underline'),
             strike: e.isActive('strike'),
+            inlineCode: e.isActive('code'),
             bullet: e.isActive('bulletList'),
             ordered: e.isActive('orderedList'),
             task: e.isActive('taskList'),
@@ -536,14 +538,17 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
             <i className="ntb-gap" />
             {b(s.bold, 'bold', 'Bold (Ctrl+B)', () => c().toggleBold().run())}
             {b(s.italic, 'italic', 'Italic (Ctrl+I)', () => c().toggleItalic().run())}
+            {b(s.underline, 'underline', 'Underline (Ctrl+U)', () => c().toggleUnderline().run())}
             {b(s.strike, 'strike', 'Strikethrough', () => c().toggleStrike().run())}
+            {b(s.inlineCode, 'code', 'Code in a line (Ctrl+E)', () => c().toggleCode().run())}
             <i className="ntb-gap" />
             {b(s.bullet, 'list', 'Bulleted list', () => c().toggleBulletList().run())}
             {b(s.ordered, 'listOl', 'Numbered list', () => c().toggleOrderedList().run())}
             {b(s.task, 'checklist', 'Checklist', () => c().toggleTaskList().run())}
             <i className="ntb-gap" />
             {b(s.quote, 'quote', 'Quote', () => c().toggleBlockquote().run())}
-            {b(s.code, 'code', 'Code', () => c().toggleCodeBlock().run())}
+            {b(s.code, 'codeBlock', 'Code block', () => c().toggleCodeBlock().run())}
+            {b(false, 'divider', 'Divider line', () => c().setHorizontalRule().run())}
             {b(s.table, 'table', 'Table', () => !s.table && c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
             {b(s.link || linking, 'link', 'Link', () => setLinking((v) => !v))}
             <button
@@ -699,7 +704,7 @@ function MakeTask({ editor, noteId }: { editor: Editor; noteId: number }) {
     );
 }
 
-/** Attachments: open, download, remove (with Undo). Drop files here or use Attach. */
+/** Attachments: open, download, remove (with Undo); a PDF shows inside the note. Drop files here or use Attach. */
 function NoteFiles({
     files,
     busy,
@@ -715,6 +720,8 @@ function NoteFiles({
 }) {
     const input = useRef<HTMLInputElement>(null);
     const [over, setOver] = useState(false);
+    // PDFs show inside the note unless hidden here.
+    const [hidden, setHidden] = useState<number[]>([]);
     const add = async (list: FileList | null) => {
         if (!list?.length) return;
         const picked = [...list];
@@ -761,7 +768,7 @@ function NoteFiles({
             {files.length > 0 && (
                 <ul className="p-file-list">
                     {files.map((f) => (
-                        <li key={f.id} className="p-file">
+                        <li key={f.id} className={`p-file${f.mime === 'application/pdf' ? ' is-pdf' : ''}`}>
                             <a href={f.url} target="_blank" rel="noreferrer" className="p-file-open" title={f.image ? 'Open' : 'Open or download'}>
                                 {f.image ? <img src={f.url} alt="" loading="lazy" /> : <Icon name="file" />}
                                 <span className="p-file-name">{f.name}</span>
@@ -770,6 +777,17 @@ function NoteFiles({
                             <a className="icon-btn" href={`${f.url}?download=1`} aria-label={`Download “${f.name}”`} title="Download">
                                 <Icon name="arrowR" className="ic-sm p-file-dl" />
                             </a>
+                            {f.mime === 'application/pdf' && (
+                                <button
+                                    className="icon-btn"
+                                    aria-pressed={!hidden.includes(f.id)}
+                                    aria-label={hidden.includes(f.id) ? `Show “${f.name}”` : `Hide “${f.name}”`}
+                                    title={hidden.includes(f.id) ? 'Show it here' : 'Hide the preview'}
+                                    onClick={() => setHidden((h) => (h.includes(f.id) ? h.filter((x) => x !== f.id) : [...h, f.id]))}
+                                >
+                                    <Icon name={hidden.includes(f.id) ? 'eye' : 'eyeOff'} className="ic-sm" />
+                                </button>
+                            )}
                             <button
                                 className="icon-btn"
                                 aria-label={`Remove “${f.name}”`}
@@ -778,6 +796,16 @@ function NoteFiles({
                             >
                                 <Icon name="x" className="ic-sm" />
                             </button>
+                            {/* A PDF shows inside the note (the browser's own viewer); "Open full size" opens it alone. */}
+                            {f.mime === 'application/pdf' && !hidden.includes(f.id) && (
+                                <div className="pdf-view">
+                                    <iframe src={`${f.url}#view=FitH`} title={f.name} loading="lazy" />
+                                    <a href={f.url} target="_blank" rel="noreferrer" className="pdf-full">
+                                        <Icon name="external" className="ic-xs" />
+                                        Open full size
+                                    </a>
+                                </div>
+                            )}
                         </li>
                     ))}
                 </ul>
