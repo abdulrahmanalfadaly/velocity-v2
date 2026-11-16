@@ -719,12 +719,26 @@ export function TaskPanel({
                         onBlur={(e) => e.target.value !== (task.notes ?? '') && patch(task.id, { notes: e.target.value || null })}
                     />
                     <div className="p-linked">
-                        {task.linkedNotes?.map((n) => (
-                            <Link key={n.id} className="p-linked-note" href={`/notes?note=${n.id}`}>
-                                <Icon name="notes" className="ic-sm" />
-                                <span>{n.title}</span>
-                            </Link>
-                        ))}
+                        {task.linkedNotes?.map((n) =>
+                            n.quote ? (
+                                // Made from words in this note: the link opens it at those words.
+                                <Link
+                                    key={n.id}
+                                    className="p-linked-note is-source"
+                                    href={`/notes?note=${n.id}&find=${encodeURIComponent(n.quote.slice(0, 80))}`}
+                                    title={`“${n.quote}”`}
+                                >
+                                    <Icon name="notes" className="ic-sm" />
+                                    <span>From note: {n.title}</span>
+                                    <Icon name="chevR" className="ic-xs" />
+                                </Link>
+                            ) : (
+                                <Link key={n.id} className="p-linked-note" href={`/notes?note=${n.id}`}>
+                                    <Icon name="notes" className="ic-sm" />
+                                    <span>{n.title}</span>
+                                </Link>
+                            ),
+                        )}
                         <button className="note-add" onClick={() => router.post(route('notes.store'), { task_id: task.id })}>
                             <Icon name="plus" className="ic-xs" />
                             New note

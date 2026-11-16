@@ -19,11 +19,11 @@ class Note extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['project_id', 'event_id', 'event_date', 'journal_date', 'title', 'body', 'body_text', 'pinned'];
+    protected $fillable = ['project_id', 'event_id', 'event_date', 'journal_date', 'title', 'body', 'body_text', 'pinned', 'archived_at'];
 
     protected function casts(): array
     {
-        return ['pinned' => 'boolean', 'event_date' => 'immutable_date', 'journal_date' => 'immutable_date'];
+        return ['pinned' => 'boolean', 'event_date' => 'immutable_date', 'journal_date' => 'immutable_date', 'archived_at' => 'immutable_datetime'];
     }
 
     protected static function booted(): void
@@ -44,7 +44,7 @@ class Note extends Model
 
     public function tasks(): BelongsToMany
     {
-        return $this->belongsToMany(Task::class)->withPivot('created_at')->orderByPivot('created_at');
+        return $this->belongsToMany(Task::class)->withPivot('created_at', 'quote')->orderByPivot('created_at');
     }
 
     public function people(): BelongsToMany

@@ -224,6 +224,8 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('notes/{note}/discard', [NoteController::class, 'discard'])->whereNumber('note')->name('notes.discard');
         Route::patch('notes/{note}', [NoteController::class, 'update'])->whereNumber('note')->name('notes.update');
         Route::delete('notes/{note}', [NoteController::class, 'destroy'])->whereNumber('note')->name('notes.destroy');
+        Route::post('notes/{note}/archive', [NoteController::class, 'archive'])->whereNumber('note')->name('notes.archive');
+        Route::post('notes/{note}/unarchive', [NoteController::class, 'unarchive'])->whereNumber('note')->name('notes.unarchive');
         Route::post('notes/{id}/restore', [NoteController::class, 'restore'])->whereNumber('id')->name('notes.restore');
         Route::post('notes/{note}/tasks', [NoteController::class, 'link'])->whereNumber('note')->name('notes.link');
         Route::delete('notes/{note}/tasks/{task}', [NoteController::class, 'unlink'])->whereNumber('note')->name('notes.unlink');

@@ -27,6 +27,8 @@ export interface NoteDetail {
     label: string;
     doc: JSONContent;
     pinned: boolean;
+    /** Archived: kept but read-only, out of the lists. */
+    archivedAt?: string | null;
     projectId: number | null;
     journalDate: string | null;
     event: { id: number; title: string; calendar: 'class' | 'work' | 'personal'; date: string; gone: boolean } | null;
@@ -87,6 +89,7 @@ export function NoteEditor({
     onBack: () => void;
 }) {
     const [title, setTitle] = useState(note.title);
+    const archived = !!note.archivedAt;
     const [status, setStatus] = useState<Status>('idle');
     const [error, setError] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -222,6 +225,33 @@ export function NoteEditor({
     });
     editorRef.current = editor;
 
+    // An archived note can be read, not changed.
+    useEffect(() => {
+        editor?.setEditable(!archived);
+    }, [editor, archived]);
+
+    // Opened from a task made from these words ("?find=…"): select them and show where they are.
+    useEffect(() => {
+        if (!editor) return;
+        const want = new URLSearchParams(window.location.search).get('find')?.trim().toLowerCase().slice(0, 80);
+        if (!want) return;
+        const hit = { from: -1, to: -1, block: -1 };
+        editor.state.doc.descendants((node, pos) => {
+            if (hit.from >= 0) return false;
+            if (!node.isTextblock) return true;
+            const i = node.textContent.toLowerCase().indexOf(want);
+            if (i >= 0) Object.assign(hit, { from: pos + 1 + i, to: pos + 1 + i + want.length, block: pos });
+            return false;
+        });
+        if (hit.from < 0) return;
+        editor.commands.setTextSelection({ from: hit.from, to: hit.to });
+        const el = editor.view.nodeDOM(hit.block) as HTMLElement | null;
+        el?.scrollIntoView({ block: 'center' });
+        el?.classList.add('is-found');
+        const t = setTimeout(() => el?.classList.remove('is-found'), 2600);
+        return () => clearTimeout(t);
+    }, [editor, note.id]);
+
     // Leaving the note (another note, another page): save what is left, and throw it away if nothing was ever put in it.
     useEffect(() => {
         const id = note.id;
@@ -306,7 +336,7 @@ export function NoteEditor({
                         statusText
                     )}
                 </span>
-                <StartFocus on={{ kind: 'note', id: note.id }} className="btn btn-ghost btn-sm" compact />
+                {!archived && <StartFocus on={{ kind: 'note', id: note.id }} className="btn btn-ghost btn-sm" compact />}
                 <button
                     className={`icon-btn${note.pinned ? ' is-on' : ''}`}
                     aria-pressed={note.pinned}
@@ -316,10 +346,29 @@ export function NoteEditor({
                 >
                     <Icon name={note.pinned ? 'pinOff' : 'pin'} />
                 </button>
+                {!archived && (
+                    <button
+                        className="icon-btn"
+                        aria-label="Archive note"
+                        title="Archive (kept, read-only)"
+                        onClick={() => void flush().then(() => router.post(route('notes.archive', note.id), {}, keep))}
+                    >
+                        <Icon name="archive" />
+                    </button>
+                )}
                 <button className="icon-btn" aria-label="Delete note" title="Delete" onClick={() => void remove()}>
                     <Icon name="trash" />
                 </button>
             </div>
+            {archived && (
+                <div className="archived-bar note-archived" role="status">
+                    <Icon name="archive" className="ic-sm" />
+                    <span>Archived · read only</span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => router.post(route('notes.unarchive', note.id), {}, keep)}>
+                        Restore
+                    </button>
+                </div>
+            )}
 
             <textarea
                 ref={titleBox}
@@ -328,6 +377,7 @@ export function NoteEditor({
                 value={title}
                 placeholder={note.label}
                 aria-label="Title"
+                readOnly={archived}
                 maxLength={200}
                 onChange={(e) => {
                     const v = e.target.value.replace(/\n/g, ' ');
@@ -477,7 +527,7 @@ export function NoteEditor({
                 )}
             </div>
 
-            {editor && <Toolbar editor={editor} onPicture={(f) => void upload(f)} busy={uploading} />}
+            {editor && !archived && <Toolbar editor={editor} onPicture={(f) => void upload(f)} busy={uploading} />}
             <div className="note-sheet">
                 <EditorContent editor={editor} />
                 {editor && <MakeTask editor={editor} noteId={note.id} />}

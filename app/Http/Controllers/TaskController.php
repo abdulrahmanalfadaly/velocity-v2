@@ -190,7 +190,8 @@ class TaskController extends Controller
             // Open tasks this one could be set to start after.
             'files' => $task->files->map(fn ($f) => $f->present())->values(),
             'reminders' => $task->reminders->map(fn ($r) => $r->present())->values(),
-            'linkedNotes' => $task->linkedNotes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
+            // A task made from a note's words keeps them ("quote"), to jump back to that place.
+            'linkedNotes' => $task->linkedNotes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'quote' => $n->pivot->quote])->values(),
             'people' => $task->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values(),
             'peopleChoices' => $user->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'focused' => ['seconds' => (int) $task->focusSessions()->whereNotNull('ended_at')->sum('seconds'), 'sessions' => $task->focusSessions()->whereNotNull('ended_at')->count()],

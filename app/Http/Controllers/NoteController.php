@@ -60,7 +60,7 @@ class NoteController extends Controller
             'personOptions' => $open ? $user->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']) : [],
             // What "Link note, goal or habit" can choose from.
             'linkOptions' => $open ? [
-                'note' => $user->notes()->whereKeyNot($open->id)->with('event')->latest('updated_at')->limit(300)->get()->map(fn (Note $n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
+                'note' => $user->notes()->whereKeyNot($open->id)->whereNull('archived_at')->with('event')->latest('updated_at')->limit(300)->get()->map(fn (Note $n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
                 'goal' => $user->goals()->whereNull('archived_at')->orderBy('title')->get(['id', 'title']),
                 'habit' => $user->habits()->whereNull('archived_at')->orderBy('name')->get(['id', 'name'])->map(fn ($h) => ['id' => $h->id, 'title' => $h->name])->values(),
             ] : null,
@@ -116,6 +116,9 @@ class NoteController extends Controller
         if ($request->has('title')) {
             $note->title = (string) ($data['title'] ?? '');
         }
+        if ($note->archived_at) {
+            throw ValidationException::withMessages(['body' => 'This note is archived: restore it to change it.']);
+        }
         if ($request->has('body')) {
             $doc = json_decode((string) ($data['body'] ?? ''), true);
             if (! is_array($doc) || ($doc['type'] ?? null) !== 'doc') {
@@ -127,6 +130,25 @@ class NoteController extends Controller
         $note->save();
 
         return response()->json(['updatedAt' => $note->updated_at?->toIso8601ZuluString(), 'title' => $note->displayTitle(), 'preview' => $note->preview()]);
+    }
+
+    /** Archive: kept, read-only, out of the lists (Notes › Archived). Undo or Restore brings it back. */
+    public function archive(Request $request, Note $note): RedirectResponse
+    {
+        $this->own($note, $request->user());
+        $note->timestamps = false;
+        $note->update(['archived_at' => $this->ranking->now()]);
+
+        return back()->with('toast', "Archived “{$note->displayTitle()}”")->with('undo', $this->undo('unarchive-note', $note->id));
+    }
+
+    public function unarchive(Request $request, Note $note): RedirectResponse
+    {
+        $this->own($note, $request->user());
+        $note->timestamps = false;
+        $note->update(['archived_at' => null]);
+
+        return back()->with('toast', "“{$note->displayTitle()}” is back");
     }
 
     /** Leaving a note with nothing in it: it goes (never shown in the list, never needs deleting). */
@@ -272,16 +294,22 @@ class NoteController extends Controller
         }
         $task = $user->tasks()->create(['title' => $title, 'importance' => 3, 'urgency' => 3, 'est_hours' => 1, 'project_id' => $note->project_id]);
         $task->events()->create(['user_id' => $user->id, 'type' => 'created']);
-        $note->tasks()->attach($task->id, ['created_at' => now()]);
+        // The words it came from, to jump back to them from the task.
+        $note->tasks()->attach($task->id, ['created_at' => now(), 'quote' => Str::limit($title, 300, '')]);
         $rank = $this->ranking->rank($user)->rankOf($task->id);
         $where = $note->project ? $note->project->name : 'Inbox';
 
         return back()->with('toast', "Added “{$task->title}” to {$where}".($rank ? " · #{$rank}" : ''))->with('undo', $this->undo('delete-task', $task->id));
     }
 
-    /** Which notes a place in the side menu shows, in its order. */
+    /** Which notes a place in the side menu shows, in its order. Archived notes show only under Archived. */
     private function scope(Builder $b, string $in): Builder
     {
+        if ($in === 'archived') {
+            return $b->whereNotNull('archived_at')->latest('archived_at');
+        }
+        $b->whereNull('archived_at');
+
         return match (true) {
             $in === 'journal' => $b->whereNotNull('journal_date')->orderByDesc('journal_date'),
             $in === 'pinned' => $b->where('pinned', true)->latest('updated_at'),
@@ -302,6 +330,7 @@ class NoteController extends Controller
             'pinned' => $count('pinned'),
             'journal' => $count('journal'),
             'loose' => $count('loose'),
+            'archived' => $count('archived'),
             'projects' => $user->projects()->whereHas('notes')->withCount('notes')->orderBy('name')->get()
                 ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'count' => $p->notes_count])->values(),
             'events' => Event::withTrashed()->where('user_id', $user->id)->whereHas('notes')->withCount('notes')->orderBy('title')->get()
@@ -337,6 +366,7 @@ class NoteController extends Controller
             'label' => $n->displayTitle(),
             'doc' => $n->doc(),
             'pinned' => $n->pinned,
+            'archivedAt' => $n->archived_at?->toIso8601ZuluString(),
             'projectId' => $n->project_id,
             'journalDate' => $n->journal_date?->toDateString(),
             'event' => $n->event_date ? [

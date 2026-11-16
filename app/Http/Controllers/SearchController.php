@@ -65,11 +65,11 @@ class SearchController extends Controller
             ->map(fn ($p) => ['kind' => 'project', 'id' => $p->id, 'title' => $p->name, 'sub' => $tag($p, 'Project'), 'url' => route('projects.show', $p)]);
         $goals = $live($user->goals())->where('title', 'like', $like)->limit(3 * $more)->get()
             ->map(fn ($g) => ['kind' => 'goal', 'id' => $g->id, 'title' => $g->title, 'sub' => $tag($g, 'Goal'), 'url' => route('goals.index', ['focus' => 'g'.$g->id])]);
-        $notes = $user->notes()->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like))->with(['project', 'event'])
+        $notes = $live($user->notes())->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like))->with(['project', 'event'])
             ->orderByRaw('case when title like ? then 0 else 1 end', [$like])->latest('updated_at')->limit(5 * $more)->get()
             ->map(fn ($n) => [
                 'kind' => 'note', 'id' => $n->id, 'title' => $n->displayTitle(),
-                'sub' => $n->journal_date ? 'Journal' : ($n->project?->name ?? ($n->event_date ? 'Class notes' : 'Note')),
+                'sub' => $tag($n, $n->journal_date ? 'Journal' : ($n->project?->name ?? ($n->event_date ? 'Class notes' : 'Note'))),
                 'url' => route('notes.index', ['in' => $n->journal_date ? 'journal' : ($n->project_id ? "p{$n->project_id}" : null), 'note' => $n->id]),
                 'snippet' => $more > 1 ? self::snippet((string) $n->body_text, $q) : null,
             ]);

@@ -81,7 +81,7 @@ class HomeController extends Controller
             // Today's journal entry (if written) and the notes touched last.
             'notes' => [
                 'journal' => $user->notes()->whereDate('journal_date', $today->toDateString())->where(fn ($q) => $q->where('body_text', '!=', '')->orWhere('title', '!=', ''))->exists(),
-                'recent' => $user->notes()->whereNull('journal_date')->with('event')->latest('updated_at')->limit(3)->get()
+                'recent' => $user->notes()->whereNull('journal_date')->whereNull('archived_at')->with('event')->latest('updated_at')->limit(3)->get()
                     ->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
             ],
             // Birthdays and dates this week, and catch-ups that are due.

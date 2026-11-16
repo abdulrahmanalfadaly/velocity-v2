@@ -100,7 +100,7 @@ export type TaskDetail = BaseTask &
         files: TaskFileInfo[];
         reminders: TaskReminderInfo[];
         /** Notes linked to the task (Notes › Link task, or New note here). */
-        linkedNotes?: { id: number; title: string }[];
+        linkedNotes?: { id: number; title: string; quote?: string | null }[];
         /** People the task is about or waiting on. */
         people?: { id: number; name: string }[];
         peopleChoices?: { id: number; name: string }[];

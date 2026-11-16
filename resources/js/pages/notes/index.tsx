@@ -31,6 +31,7 @@ interface Props extends VelocityShared {
         pinned: number;
         journal: number;
         loose: number;
+        archived?: number;
         projects: { id: number; name: string; count: number }[];
         events: { id: number; title: string; calendar: 'class' | 'work' | 'personal'; count: number }[];
     };
@@ -286,6 +287,12 @@ function NotesMenu({
                 {m.events.map((e) => item(`e${e.id}`, CAL_ICON[e.calendar], e.title, e.count))}
                 {m.projects.length > 0 && <div className="nav-label">Projects</div>}
                 {m.projects.map((p) => item(`p${p.id}`, 'folder', p.name, p.count))}
+                {(m.archived ?? 0) > 0 && (
+                    <>
+                        <div className="nav-label">More</div>
+                        {item('archived', 'archive', 'Archived', m.archived)}
+                    </>
+                )}
             </nav>
         </>
     );

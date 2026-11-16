@@ -161,7 +161,7 @@ class Task extends Model
     /** Notes linked to this task (the task's own short notes are the `notes` column). */
     public function linkedNotes(): BelongsToMany
     {
-        return $this->belongsToMany(Note::class)->latest('updated_at');
+        return $this->belongsToMany(Note::class)->withPivot('quote')->latest('updated_at');
     }
 
     public function scopeOpen(Builder $query): Builder
