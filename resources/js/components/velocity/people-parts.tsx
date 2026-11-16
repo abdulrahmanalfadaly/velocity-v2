@@ -1,6 +1,6 @@
-import type { Clock } from '@/lib/velocity';
+import { firstName, type Clock } from '@/lib/velocity';
 import { router, useForm } from '@inertiajs/react';
-import { type FormEvent, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
@@ -657,7 +657,7 @@ export function FollowUpPop({
     y: number;
     onClose: () => void;
 }) {
-    const first = person.name.split(' ')[0];
+    const first = firstName(person.name);
     const inThree = new Date(Date.parse(`${today}T12:00:00Z`) + 3 * 864e5).toISOString().slice(0, 10);
     const [title, setTitle] = useState(`Follow up with ${first}`);
     const [on, setOn] = useState(inThree);

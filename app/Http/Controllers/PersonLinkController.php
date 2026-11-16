@@ -78,7 +78,7 @@ class PersonLinkController extends Controller
             'title' => ['nullable', 'string', 'max:255'],
             'on' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$today],
         ], ['on.after_or_equal' => 'Pick today or a day ahead.']);
-        $first = Str::before($person->name, ' ');
+        $first = $person->callName();
         $task = $user->tasks()->create([
             'title' => Str::limit(trim($d['title'] ?? '') ?: "Follow up with {$first}", 255, ''),
             'importance' => 3, 'urgency' => 3, 'est_hours' => 0.25,

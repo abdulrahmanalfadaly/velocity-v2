@@ -137,7 +137,7 @@ function DrawingView({ node, updateAttributes, editor }: NodeViewProps) {
     };
 
     const down = (e: ReactPointerEvent<SVGSVGElement>) => {
-        if (!editable || e.button !== 0) return;
+        if (!editor.isEditable || e.button !== 0) return; // checked now: the note may have been archived since
         if (!active) {
             setActive(true);
             return;
@@ -173,7 +173,7 @@ function DrawingView({ node, updateAttributes, editor }: NodeViewProps) {
 
     // Drag the bottom edge: a taller or shorter drawing.
     const resize = (e: ReactPointerEvent<HTMLDivElement>) => {
-        if (!editable) return;
+        if (!editor.isEditable) return;
         e.preventDefault();
         const startY = e.clientY;
         const startH = height;

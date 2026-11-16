@@ -675,7 +675,7 @@ export function HabitDialog({
                             id="h-starts"
                             value={data.starts_on}
                             onChange={(v) => setData('starts_on', v)}
-                            placeholder={data.schedule === 'every' ? 'Today' : 'Now'}
+                            placeholder={habitId ? 'No start date' : data.schedule === 'every' ? 'Today' : 'Now'}
                         />
                     </Field>
                     <Field id="h-ends" label="Ends" error={errors.ends_on}>

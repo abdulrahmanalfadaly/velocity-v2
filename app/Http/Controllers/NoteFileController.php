@@ -23,6 +23,7 @@ class NoteFileController extends Controller
     {
         $user = $request->user();
         $this->own($note, $user);
+        abort_if($note->archived_at !== null, 422, 'This note is archived. Restore it to add files.');
         $request->validate([
             'files' => ['required', 'array', 'min:1', 'max:10'],
             'files.*' => ['file', 'max:'.TaskFileController::MAX_KB],
@@ -67,6 +68,7 @@ class NoteFileController extends Controller
     public function destroy(Request $request, NoteFile $file): RedirectResponse
     {
         $this->own($file, $request->user());
+        abort_if($file->note?->archived_at !== null, 422, 'This note is archived. Restore it to remove files.');
         $file->delete();
 
         return back()->with('toast', "Removed “{$file->name}”")->with('undo', $this->undo('restore-note-file', $file->id));

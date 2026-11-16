@@ -51,7 +51,16 @@ export default function People() {
     const [dialog, setDialog] = useState<null | 'new' | 'edit'>(null);
     const [dateDialog, setDateDialog] = useState<null | { date?: PersonDate }>(null);
     const open = (id: number | null) =>
-        router.get(route('people.index', { view: view === 'all' ? undefined : view, person: id ?? undefined }), {}, keep);
+        router.get(
+            route('people.index', {
+                view: view === 'all' ? undefined : view,
+                person: id ?? undefined,
+                // Birthdays & dates keeps how far ahead it was looking.
+                days: view === 'dates' && props.days && props.days !== 60 ? props.days : undefined,
+            }),
+            {},
+            keep,
+        );
     const title = props.group?.name ?? TITLES[view] ?? 'People';
     // The list's search: names, nicknames, who they are, where, groups and contacts.
     const [q, setQ] = useState('');
@@ -91,7 +100,14 @@ export default function People() {
                 <header className="page-head">
                     <div>
                         <h1 className="h1">
-                            {title} <span className="count">{view === 'dates' ? props.upcoming.length : props.people.length}</span>
+                            {title}{' '}
+                            <span className="count">
+                                {view === 'dates'
+                                    ? props.upcoming.length
+                                    : words.length > 0
+                                      ? `${shown.length} of ${props.people.length}`
+                                      : props.people.length}
+                            </span>
                         </h1>
                         {view === 'dates' && (
                             <div className="layout-seg pp-days" role="radiogroup" aria-label="How far ahead">
@@ -127,7 +143,7 @@ export default function People() {
                     </div>
                 )}
                 {view === 'dates' ? (
-                    <DatesList dates={props.upcoming} clock={clock} activeId={props.person?.id} onOpen={open} />
+                    <DatesList dates={props.upcoming} days={props.days ?? 60} clock={clock} activeId={props.person?.id} onOpen={open} />
                 ) : props.people.length === 0 ? (
                     <section className="card hb-empty">
                         <Icon name="people" />
@@ -194,12 +210,24 @@ export default function People() {
 }
 
 /** Birthdays and dates coming round, by day. */
-function DatesList({ dates, clock, activeId, onOpen }: { dates: PersonDate[]; clock: Clock; activeId?: number; onOpen: (id: number) => void }) {
+function DatesList({
+    dates,
+    days,
+    clock,
+    activeId,
+    onOpen,
+}: {
+    dates: PersonDate[];
+    days: number;
+    clock: Clock;
+    activeId?: number;
+    onOpen: (id: number) => void;
+}) {
     if (dates.length === 0)
         return (
             <section className="card hb-empty">
                 <Icon name="gift" />
-                <p>Nothing in the next 60 days.</p>
+                <p>Nothing in the next {days} days.</p>
             </section>
         );
     return (

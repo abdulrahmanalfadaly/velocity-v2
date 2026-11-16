@@ -165,7 +165,9 @@ class GoalController extends Controller
             'tasks' => $shown($direct->get($g->id, collect()))->map($taskNode)->values(),
             // Notes linked to the goal (a note's "Link" picker).
             'notes' => NoteLink::notesFor($user, 'goal', $g->id),
-            'habits' => $g->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
+            // Habits that serve it, unless already shown under one of its projects.
+            'habits' => $g->habits->reject(fn ($h) => $h->project_id && $g->projects->contains('id', $h->project_id))
+                ->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
         ])->values();
         if ($other->isNotEmpty()) {
             $branches->push(['id' => 0, 'title' => 'Other projects', 'why' => null, 'target' => null, 'color' => 0, 'icon' => 'folder', 'projects' => $other->map($projectNode)->values(), 'notes' => []]);

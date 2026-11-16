@@ -70,6 +70,13 @@ class HabitsPhase12Test extends TestCase
         $this->patch(route('habits.update', $h), ['name' => 'Read more', 'kind' => 'do', 'schedule' => 'daily', 'target' => 1])->assertSessionHasNoErrors();
         $h->refresh();
         $this->assertSame(['Read more', '20 pages', 'Clear head', $area->id, 2], [$h->name, $h->description, $h->why, $h->area_id, $h->goals()->count()]);
+
+        // Not twice on the map: in a project of that goal, it shows under the project only.
+        $run = $this->user->projects()->create(['name' => 'Run a 5K', 'goal_id' => $health->id]);
+        $h->update(['project_id' => $run->id]);
+        $this->get(route('goals.index'))->assertInertia(fn (Assert $p) => $p
+            ->where('goals', fn ($goals) => collect(collect($goals)->firstWhere('id', $health->id)['habits'])->isEmpty()
+                && collect(collect($goals)->firstWhere('id', $goal->id)['habits'])->pluck('name')->all() === ['Read more']));
     }
 
     public function test_the_numbers_count_partly_done_days_as_half_and_this_month_shows_every_day(): void

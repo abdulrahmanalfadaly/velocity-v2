@@ -116,7 +116,7 @@ class PersonApiController extends ApiController
         $this->own($person, $user);
         $today = $this->today($user)->toDateString();
         $d = $request->validate(['title' => ['nullable', 'string', 'max:255'], 'on' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$today]]);
-        $first = Str::before($person->name, ' ');
+        $first = $person->callName();
         $task = $user->tasks()->create([
             'title' => Str::limit(trim($d['title'] ?? '') ?: "Follow up with {$first}", 255, ''),
             'importance' => 3, 'urgency' => 3, 'est_hours' => 0.25,

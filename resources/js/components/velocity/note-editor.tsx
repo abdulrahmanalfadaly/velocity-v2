@@ -224,6 +224,7 @@ export function NoteEditor({
             live.current.empty = e.isEmpty && !hasDrawing(e.state.doc);
         },
         onUpdate: ({ editor: e }) => {
+            if (!e.isEditable) return; // an archived note never saves
             live.current.doc = e.getJSON();
             live.current.empty = e.isEmpty && !hasDrawing(e.state.doc);
             changed();
@@ -233,7 +234,7 @@ export function NoteEditor({
 
     // An archived note can be read, not changed.
     useEffect(() => {
-        editor?.setEditable(!archived);
+        editor?.setEditable(!archived, false);
     }, [editor, archived]);
 
     // Opened from a task made from these words ("?find=…"): select them and show where they are.
@@ -250,12 +251,29 @@ export function NoteEditor({
             return false;
         });
         if (hit.from < 0) return;
-        editor.commands.setTextSelection({ from: hit.from, to: hit.to });
-        const el = editor.view.nodeDOM(hit.block) as HTMLElement | null;
-        el?.scrollIntoView({ block: 'center' });
-        el?.classList.add('is-found');
-        const t = setTimeout(() => el?.classList.remove('is-found'), 2600);
-        return () => clearTimeout(t);
+        // A moment later, once the editor is on the page: select the words (shown, as the editor has the focus) and mark them
+        // softly for a few seconds. The mark uses the browser's highlight registry, so the editor's own text is left alone.
+        const marks = (globalThis.CSS as unknown as { highlights?: Map<string, unknown> }).highlights;
+        const Mark = (globalThis as unknown as { Highlight?: new (r: Range) => unknown }).Highlight;
+        let fade: ReturnType<typeof setTimeout> | undefined;
+        const start = setTimeout(() => {
+            if (editor.isDestroyed) return;
+            editor.chain().focus().setTextSelection({ from: hit.from, to: hit.to }).scrollIntoView().run();
+            (editor.view.nodeDOM(hit.block) as HTMLElement | null)?.scrollIntoView({ block: 'center' });
+            if (!marks || !Mark) return;
+            const a = editor.view.domAtPos(hit.from);
+            const b = editor.view.domAtPos(hit.to);
+            const range = document.createRange();
+            range.setStart(a.node, a.offset);
+            range.setEnd(b.node, b.offset);
+            marks.set('note-found', new Mark(range));
+            fade = setTimeout(() => marks.delete('note-found'), 4000);
+        }, 60);
+        return () => {
+            clearTimeout(start);
+            clearTimeout(fade);
+            marks?.delete('note-found');
+        };
     }, [editor, note.id]);
 
     // Leaving the note (another note, another page): save what is left, and throw it away if nothing was ever put in it.
@@ -571,7 +589,9 @@ export function NoteEditor({
             </div>
             {error && <p className="field-error">{error}</p>}
 
-            <NoteFiles files={note.files} busy={uploading} attach={attach} setError={setError} setBusy={setUploading} />
+            {(!archived || note.files.length > 0) && (
+                <NoteFiles files={note.files} busy={uploading} attach={attach} setError={setError} setBusy={setUploading} readOnly={archived} />
+            )}
         </article>
     );
 }
@@ -805,12 +825,14 @@ function NoteFiles({
     attach,
     setError,
     setBusy,
+    readOnly = false,
 }: {
     files: NoteFileInfo[];
     busy: boolean;
     attach: (files: File[]) => Promise<void>;
     setError: (e: string | null) => void;
     setBusy: (b: boolean) => void;
+    readOnly?: boolean;
 }) {
     const input = useRef<HTMLInputElement>(null);
     const [over, setOver] = useState(false);
@@ -833,7 +855,7 @@ function NoteFiles({
         }
     };
     const drag = (e: DragEvent, on: boolean) => {
-        if (![...e.dataTransfer.types].includes('Files')) return;
+        if (readOnly || ![...e.dataTransfer.types].includes('Files')) return;
         e.preventDefault();
         setOver(on);
     };
@@ -844,7 +866,7 @@ function NoteFiles({
             onDragEnter={(e) => drag(e, true)}
             onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setOver(false)}
             onDrop={(e) => {
-                if (![...e.dataTransfer.types].includes('Files')) return;
+                if (readOnly || ![...e.dataTransfer.types].includes('Files')) return;
                 e.preventDefault();
                 setOver(false);
                 void add(e.dataTransfer.files);
@@ -853,11 +875,15 @@ function NoteFiles({
         >
             <div className="note-files-head">
                 <h3>Files</h3>
-                <button className="btn btn-ghost btn-sm" onClick={() => input.current?.click()} disabled={busy}>
-                    <Icon name="paperclip" className="ic-sm" />
-                    {busy ? 'Adding…' : 'Attach'}
-                </button>
-                <input ref={input} type="file" multiple hidden onChange={(e) => void add(e.target.files)} aria-label="Attach files" />
+                {!readOnly && (
+                    <>
+                        <button className="btn btn-ghost btn-sm" onClick={() => input.current?.click()} disabled={busy}>
+                            <Icon name="paperclip" className="ic-sm" />
+                            {busy ? 'Adding…' : 'Attach'}
+                        </button>
+                        <input ref={input} type="file" multiple hidden onChange={(e) => void add(e.target.files)} aria-label="Attach files" />
+                    </>
+                )}
             </div>
             {files.length > 0 && (
                 <ul className="p-file-list">
@@ -882,18 +908,20 @@ function NoteFiles({
                                     <Icon name={hidden.includes(f.id) ? 'eye' : 'eyeOff'} className="ic-sm" />
                                 </button>
                             )}
-                            <button
-                                className="icon-btn"
-                                aria-label={`Remove “${f.name}”`}
-                                title="Remove"
-                                onClick={() => router.delete(route('note-files.destroy', f.id), keep)}
-                            >
-                                <Icon name="x" className="ic-sm" />
-                            </button>
+                            {!readOnly && (
+                                <button
+                                    className="icon-btn"
+                                    aria-label={`Remove “${f.name}”`}
+                                    title="Remove"
+                                    onClick={() => router.delete(route('note-files.destroy', f.id), keep)}
+                                >
+                                    <Icon name="x" className="ic-sm" />
+                                </button>
+                            )}
                             {/* A PDF shows inside the note (the browser's own viewer); "Open full size" opens it alone. */}
                             {f.mime === 'application/pdf' && !hidden.includes(f.id) && (
                                 <div className="pdf-view">
-                                    <iframe src={`${f.url}#view=FitH`} title={f.name} loading="lazy" />
+                                    <iframe src={`${f.url}#view=FitH&navpanes=0`} title={f.name} loading="lazy" />
                                     <a href={f.url} target="_blank" rel="noreferrer" className="pdf-full">
                                         <Icon name="external" className="ic-xs" />
                                         Open full size

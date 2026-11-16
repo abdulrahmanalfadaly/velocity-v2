@@ -86,7 +86,7 @@ organised. Left for the very end, after the backlog (user, 16 Nov).
 | 9 | The GPT version's missing features, top picks first (full list: `docs/backlog.md`) | top picks done; the rest of the list next |
 | 10 | The GPT list, batch 2: finishing tasks and projects | done |
 | 11 | The GPT list, batch 3: Planner, Focus, Home, Search and Capture | done |
-| 12 | The GPT list, batch 4: Notes, Habits and People | done (browser check to come) |
+| 12 | The GPT list, batch 4: Notes, Habits and People | done |
 
 ## Phase 0 / 1 checklist
 

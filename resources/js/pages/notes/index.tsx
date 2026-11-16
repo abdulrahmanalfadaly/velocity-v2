@@ -67,6 +67,7 @@ export default function Notes() {
 
     const project = /^p(\d+)$/.exec(view)?.[1];
     const event = /^e(\d+)$/.exec(view)?.[1];
+    const area = /^a(\d+)$/.exec(view)?.[1];
     const heading =
         view === 'journal'
             ? 'Journal'
@@ -80,7 +81,11 @@ export default function Notes() {
                     'Project')
                   : event
                     ? (props.menu.events.find((e) => e.id === Number(event))?.title ?? 'Class')
-                    : 'All notes';
+                    : area
+                      ? ((props.menu.areas ?? []).find((a) => a.id === Number(area))?.name ?? 'Area')
+                      : view === 'archived'
+                        ? 'Archived'
+                        : 'All notes';
 
     const params = (extra: Record<string, string | number | undefined>) => ({
         in: view === 'all' ? undefined : view,

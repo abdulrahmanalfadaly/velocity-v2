@@ -18,6 +18,10 @@ class Person extends Model
 
     public const CATCH_UP_KINDS = ['message', 'call', 'met', 'other'];
 
+    /** Titles that go with the name after them ("Dr. Lim", "Puan Aminah"), never alone; the same list as firstName() in lib/velocity.ts. */
+    private const TITLES = ['dr', 'prof', 'professor', 'mr', 'mrs', 'ms', 'miss', 'mx', 'sir', 'madam', 'puan', 'encik', 'cik', 'tuan', 'en', 'pn',
+        'dato', "dato'", 'datuk', 'datin', 'haji', 'hajah', 'ustaz', 'ustazah'];
+
     protected $fillable = ['name', 'nickname', 'relationship', 'organisation', 'location', 'about', 'catch_up_days', 'archived_at'];
 
     protected function casts(): array
@@ -64,6 +68,15 @@ class Person extends Model
     public function projects(): BelongsToMany
     {
         return $this->belongsToMany(Project::class, 'person_project')->orderBy('name');
+    }
+
+    /** How to call them in a sentence: "Daniel" for Daniel Tan, "Dr. Lim" for Dr. Lim Wei. */
+    public function callName(): string
+    {
+        $words = preg_split('/\s+/u', trim($this->name)) ?: [''];
+        $title = count($words) > 1 && in_array(rtrim(mb_strtolower($words[0]), '.'), self::TITLES, true);
+
+        return $title ? "{$words[0]} {$words[1]}" : $words[0];
     }
 
     /** "Aina Rahman" → "AR" */

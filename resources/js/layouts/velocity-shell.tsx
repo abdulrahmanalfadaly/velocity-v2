@@ -84,7 +84,8 @@ export default function VelocityShell({ title, section, active, children, panel,
                 setOverlay(e.shiftKey ? 'add' : 'search');
             } else if (e.key === 'Escape' && overlay) {
                 setOverlay(null);
-            } else if (e.key === 'Escape' && onEscape && !document.querySelector('[aria-modal="true"]')) {
+            } else if (e.key === 'Escape' && onEscape && !document.querySelector('[aria-modal="true"], [role="dialog"], [role="menu"], .sel-pop')) {
+                // A popover on top (a day, a catch-up, a picker) closes on its own; the panel under it stays.
                 const typing = e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]');
                 if (!typing) onEscape();
             }

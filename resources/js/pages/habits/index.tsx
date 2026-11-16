@@ -622,7 +622,7 @@ function ArchivedView({
         <>
             <header className="page-head">
                 <h1 className="h1">
-                    Archived <span className="count">{habits.length}</span>
+                    Archived <span className="count">{habits.length + routines.length}</span>
                 </h1>
             </header>
             <section className="card hb-card">
@@ -727,11 +727,13 @@ function HabitPanel({
                     <h2 className="p-title">{h.name}</h2>
                 </div>
                 <p className="hb-p-sub">{habitSub(h)}</p>
-                {h.status && h.status !== 'active' && h.status !== 'paused' && (
+                {(h.status === 'finished' || h.status === 'notStarted' || h.endsOn) && (
                     <p className="hb-status">
                         {h.status === 'finished'
                             ? `Finished · ended ${dayName(h.endsOn!, clock)}`
-                            : `Not started · starts ${dayName(h.startsOn!, clock)}`}
+                            : h.status === 'notStarted'
+                              ? `Not started · starts ${dayName(h.startsOn!, clock)}${h.endsOn ? ` · until ${dayName(h.endsOn, clock)}` : ''}`
+                              : `Until ${dayName(h.endsOn!, clock)}`}
                     </p>
                 )}
                 {(h.description || h.why) && (

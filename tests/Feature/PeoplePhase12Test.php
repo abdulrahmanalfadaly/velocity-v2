@@ -111,6 +111,10 @@ class PeoplePhase12Test extends TestCase
         $task = $sara->tasks()->sole();
         $this->assertSame(['Follow up with Sara', 'waiting', 'Sara Lim', '2026-11-14'], [$task->title, $task->status, $task->waiting_for, $task->follow_up_on->toDateString()]);
         $this->post(route('people.follow-up', $sara), ['on' => '2026-11-01'])->assertSessionHasErrors('on');
+
+        // A title stays with the name: "Dr. Lim", not "Dr.".
+        $lim = $this->user->people()->create(['name' => 'Dr. Lim Wei']);
+        $this->post(route('people.follow-up', $lim), ['on' => '2026-11-14'])->assertSessionHas('toast', 'Follow up with Dr. Lim on Sat 14 Nov');
     }
 
     public function test_nickname_location_usernames_and_contact_order(): void
