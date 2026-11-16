@@ -60,6 +60,10 @@ try {
         Log 'database started'
     } else { Log 'database was already running' }
 
+    # New tables and columns from updates (only ever adds; your data stays as it is).
+    $migrate = Hidden "$Xampp\php\php.exe" @('artisan', 'migrate', '--force') 'migrate'
+    if ($migrate.WaitForExit(120000) -and $migrate.ExitCode -eq 0) { Log 'database up to date' } else { StopTree $migrate; Log "database update failed; see $State\migrate.err.log" }
+
     # 2. App server, open to this computer and to phones on the same Wi-Fi
     if (-not (Listening $Port)) {
         $app = Hidden "$Xampp\php\php.exe" @('artisan', 'serve', '--host=0.0.0.0', "--port=$Port", '--no-reload') 'app'
