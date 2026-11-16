@@ -69,6 +69,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'lock-block': { method: 'patch', route: 'blocks.lock' },
     'retask-block': { method: 'patch', route: 'blocks.task' },
     'put-hours': { method: 'put', route: 'planner.hours' },
+    'put-wallpaper': { method: 'put', route: 'wallpaper.update' },
     'restore-note': { method: 'post', route: 'notes.restore' },
     'patch-note': { method: 'patch', route: 'notes.update' },
     'link-note-task': { method: 'post', route: 'notes.link' },

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\AppearanceController;
 use App\Http\Controllers\Settings\FocusSettingsController;
 use App\Http\Controllers\Settings\IntegrationController;
 use App\Http\Controllers\Settings\ModeController;
@@ -8,7 +9,6 @@ use App\Http\Controllers\Settings\PlannerSettingsController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TaskSettingsController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::middleware('auth')->group(function () {
     Route::redirect('settings', 'settings/profile');
@@ -20,9 +20,7 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/password', [PasswordController::class, 'edit'])->name('password.edit');
     Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
 
-    Route::get('settings/appearance', function () {
-        return Inertia::render('settings/appearance');
-    })->name('appearance');
+    Route::get('settings/appearance', [AppearanceController::class, 'edit'])->name('appearance');
 
     Route::get('settings/mode', [ModeController::class, 'edit'])->name('mode.edit');
     Route::patch('settings/mode', [ModeController::class, 'update'])->name('mode.update');
@@ -40,5 +38,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('settings/keys/{id}', [IntegrationController::class, 'destroy'])->whereNumber('id')->name('keys.destroy');
         Route::post('settings/github', [IntegrationController::class, 'connectGitHub'])->name('github.connect');
         Route::delete('settings/github', [IntegrationController::class, 'disconnectGitHub'])->name('github.disconnect');
+        // The wallpaper behind the pages.
+        Route::put('settings/wallpaper', [AppearanceController::class, 'update'])->name('wallpaper.update');
+        Route::post('settings/wallpaper/picture', [AppearanceController::class, 'upload'])->name('wallpaper.upload');
+        Route::delete('settings/wallpaper/picture', [AppearanceController::class, 'destroyPicture'])->name('wallpaper.picture.destroy');
+        Route::get('settings/wallpaper/picture', [AppearanceController::class, 'picture'])->name('wallpaper.picture');
     });
 });

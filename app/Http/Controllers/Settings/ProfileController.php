@@ -64,6 +64,8 @@ class ProfileController extends Controller
         // The account's attached files are stored outside the database: remove them as well.
         Storage::disk('local')->deleteDirectory("task-files/{$user->id}");
         Storage::disk('local')->deleteDirectory("note-files/{$user->id}");
+        Storage::disk('local')->deleteDirectory("project-files/{$user->id}");
+        Storage::disk('local')->deleteDirectory("wallpapers/{$user->id}");
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

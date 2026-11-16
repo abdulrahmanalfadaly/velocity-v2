@@ -13,7 +13,7 @@ import { Clock } from '@/lib/velocity';
 import type { User } from '@/types';
 import type { NavProject, VelocityShared } from '@/types/velocity';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 export type Section = 'home' | 'tasks' | 'planner' | 'notes' | 'habits' | 'people' | 'review' | 'settings' | 'search';
 
@@ -153,6 +153,8 @@ export default function VelocityShell({ title, section, active, children, panel,
             <Head title={title} />
             <div
                 className={`app${hasSidebar ? '' : ' no-sidebar'}${panel ? ' has-panel' : ''}${canvas ? ' is-canvas' : ''}${props.focusSession ? ' has-focus' : ''}`}
+                data-wall={props.wallpaper?.name}
+                style={props.wallpaper?.url ? ({ ['--wall-img' as string]: `url("${props.wallpaper.url}")` } as CSSProperties) : undefined}
             >
                 <header className="gtop">
                     {hasMenu && (

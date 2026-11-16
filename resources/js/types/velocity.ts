@@ -241,6 +241,8 @@ export interface VelocityShared {
     };
     /** The focus session that is running, if any (personal mode only). */
     focusSession?: FocusRunning | null;
+    /** The wallpaper behind the pages (Settings → Appearance); none in FYP mode. */
+    wallpaper?: { name: string; url: string | null } | null;
     [key: string]: unknown;
 }
 

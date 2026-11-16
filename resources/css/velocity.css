@@ -2520,3 +2520,35 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 /* Review → Pick dates: the first and last day. */
 .rv-range { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); }
 .rv-range-pick { width: 138px; height: 32px; }
+/* Wallpaper (Settings → Appearance): behind the pages, fixed; cards, menus and panels stay solid on top.
+   Photos sit under a veil of the page colour so text right on the page stays easy to read. */
+[data-wall="g-lavender"] { --wall: radial-gradient(1200px 700px at 12% -10%, #e2ddfa 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #f2e4f3 0%, transparent 60%), linear-gradient(160deg, #f3f1fa, #f5f3f6); }
+[data-wall="g-mist"] { --wall: radial-gradient(1100px 700px at 85% -5%, #d6e4f1 0%, transparent 60%), radial-gradient(900px 600px at 0% 100%, #e3ebf0 0%, transparent 60%), linear-gradient(170deg, #eef2f6, #f3f4f2); }
+[data-wall="g-dawn"] { --wall: radial-gradient(1000px 650px at 0% 0%, #fae0d2 0%, transparent 60%), radial-gradient(900px 600px at 100% 30%, #f8dfe7 0%, transparent 60%), linear-gradient(170deg, #f8f0ea, #f6f3f0); }
+[data-wall="g-sage"] { --wall: radial-gradient(1100px 700px at 10% 100%, #d8e9d8 0%, transparent 60%), radial-gradient(900px 600px at 100% 0%, #e6eedc 0%, transparent 60%), linear-gradient(160deg, #f0f4ee, #f4f5f1); }
+[data-wall="g-dusk"] { --wall: radial-gradient(900px 600px at 100% 0%, #d9d9f5 0%, transparent 60%), radial-gradient(900px 600px at 0% 100%, #f5e5cb 0%, transparent 60%), linear-gradient(180deg, #f1f0f8, #f6f3ec); }
+:root.dark [data-wall="g-lavender"] { --wall: radial-gradient(1200px 700px at 12% -10%, #29224a 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #2c2030 0%, transparent 60%), linear-gradient(160deg, #13121a, #121014); }
+:root.dark [data-wall="g-mist"] { --wall: radial-gradient(1100px 700px at 85% -5%, #1d2c3b 0%, transparent 62%), radial-gradient(900px 600px at 0% 100%, #182128 0%, transparent 62%), linear-gradient(170deg, #10151a, #0f1112); }
+:root.dark [data-wall="g-dawn"] { --wall: radial-gradient(1000px 650px at 0% 0%, #36231b 0%, transparent 62%), radial-gradient(900px 600px at 100% 30%, #311e26 0%, transparent 62%), linear-gradient(170deg, #161110, #121010); }
+:root.dark [data-wall="g-sage"] { --wall: radial-gradient(1100px 700px at 10% 100%, #1c2c20 0%, transparent 62%), radial-gradient(900px 600px at 100% 0%, #1f2619 0%, transparent 62%), linear-gradient(160deg, #101411, #0f110f); }
+:root.dark [data-wall="g-dusk"] { --wall: radial-gradient(900px 600px at 100% 0%, #232348 0%, transparent 62%), radial-gradient(900px 600px at 0% 100%, #2f2517 0%, transparent 62%), linear-gradient(180deg, #121219, #13110e); }
+:root { --wall-veil: rgba(245, 245, 242, 0.7); }
+:root.dark { --wall-veil: rgba(15, 15, 14, 0.66); }
+.app[data-wall] { position: relative; isolation: isolate; }
+.app[data-wall]::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--wall, var(--bg)); }
+.app[data-wall^="p-"]::before, .app[data-wall="own"]::before {
+    background: linear-gradient(var(--wall-veil), var(--wall-veil)), var(--wall-img) center / cover no-repeat, var(--bg);
+}
+.wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 12px; }
+.wall-option { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 600; text-align: left; cursor: pointer; }
+.wall-swatch {
+    position: relative; display: grid; place-items: center; height: 68px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--wall, var(--bg)) center / cover no-repeat; color: var(--violet-ink);
+}
+.wall-swatch.is-none { background: var(--bg); }
+.wall-swatch .ic { padding: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: var(--sh-xs); }
+.wall-option[aria-checked="true"] { color: var(--text); }
+.wall-option[aria-checked="true"] .wall-swatch { border-color: var(--violet); box-shadow: 0 0 0 2px var(--violet); }
+.wall-option:focus-visible { outline: none; }
+.wall-option:focus-visible .wall-swatch { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--violet); }
+.wall-own { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
