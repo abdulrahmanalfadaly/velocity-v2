@@ -290,6 +290,101 @@ class HabitStats
         return $best;
     }
 
+    /**
+     * Numbers for the last $days days (0: since it began), for the panel's stats:
+     * consistency (a partly done day counts as half), bounce-backs (a done day or
+     * period right after a missed one), the trend against the same length before,
+     * the hardest weekday, and averages.
+     */
+    public function stats(int $days): array
+    {
+        $from = ($days ? $this->today->subDays($days - 1) : $this->start)->max($this->start);
+        $n = (int) round($from->diffInDays($this->today)) + 1;
+        $now = $this->measure($from, $n);
+        $before = $days && $from->subDays($n) >= $this->start ? $this->measure($from->subDays($n), $n) : null;
+
+        return $now + [
+            'range' => $days,
+            'from' => $from->toDateString(),
+            'trend' => $before && $before['rate'] !== null && $now['rate'] !== null ? $now['rate'] - $before['rate'] : null,
+        ];
+    }
+
+    /** The numbers for n days from a day. */
+    private function measure(CarbonImmutable $from, int $n): array
+    {
+        $h = $this->habit;
+        $until = $from->addDays($n - 1);
+        if ($h->flexible()) {
+            $met = $missed = $bounce = 0;
+            $wasMissed = false;
+            for ($p = $this->first($from); $p <= $until; $p = $this->step($p, 1)) {
+                $s = $this->period($p)['state'];
+                if ($s === 'met') {
+                    $met++;
+                    $bounce += $wasMissed ? 1 : 0;
+                    $wasMissed = false;
+                } elseif ($s === 'missed') {
+                    $missed++;
+                    $wasMissed = true;
+                }
+            }
+            $of = $met + $missed;
+
+            return ['rate' => $of ? (int) round($met / $of * 100) : null, 'done' => $met, 'partial' => 0, 'of' => $of, 'unit' => $h->weekly() ? 'weeks' : 'months',
+                'bounceBacks' => $bounce, 'hardestDay' => null, 'perWeek' => null, 'average' => null];
+        }
+        $done = $partial = $missed = $bounce = $amount = 0;
+        $wasMissed = false;
+        $weekdays = array_fill(1, 7, ['ok' => 0.0, 'of' => 0]);
+        for ($i = 0; $i < $n; $i++) {
+            $day = $from->addDays($i);
+            $s = $this->state($day);
+            if (! in_array($s, ['done', 'partial', 'missed'], true)) {
+                continue; // today while still going, days off, skipped, paused
+            }
+            $w = $day->dayOfWeekIso;
+            $weekdays[$w]['of']++;
+            $amount += $this->count($day->toDateString());
+            if ($s === 'done') {
+                $done++;
+                $weekdays[$w]['ok'] += 1;
+                $bounce += $wasMissed ? 1 : 0;
+                $wasMissed = false;
+            } elseif ($s === 'partial') {
+                $partial++;
+                $weekdays[$w]['ok'] += 0.5;
+                $wasMissed = false;
+            } else {
+                $missed++;
+                $wasMissed = true;
+            }
+        }
+        $of = $done + $partial + $missed;
+        // The weekday it gets done least (seen at least twice, and not always done).
+        $hardest = null;
+        $worst = 1.0;
+        foreach ($weekdays as $w => $x) {
+            if ($x['of'] >= 2 && $worst > $x['ok'] / $x['of']) {
+                $worst = $x['ok'] / $x['of'];
+                $hardest = $w;
+            }
+        }
+
+        return [
+            'rate' => $of ? (int) round(($done + $partial / 2) / $of * 100) : null,
+            'done' => $done,
+            'partial' => $partial,
+            'of' => $of,
+            'unit' => 'days',
+            'bounceBacks' => $bounce,
+            'hardestDay' => $hardest,
+            'perWeek' => $h->less() ? null : round($done / max(1, $n / 7), 1),
+            // A counted habit: the amount on an average day (minutes, glasses; a limit: how many).
+            'average' => ($h->kind === 'minutes' || $h->target > 1 || $h->kind === 'limit') && $of ? round($amount / $of, 1) : null,
+        ];
+    }
+
     /** The first day of the week (Monday) or month a day is in. */
     private function first(CarbonImmutable $day): CarbonImmutable
     {

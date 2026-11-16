@@ -68,6 +68,30 @@ class HabitsPhase12Test extends TestCase
         $this->assertSame(['Read more', '20 pages', 'Clear head', $area->id, 2], [$h->name, $h->description, $h->why, $h->area_id, $h->goals()->count()]);
     }
 
+    public function test_the_numbers_count_partly_done_days_as_half_and_this_month_shows_every_day(): void
+    {
+        $h = $this->add(['name' => 'Water', 'target' => 2, 'unit' => 'glasses']);
+        // 1–10 Nov (1 Nov is a Sunday): done but on the 2nd (partly) and the 3rd (missed); today, the 11th, is still going.
+        foreach (['01' => 2, '02' => 1, '04' => 2, '05' => 2, '06' => 2, '07' => 2, '08' => 2, '09' => 2, '10' => 2] as $d => $count) {
+            $h->entries()->create(['day' => "2026-11-{$d}", 'count' => $count]);
+        }
+
+        $this->get(route('habits.index', ['habit' => $h->id]))->assertInertia(fn (Assert $p) => $p
+            ->where('habit.stats.rate', 85)          // (8 + ½) of 10
+            ->where('habit.stats.done', 8)
+            ->where('habit.stats.partial', 1)
+            ->where('habit.stats.of', 10)
+            ->where('habit.stats.bounceBacks', 1)    // the 4th, after the missed 3rd
+            ->where('habit.stats.hardestDay', 2)     // Tuesdays: the 3rd missed, the 10th done
+            ->where('habit.stats.average', 1.7)
+            ->where('habit.stats.trend', null));     // nothing before it began to compare with
+
+        $this->get(route('habits.index', ['view' => 'month']))->assertInertia(fn (Assert $p) => $p
+            ->where('month.start', '2026-11-01')
+            ->has('habits.0.days', 30)
+            ->where('habits.0.days.2.state', 'missed'));
+    }
+
     public function test_a_routine_has_a_description_and_can_be_archived(): void
     {
         $h = $this->add([]);

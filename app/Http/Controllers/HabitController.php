@@ -29,11 +29,17 @@ class HabitController extends Controller
     {
         $user = $request->user();
         $today = $this->today($user);
-        $q = $request->validate(['view' => ['nullable', 'string', 'max:12'], 'week' => ['nullable', 'date_format:Y-m-d'], 'habit' => ['nullable', 'integer']]);
+        $q = $request->validate([
+            'view' => ['nullable', 'string', 'max:12'], 'week' => ['nullable', 'date_format:Y-m-d'], 'habit' => ['nullable', 'integer'],
+            'month' => ['nullable', 'date_format:Y-m'], 'range' => ['nullable', Rule::in(['30', '90', '365', 'all'])],
+        ]);
         $view = $q['view'] ?? 'today';
         $thisMonday = $today->startOfWeek(CarbonImmutable::MONDAY);
         $monday = isset($q['week']) ? CarbonImmutable::parse($q['week'], $user->timezone)->startOfWeek(CarbonImmutable::MONDAY)->min($thisMonday) : $thisMonday;
 
+        // This month (or ?month=2026-10): every habit against the days of the month.
+        $thisMonth = $today->startOfMonth();
+        $monthStart = isset($q['month']) ? CarbonImmutable::parse("{$q['month']}-01", $user->timezone)->startOfMonth()->min($thisMonth) : $thisMonth;
         $routine = preg_match('/^r(\d+)$/', $view, $m) ? $user->routines()->find((int) $m[1]) : null;
         if (str_starts_with($view, 'r') && ! $routine) {
             $view = 'today';
@@ -46,10 +52,14 @@ class HabitController extends Controller
         $order = $routine ? $routine->habits()->pluck('habits.id')->flip() : null;
         $rows = $habits
             ->sortBy(fn (Habit $h) => $order ? $order[$h->id] : ($h->at_time ? "0{$h->at_time}" : '1').mb_strtolower($h->name))
-            ->map(function (Habit $h) use ($today, $view, $monday) {
+            ->map(function (Habit $h) use ($today, $view, $monday, $monthStart) {
                 $s = new HabitStats($h, $today);
 
-                return $s->row() + ['days' => $view === 'week' ? $s->span($monday, 7) : $s->span($today->subDays(6), 7)];
+                return $s->row() + ['days' => match ($view) {
+                    'week' => $s->span($monday, 7),
+                    'month' => $s->span($monthStart, $monthStart->daysInMonth),
+                    default => $s->span($today->subDays(6), 7),
+                }];
             })->values();
 
         $open = isset($q['habit']) ? $user->habits()->with(['entries', 'project', 'routines', 'pauses', 'goals:id,title,color', 'area:id,name'])->find($q['habit']) : null;
@@ -65,7 +75,11 @@ class HabitController extends Controller
                 'id' => $routine->id, 'name' => $routine->name, 'description' => $routine->description, 'archived' => $routine->archived_at !== null,
                 'habitIds' => $routine->habits()->pluck('habits.id'),
             ] : null,
-            'habit' => $open ? (new HabitStats($open, $today))->detail() + ['linkedNotes' => NoteLink::notesFor($user, 'habit', $open->id)] : null,
+            'habit' => $open ? (new HabitStats($open, $today))->detail() + [
+                'linkedNotes' => NoteLink::notesFor($user, 'habit', $open->id),
+                'stats' => (new HabitStats($open, $today))->stats(($q['range'] ?? '30') === 'all' ? 0 : (int) ($q['range'] ?? 30)),
+            ] : null,
+            'month' => ['start' => $monthStart->toDateString(), 'isThisMonth' => $monthStart->equalTo($thisMonth)],
             'menu' => [
                 'today' => $groups->filter(fn ($g) => $g === 'todo')->count(),
                 'all' => $active->count(),

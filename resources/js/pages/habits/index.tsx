@@ -35,11 +35,29 @@ type HabitDetail = HabitToday & {
     routines: { id: number; name: string }[];
     description?: string | null;
     why?: string | null;
+    stats?: HabitNumbers;
     goals?: { id: number; title: string; color: number }[];
     area?: { id: number; name: string } | null;
 };
 
+/** The panel's numbers for a range of days (see HabitStats::stats). */
+interface HabitNumbers {
+    range: number;
+    from: string;
+    rate: number | null;
+    done: number;
+    partial: number;
+    of: number;
+    unit: 'days' | 'weeks' | 'months';
+    bounceBacks: number;
+    hardestDay: number | null;
+    perWeek: number | null;
+    average: number | null;
+    trend: number | null;
+}
+
 interface Props extends VelocityShared {
+    month?: { start: string; isThisMonth: boolean };
     view: string;
     today: string;
     week: { start: string; isThisWeek: boolean; days: string[] };
@@ -109,6 +127,7 @@ export default function Habits() {
 
     let content;
     if (view === 'week') content = <WeekView props={props} clock={clock} rowProps={rowProps} onNew={newHabit} />;
+    else if (view === 'month') content = <MonthView props={props} clock={clock} rowProps={rowProps} />;
     else if (view === 'archived') content = <ArchivedView habits={props.habits} routines={props.archivedRoutines} onOpen={open} />;
     else if (props.routine) content = <RoutineView props={props} rowProps={rowProps} onEdit={() => setRoutineDialog('edit')} />;
     else content = <ListView props={props} clock={clock} rowProps={rowProps} onNew={newHabit} all={view === 'all'} />;
@@ -290,6 +309,82 @@ function ListView({ props, clock, rowProps, onNew, all }: { props: Props; clock:
 }
 
 /** A week at a time: every habit's seven days; click a day to fix it. */
+/** This month: every habit against the days of the month (back to earlier months; ticks can be changed). */
+function MonthView({ props, clock, rowProps }: { props: Props; clock: Clock; rowProps: RowProps }) {
+    const month = props.month ?? { start: props.today.slice(0, 8) + '01', isThisMonth: true };
+    const go = (m?: string) => router.get(route('habits.index', { view: 'month', month: m }), {}, keep);
+    const shiftMonth = (n: number) => {
+        const d = new Date(`${month.start}T12:00:00Z`);
+        d.setUTCMonth(d.getUTCMonth() + n);
+        return d.toISOString().slice(0, 7);
+    };
+    const rows = props.habits.filter((h) => h.status !== 'finished' || h.days.some((d) => d.state === 'done' || d.state === 'partial'));
+    const days = rows[0]?.days.map((d) => d.date) ?? [];
+    return (
+        <>
+            <header className="page-head">
+                <div>
+                    <h1 className="h1">{month.isThisMonth ? 'This month' : dayName(month.start, clock, { month: 'long', year: 'numeric' })}</h1>
+                    <p className="page-sub">{dayName(month.start, clock, { month: 'long', year: 'numeric' })}</p>
+                </div>
+                <div className="page-actions">
+                    <button className="icon-btn" aria-label="Previous month" onClick={() => go(shiftMonth(-1))}>
+                        <Icon name="chevL" />
+                    </button>
+                    {!month.isThisMonth && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => go()}>
+                            This month
+                        </button>
+                    )}
+                    <button className="icon-btn" aria-label="Next month" disabled={month.isThisMonth} onClick={() => go(shiftMonth(1))}>
+                        <Icon name="chevR" />
+                    </button>
+                </div>
+            </header>
+            {rows.length === 0 ? (
+                <section className="card hb-empty">
+                    <p>No habits yet.</p>
+                </section>
+            ) : (
+                <div className="card hb-week-wrap hb-month-wrap">
+                    <table className="hb-week hb-month">
+                        <thead>
+                            <tr>
+                                <th scope="col" className="hb-week-name">
+                                    Habit
+                                </th>
+                                {days.map((d) => (
+                                    <th key={d} scope="col" className={d === props.today ? 'is-today' : undefined}>
+                                        <small>{dayName(d, clock, { weekday: 'narrow' })}</small>
+                                        {Number(d.slice(8))}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((h) => (
+                                <tr key={h.id} className={rowProps.activeId === h.id ? 'is-active' : undefined}>
+                                    <th scope="row" className="hb-week-name">
+                                        <button onClick={() => rowProps.onOpen(h.id)}>
+                                            <b>{h.name}</b>
+                                            <small>{h.label}</small>
+                                        </button>
+                                    </th>
+                                    {h.days.map((d) => (
+                                        <td key={d.date}>
+                                            <DayMark day={d} target={h.target} clock={clock} onClick={(el) => rowProps.onCell(h, d, el)} />
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </>
+    );
+}
+
 function WeekView({ props, clock, rowProps, onNew }: { props: Props; clock: Clock; rowProps: RowProps; onNew: () => void }) {
     const { week } = props;
     const go = (start?: string) => router.get(route('habits.index', { view: 'week', week: start }), {}, keep);
@@ -636,6 +731,7 @@ function HabitPanel({
                         </div>
                     )}
                 </dl>
+                {h.stats && <HabitStatsCard s={h.stats} id={h.id} clock={clock} less={less} />}
                 <section className="p-section">
                     <div className="p-section-head">
                         <h3 className="p-section-title">Last 16 weeks</h3>
@@ -705,6 +801,96 @@ function HabitPanel({
                 )}
             </div>
         </>
+    );
+}
+
+const RANGES = [
+    { value: '30', label: 'Last 30 days' },
+    { value: '90', label: 'Last 3 months' },
+    { value: '365', label: 'Last year' },
+    { value: 'all', label: 'Since it began' },
+];
+const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** A habit's numbers over a range: how consistent (partly done days count as half), bounce-backs, trend, hardest day, averages. */
+function HabitStatsCard({ s, id, clock, less }: { s: HabitNumbers; id: number; clock: Clock; less: boolean }) {
+    const pick = (v: string) => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('habit', String(id));
+        if (v === '30') url.searchParams.delete('range');
+        else url.searchParams.set('range', v);
+        router.get(url.pathname + url.search, {}, { ...keep, only: ['habit'] });
+    };
+    const unit = s.unit === 'weeks' ? 'weeks' : s.unit === 'months' ? 'months' : 'days';
+    return (
+        <section className="p-section">
+            <div className="p-section-head">
+                <h3 className="p-section-title">Numbers</h3>
+                <Select
+                    className="btn btn-ghost btn-sm"
+                    label="Range"
+                    value={s.range === 0 ? 'all' : String(s.range)}
+                    search={false}
+                    options={RANGES}
+                    onChange={pick}
+                />
+            </div>
+            {s.of === 0 ? (
+                <p className="card-empty">Nothing to count yet{s.range ? ' in this range' : ''}.</p>
+            ) : (
+                <dl className="hb-stats hb-numbers">
+                    <div>
+                        <dt>{less ? 'Kept' : 'Consistency'}</dt>
+                        <dd>
+                            {s.rate}%
+                            {s.trend !== null && s.trend !== 0 && (
+                                <small className="hb-trend">
+                                    {s.trend > 0 ? '▲' : '▼'} {Math.abs(s.trend)} vs before
+                                </small>
+                            )}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Done</dt>
+                        <dd>
+                            {s.done}
+                            <small>
+                                {s.partial ? ` + ${s.partial} partly` : ''} of {s.of} {unit}
+                            </small>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Bounce-backs</dt>
+                        <dd>{s.bounceBacks}</dd>
+                    </div>
+                    {s.hardestDay && (
+                        <div>
+                            <dt>Hardest day</dt>
+                            <dd className="hb-num-word">{WEEKDAY_NAMES[s.hardestDay - 1]}</dd>
+                        </div>
+                    )}
+                    {s.perWeek !== null && (
+                        <div>
+                            <dt>A week</dt>
+                            <dd>
+                                {s.perWeek}
+                                <small> days done</small>
+                            </dd>
+                        </div>
+                    )}
+                    {s.average !== null && (
+                        <div>
+                            <dt>A day</dt>
+                            <dd>
+                                {s.average}
+                                <small> on average</small>
+                            </dd>
+                        </div>
+                    )}
+                </dl>
+            )}
+            <p className="hb-numbers-from">From {dayName(s.from, clock, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+        </section>
     );
 }
 
@@ -866,6 +1052,7 @@ function HabitsMenu({
             <nav className="nav" aria-label="Habits">
                 {item('today', 'check', 'Today', m.today)}
                 {item('week', 'columns', 'This week')}
+                {item('month', 'calendar', 'This month')}
                 {item('all', 'habits', 'All habits', m.all)}
                 <div className="nav-label">
                     Routines
