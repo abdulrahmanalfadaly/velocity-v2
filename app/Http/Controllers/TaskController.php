@@ -270,6 +270,7 @@ class TaskController extends Controller
                 'start' => $parsed['start']?->utc()->toIso8601ZuluString(),
                 'remind' => $remind ? ($remind['kind'] === 'at' ? ['kind' => 'at', 'at' => $remind['at']->utc()->toIso8601ZuluString()] : $remind) : null,
                 'importance' => $parsed['importance'],
+                'energy' => $parsed['energy'] ?? null,
                 'picked' => $parsed['picked'],
             ],
             // A task that starts later isn't ranked until then.
@@ -304,7 +305,7 @@ class TaskController extends Controller
     }
 
     private const LABELS = [
-        'title' => 'Title', 'notes' => 'Notes', 'importance' => 'Importance', 'urgency' => 'Urgency', 'due_at' => 'Due date',
+        'title' => 'Title', 'notes' => 'Notes', 'importance' => 'Importance', 'urgency' => 'Urgency', 'energy' => 'Energy', 'due_at' => 'Due date',
         'est_hours' => 'Work', 'status' => 'Status', 'waiting_for' => 'Waiting for', 'follow_up_on' => 'Follow-up', 'project_id' => 'Project', 'goal_id' => 'Goal',
         'repeat_unit' => 'Repeat', 'repeat_days' => 'Repeat', 'repeat_until' => 'Repeat', 'available_from' => 'Start date', 'reminder_at' => 'Reminder',
     ];

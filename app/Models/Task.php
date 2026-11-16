@@ -32,8 +32,11 @@ class Task extends Model
     /** Done or cancelled: no longer open, and can go to the archive. */
     public const FINISHED = [self::DONE, self::CANCELLED];
 
+    /** The energy a task needs, least first. A filter only: never part of the score. */
+    public const ENERGY = ['low', 'normal', 'high'];
+
     protected $fillable = [
-        'project_id', 'goal_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours',
+        'project_id', 'goal_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours', 'energy',
         'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion',
         'repeat_unit', 'repeat_every', 'repeat_days', 'repeat_until', 'repeat_anchor', 'repeat_day', 'repeated_from_id',
         'follow_up_on', 'waiting_since', 'cancelled_at', 'cancel_reason', 'archived_at', 'unarchived_at',

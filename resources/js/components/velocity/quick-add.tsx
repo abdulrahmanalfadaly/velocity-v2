@@ -20,10 +20,14 @@ interface Preview {
         remind?: { kind: 'at'; at: string } | { kind: 'before'; before: string } | null;
         /** "!" / "!!". */
         importance?: number | null;
+        /** "~low" / "~normal" / "~high". */
+        energy?: 'low' | 'normal' | 'high' | null;
         picked: { kind: string; text: string }[];
     };
     preview: { rank: number; total: number; score: number; contrib: Record<CriterionKey, number>; above: string | null } | null;
 }
+
+const ENERGY_WORD = { low: 'Low', normal: 'Normal', high: 'High' };
 
 /** What the server read out of an event line ("Dentist tomorrow 3-4pm #personal"). */
 interface EventParse {
@@ -308,6 +312,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         if (p.hours) chips.push({ key: 'hours', icon: 'clock', label: `${fmtHours(p.hours)} of work`, words: wordsOf(['hours']) });
         if (p.importance && !impPicked)
             chips.push({ key: 'imp', icon: 'flag', label: `${LEVEL[p.importance]} importance`, words: wordsOf(['importance']) });
+        if (p.energy) chips.push({ key: 'energy', icon: 'flame', label: `${ENERGY_WORD[p.energy]} energy`, words: wordsOf(['energy']) });
         if (p.project) chips.push({ key: 'project', icon: 'folder', label: p.project.name, words: wordsOf(['project']) });
     }
     const tab = (m: Mode, icon: string, label: string) => (

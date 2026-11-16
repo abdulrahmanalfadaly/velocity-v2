@@ -38,7 +38,7 @@ const LAYOUTS: [Layout, string, string][] = [
     ['timeline', 'Timeline', 'calendar'],
 ];
 
-type Filter = 'all' | 'today' | 'week' | 'overdue' | 'quick' | 'doing' | 'important' | 'repeating' | 'inbox';
+type Filter = 'all' | 'today' | 'week' | 'overdue' | 'quick' | 'easy' | 'doing' | 'important' | 'repeating' | 'inbox';
 /** Views of the list: the same ranking (same numbers) with some tasks left out. */
 const FILTERS: [Filter, string, (t: RankedTask, c: Clock) => boolean][] = [
     ['all', 'All', () => true],
@@ -46,6 +46,7 @@ const FILTERS: [Filter, string, (t: RankedTask, c: Clock) => boolean][] = [
     ['week', 'Due this week', (t, c) => !!t.dueAt && c.dayDiff(t.dueAt) <= 7],
     ['overdue', 'Overdue', (t, c) => !!t.dueAt && Date.parse(t.dueAt) < c.now.getTime()],
     ['quick', 'Quick wins', (t) => t.estHours <= 1],
+    ['easy', 'Low energy', (t) => t.energy === 'low'],
     ['doing', 'Doing', (t) => t.status === 'doing'],
     ['important', 'Important', (t) => t.importance >= 4],
     ['repeating', 'Repeating', (t) => !!t.repeat],

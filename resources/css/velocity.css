@@ -1742,6 +1742,14 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .pev.is-cancelled .pev-title { text-decoration: line-through; }
 .pev-lock { margin-left: 4px; color: var(--text-3); }
 .pev.is-date.is-done { opacity: .6; }
+/* Home: "I have [30 min] [low energy]" on Do next, the Inbox link, Refresh. */
+.fit-pick { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-right: auto; margin-left: 10px; font-size: 13px; color: var(--text-3); }
+.fit-label { margin-right: 2px; }
+.fit-pick .btn-sm { height: 28px; padding: 0 8px; font-weight: 600; color: var(--text-2); }
+.page-sub-link { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.page-sub-link:hover { color: var(--text); }
+.icon-btn.is-spinning .ic { animation: spin .8s linear infinite; }
+.hero-top:has(.fit-pick) { flex-wrap: wrap; }
 .mg-item.is-cancelled { opacity: .6; }
 .mg-item.is-cancelled .mg-t { text-decoration: line-through; }
 .pblock.is-ghost.is-event { background: var(--surface-3); color: var(--text-2); box-shadow: 0 0 0 2px var(--text-3), var(--sh-lg); }

@@ -36,6 +36,8 @@ export interface BaseTask {
     urgency: number;
     dueAt: string | null;
     estHours: number;
+    /** The energy it needs (a filter only, never in the score). */
+    energy?: 'low' | 'normal' | 'high' | null;
     waitingFor: string | null;
     availableFrom: string | null;
     completedAt: string | null;

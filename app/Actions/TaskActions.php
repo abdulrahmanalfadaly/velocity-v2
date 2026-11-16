@@ -40,6 +40,7 @@ class TaskActions
             'urgency' => ['sometimes', 'integer', 'between:1,5'],
             'due_at' => ['sometimes', 'nullable', 'date'],
             'est_hours' => ['sometimes', 'numeric', 'min:0.05', 'max:500'],
+            'energy' => ['sometimes', 'nullable', Rule::in(Task::ENERGY)],
             'status' => ['sometimes', Rule::in([Task::TODO, Task::DOING, Task::WAITING])],
             'waiting_for' => ['sometimes', 'nullable', 'string', 'max:160'],
             'follow_up_on' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
@@ -84,6 +85,7 @@ class TaskActions
             'repeat_until' => $parsed['repeat']['until'] ?? null,
             'repeat_anchor' => $parsed['repeat'] ? $parsed['due']?->utc() : null,
             'available_from' => $parsed['start']?->utc(),
+            'energy' => $parsed['energy'] ?? null,
         ]);
         if ($parsed['remind']) {
             Reminders::add($task, $parsed['remind']['kind'] === 'at' ? ['kind' => 'at', 'at' => $parsed['remind']['at']->utc()] : $parsed['remind'], $this->ranking->now());
@@ -343,6 +345,7 @@ class TaskActions
             'urgency' => $task->urgency,
             'due_at' => $due,
             'est_hours' => $task->est_hours,
+            'energy' => $task->energy,
             'available_from' => $shift($task->available_from),
             'repeat_unit' => $task->repeat_unit,
             'repeat_every' => $task->repeat_every,

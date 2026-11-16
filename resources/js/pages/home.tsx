@@ -2,14 +2,24 @@ import { StartFocus } from '@/components/velocity/focus';
 import { Streak, habitSub } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import type { PlanBlock } from '@/components/velocity/planner-parts';
+import { Select } from '@/components/velocity/select';
 import { HabitButton } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, firstName, fmt1, fmtHours } from '@/lib/velocity';
 import type { FollowUpTask, HabitToday, NotReadyTask, RankedTask, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+
+/** "I have 30 min, low energy": the pickers on Do next (a filter; the order stays the formula's). */
+interface Fit {
+    time: string | null;
+    energy: 'low' | 'normal' | 'high' | null;
+    count: number;
+}
 
 interface Props extends VelocityShared {
     top: RankedTask[];
+    fit: Fit;
     total: number;
     overdue: number;
     dueSoon: number;
@@ -59,6 +69,26 @@ export default function Home() {
     const clock = Clock.from(props.clock);
     const first = firstName(props.auth.user?.name ?? '');
     const [top, ...next] = props.top;
+    const fit = props.fit ?? { time: null, energy: null, count: props.total };
+    const fitting = !!(fit.time || fit.energy);
+    const setFit = (patch: Partial<Fit>) => {
+        const f = { ...fit, ...patch };
+        router.get(
+            '/home',
+            { ...(f.time ? { time: f.time } : {}), ...(f.energy ? { energy: f.energy } : {}) },
+            { preserveScroll: true, preserveState: true, replace: true },
+        );
+    };
+    const [refreshing, setRefreshing] = useState(false);
+    const refresh = () => router.reload({ onStart: () => setRefreshing(true), onFinish: () => setRefreshing(false) });
+
+    // Left open past midnight: reload, so "today" is the new day.
+    useEffect(() => {
+        const day = () => clock.localInput(new Date().toISOString()).slice(0, 10);
+        const opened = day();
+        const t = setInterval(() => day() !== opened && router.reload(), 60_000);
+        return () => clearInterval(t);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <VelocityShell title="Home" section="home">
@@ -78,6 +108,15 @@ export default function Home() {
                                 </>
                             )}{' '}
                             <span className="dotsep" /> {props.dueSoon} due in the next two days
+                            {(props.nav?.counts.inbox ?? 0) > 0 && (
+                                <>
+                                    {' '}
+                                    <span className="dotsep" />{' '}
+                                    <Link className="page-sub-link" href="/tasks/inbox">
+                                        Inbox {props.nav?.counts.inbox}
+                                    </Link>
+                                </>
+                            )}
                             {props.focus.week > 0 && (
                                 <>
                                     {' '}
@@ -89,10 +128,27 @@ export default function Home() {
                             )}
                         </p>
                     </div>
+                    <div className="page-actions">
+                        <button
+                            className={`icon-btn${refreshing ? ' is-spinning' : ''}`}
+                            onClick={refresh}
+                            aria-label="Refresh"
+                            title="Refresh"
+                            disabled={refreshing}
+                        >
+                            <Icon name="refresh" />
+                        </button>
+                    </div>
                 </header>
                 <div className="home-grid">
                     <div className="col">
-                        {top ? <DoNext task={top} next={next} total={props.total} clock={clock} /> : <EmptyHero />}
+                        {top ? (
+                            <DoNext task={top} next={next} total={props.total} clock={clock} fit={fit} onFit={setFit} />
+                        ) : fitting ? (
+                            <NoFit fit={fit} onFit={setFit} />
+                        ) : (
+                            <EmptyHero />
+                        )}
                         <TodayPlan plan={props.plan} clock={clock} hasTasks={props.total > 0} />
                         {props.upcoming.length > 0 && <Upcoming tasks={props.upcoming} clock={clock} />}
                         <NotesCard notes={props.notes} clock={clock} />
@@ -113,7 +169,81 @@ export default function Home() {
     );
 }
 
-function DoNext({ task, next, total, clock }: { task: RankedTask; next: RankedTask[]; total: number; clock: Clock }) {
+const TIMES = [
+    { value: '', label: 'Any time' },
+    { value: '15', label: '15 min' },
+    { value: '30', label: '30 min' },
+    { value: '60', label: '1 hour' },
+    { value: '120', label: '2 hours' },
+];
+const ENERGIES = [
+    { value: '', label: 'Any energy' },
+    { value: 'low', label: 'Low energy' },
+    { value: 'normal', label: 'Normal energy' },
+    { value: 'high', label: 'High energy' },
+];
+
+/** "I have [30 min] [low energy]": only tasks that fit, in the same order. */
+function FitPickers({ fit, onFit }: { fit: Fit; onFit: (patch: Partial<Fit>) => void }) {
+    return (
+        <span className="fit-pick">
+            <span className="fit-label">I have</span>
+            <Select
+                className="btn btn-ghost btn-sm"
+                label="Time you have"
+                value={fit.time ?? ''}
+                search={false}
+                options={TIMES}
+                onChange={(v) => onFit({ time: v || null })}
+            />
+            <Select
+                className="btn btn-ghost btn-sm"
+                label="Your energy"
+                value={fit.energy ?? ''}
+                search={false}
+                options={ENERGIES}
+                onChange={(v) => onFit({ energy: (v || null) as Fit['energy'] })}
+            />
+        </span>
+    );
+}
+
+/** Nothing fits the time and energy picked. */
+function NoFit({ fit, onFit }: { fit: Fit; onFit: (patch: Partial<Fit>) => void }) {
+    return (
+        <section className="card hero">
+            <div className="hero-top">
+                <span className="pill-label">
+                    <Icon name="zap" />
+                    Do next
+                </span>
+                <FitPickers fit={fit} onFit={onFit} />
+            </div>
+            <h2 className="hero-title">Nothing fits</h2>
+            <div className="hero-actions">
+                <button className="btn btn-secondary" onClick={() => onFit({ time: null, energy: null })}>
+                    Show all
+                </button>
+            </div>
+        </section>
+    );
+}
+
+function DoNext({
+    task,
+    next,
+    total,
+    clock,
+    fit,
+    onFit,
+}: {
+    task: RankedTask;
+    next: RankedTask[];
+    total: number;
+    clock: Clock;
+    fit: Fit;
+    onFit: (patch: Partial<Fit>) => void;
+}) {
     const due = dueInfo(task, clock);
     const done = task.steps.filter((s) => s.done).length;
     return (
@@ -124,9 +254,12 @@ function DoNext({ task, next, total, clock }: { task: RankedTask; next: RankedTa
                         <Icon name="zap" />
                         Do next
                     </span>
+                    <FitPickers fit={fit} onFit={onFit} />
                     <div className="hero-score">
                         <b>{fmt1(task.score)}</b>
-                        <span>#1 of {total}</span>
+                        <span>
+                            #{task.rank} of {total}
+                        </span>
                     </div>
                 </div>
                 <h2 className="hero-title">{task.title}</h2>

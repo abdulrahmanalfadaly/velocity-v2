@@ -63,7 +63,7 @@ class QuickAddParser
         }
 
         return ['title' => $s['title'], 'due' => $due, 'hours' => $s['hours'], 'projectId' => $s['projectId'], 'repeat' => $s['repeat'],
-            'start' => $s['start'], 'remind' => $remind, 'importance' => $s['importance'], 'picked' => $s['picked']];
+            'start' => $s['start'], 'remind' => $remind, 'importance' => $s['importance'], 'energy' => $s['energy'], 'picked' => $s['picked']];
     }
 
     /**
@@ -132,6 +132,7 @@ class QuickAddParser
         $start = null;
         $remind = null;
         $importance = null;
+        $energy = null;
         $picked = [];
 
         for ($i = 0; $i < count($words); $i++) {
@@ -225,6 +226,9 @@ class QuickAddParser
             } elseif (! $event && preg_match('/^!{1,3}$/', $w)) {
                 $importance = $w === '!' ? 4 : 5; // "!" high, "!!" very high
                 $picked[] = ['kind' => 'importance', 'text' => $w];
+            } elseif (! $event && preg_match('/^~(low|normal|high)$/', $lw, $m)) {
+                $energy = $m[1]; // "~low": the energy it needs (a filter only)
+                $picked[] = ['kind' => 'energy', 'text' => $w];
             } elseif (! $event && $lw === 'from' && ($first = $this->dateAt($words, $i + 1, $nowLocal, $plain)) !== null) {
                 // "from mon": it can start then (until then it isn't ranked).
                 $start = $first[0];
@@ -281,7 +285,7 @@ class QuickAddParser
 
         return ['title' => trim(implode(' ', $keep)), 'day' => $day, 'time' => $time, 'end' => $end, 'hours' => $hours, 'projectId' => $projectId,
             'calendar' => $calendar, 'repeat' => $repeat && $until ? $repeat + ['until' => $until->toDateString()] : $repeat, 'repeatDay' => $repeatDay,
-            'start' => $start, 'remind' => $remind, 'importance' => $importance, 'picked' => $picked];
+            'start' => $start, 'remind' => $remind, 'importance' => $importance, 'energy' => $energy, 'picked' => $picked];
     }
 
     /**

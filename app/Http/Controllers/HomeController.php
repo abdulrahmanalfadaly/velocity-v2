@@ -14,6 +14,7 @@ use App\Services\RankingService;
 use App\Services\TaskPresenter;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,6 +26,12 @@ class HomeController extends Controller
         $user = $request->user();
         $list = $ranking->rank($user);
         $all = $list->toArray();
+        // "I have 30 min, low energy": the top tasks that fit, still in the formula's order (a filter, never a new order).
+        $fit = $request->validate(['time' => ['nullable', Rule::in(['15', '30', '60', '120'])], 'energy' => ['nullable', Rule::in(Task::ENERGY)]]);
+        $level = array_flip(Task::ENERGY);
+        $fits = fn (array $t) => (! isset($fit['time']) || (int) $fit['time'] >= $t['estHours'] * 60)
+            && (! isset($fit['energy']) || $level[$t['energy'] ?? 'normal'] <= $level[$fit['energy']]);
+        $shown = $fit ? array_values(array_filter($all, $fits)) : $all;
         $now = $ranking->now();
         $local = $now->timezone($user->timezone);
         $today = $local->startOfDay();
@@ -55,7 +62,8 @@ class HomeController extends Controller
         $blocks = $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get();
 
         return Inertia::render('home', [
-            'top' => array_slice($all, 0, 3),
+            'top' => array_slice($shown, 0, 3),
+            'fit' => ['time' => $fit['time'] ?? null, 'energy' => $fit['energy'] ?? null, 'count' => count($shown)],
             'total' => count($all),
             'overdue' => count(array_filter($all, fn ($t) => $t['days'] !== null && $t['days'] <= 0)),
             'dueSoon' => count(array_filter($all, fn ($t) => $t['dueAt'] && $t['days'] > 0 && $t['days'] <= 2)),

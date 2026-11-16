@@ -340,6 +340,25 @@ export function TaskPanel({
                         <span className="muted">{Number.isInteger(task.estHours) ? 'hours' : `hours · ${fmtHours(task.estHours)}`}</span>
                     </div>
                     <div className="prop-label">
+                        <Icon name="flame" />
+                        Energy
+                    </div>
+                    <div className="prop-value">
+                        <Select
+                            className="prop-input"
+                            value={task.energy ?? ''}
+                            label="Energy it needs"
+                            search={false}
+                            onChange={(v) => patch(task.id, { energy: v || null })}
+                            options={[
+                                { value: '', label: 'Not set' },
+                                { value: 'low', label: 'Low' },
+                                { value: 'normal', label: 'Normal' },
+                                { value: 'high', label: 'High' },
+                            ]}
+                        />
+                    </div>
+                    <div className="prop-label">
                         <Icon name="folder" />
                         Project
                     </div>
