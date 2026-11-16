@@ -1779,6 +1779,13 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .note-proj-chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 8px; border-radius: 7px; background: var(--surface-3); font-size: 12.5px; font-weight: 600; }
 .note-proj-chip a { color: var(--text); text-decoration: none; }
 .note-proj-chip a:hover { text-decoration: underline; }
+/* Habits: status, what it is and why, goals. */
+.hb-status { margin: 2px 0 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.hb-about { display: grid; gap: 6px; margin: 4px 0 12px; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.hb-about p { margin: 0; white-space: pre-line; }
+.hb-why b { color: var(--text); }
+.hb-goals { margin-bottom: 10px; }
+.hb-goal-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 36px; }
 /* Home: "I have [30 min] [low energy]" on Do next, the Inbox link, Refresh. */
 .fit-pick { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-right: auto; margin-left: 10px; font-size: 13px; color: var(--text-3); }
 .fit-label { margin-right: 2px; }

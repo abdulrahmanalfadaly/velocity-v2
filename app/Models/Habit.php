@@ -26,12 +26,15 @@ class Habit extends Model
 
     public const KINDS = ['do', 'minutes', 'limit', 'avoid'];
 
-    protected $fillable = ['project_id', 'name', 'kind', 'detail', 'days', 'per_week', 'per_month', 'every_days', 'starts_on', 'target', 'unit', 'at_time', 'minutes', 'archived_at'];
+    protected $fillable = [
+        'project_id', 'area_id', 'name', 'kind', 'detail', 'description', 'why', 'days', 'per_week', 'per_month', 'every_days', 'starts_on', 'ends_on',
+        'target', 'unit', 'at_time', 'minutes', 'archived_at',
+    ];
 
     protected function casts(): array
     {
         return [
-            'days' => 'array', 'per_week' => 'integer', 'per_month' => 'integer', 'every_days' => 'integer', 'starts_on' => 'date',
+            'days' => 'array', 'per_week' => 'integer', 'per_month' => 'integer', 'every_days' => 'integer', 'starts_on' => 'date', 'ends_on' => 'date',
             'target' => 'integer', 'minutes' => 'integer', 'archived_at' => 'datetime',
         ];
     }
@@ -88,9 +91,48 @@ class Habit extends Model
         };
     }
 
-    /** Whether the schedule asks for it on this day. A weekly or monthly habit can be done on any day. */
+    /** Within its start and end dates (each optional) on this day. */
+    public function activeOn(CarbonImmutable $day): bool
+    {
+        $d = $day->toDateString();
+
+        return ! ($this->starts_on && $d < $this->starts_on->toDateString()) && ! ($this->ends_on && $d > $this->ends_on->toDateString());
+    }
+
+    /**
+     * Active, paused today, not started yet or finished (its end date has passed).
+     *
+     * @return 'active'|'paused'|'notStarted'|'finished'
+     */
+    public function status(CarbonImmutable $today): string
+    {
+        $t = $today->toDateString();
+
+        return match (true) {
+            $this->ends_on && $t > $this->ends_on->toDateString() => 'finished',
+            $this->starts_on && $t < $this->starts_on->toDateString() => 'notStarted',
+            $this->pausedOn($t) => 'paused',
+            default => 'active',
+        };
+    }
+
+    /** The goals it serves (more than one is fine). */
+    public function goals(): BelongsToMany
+    {
+        return $this->belongsToMany(Goal::class);
+    }
+
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
+    }
+
+    /** Whether the schedule asks for it on this day (never before its start or after its end). A weekly or monthly habit can be done on any day. */
     public function isDue(CarbonImmutable $day): bool
     {
+        if (! $this->activeOn($day)) {
+            return false;
+        }
         if ($this->every_days) {
             $anchor = CarbonImmutable::parse(($this->starts_on ?? $this->created_at)->toDateString(), $day->timezone);
             $diff = (int) round($anchor->diffInDays($day->startOfDay()));

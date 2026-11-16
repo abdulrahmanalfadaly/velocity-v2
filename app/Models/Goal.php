@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\Clock;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -51,6 +52,12 @@ class Goal extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Habits that serve this goal. */
+    public function habits(): BelongsToMany
+    {
+        return $this->belongsToMany(Habit::class);
     }
 
     public function projects(): HasMany

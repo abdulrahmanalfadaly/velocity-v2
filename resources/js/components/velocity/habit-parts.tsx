@@ -1,6 +1,6 @@
 import { type Clock, hm12 } from '@/lib/velocity';
-import type { HabitDay, HabitToday } from '@/types/velocity';
-import { Link, router, useForm } from '@inertiajs/react';
+import type { HabitDay, HabitToday, VelocityShared } from '@/types/velocity';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
@@ -20,6 +20,11 @@ export interface HabitForm {
     per_month: number | null;
     every_days: number | null;
     starts_on: string | null;
+    ends_on?: string | null;
+    description?: string | null;
+    why?: string | null;
+    area_id?: number | null;
+    goal_ids?: number[];
     target: number;
     unit: string | null;
     at_time: string | null;
@@ -51,7 +56,8 @@ export const formOf = (h: HabitToday): HabitForm => ({
     per_week: h.schedule.perWeek,
     per_month: h.schedule.perMonth,
     every_days: h.schedule.everyDays,
-    starts_on: null,
+    starts_on: h.startsOn ?? null,
+    ends_on: h.endsOn ?? null,
     target: h.target,
     unit: h.unit,
     at_time: h.time,
@@ -429,6 +435,11 @@ export function HabitDialog({
         per_month: String(initial?.per_month ?? 8),
         every_days: String(initial?.every_days ?? 3),
         starts_on: initial?.starts_on ?? '',
+        ends_on: initial?.ends_on ?? '',
+        description: initial?.description ?? '',
+        why: initial?.why ?? '',
+        area_id: initial?.area_id ? String(initial.area_id) : '',
+        goal_ids: initial?.goal_ids ?? [],
         target: String(initial?.target ?? 1),
         unit: initial?.unit ?? '',
         at_time: initial?.at_time ?? '',
@@ -452,7 +463,17 @@ export function HabitDialog({
             per_week: d.schedule === 'weekly' ? Number(d.per_week) : null,
             per_month: d.schedule === 'monthly' ? Number(d.per_month) : null,
             every_days: d.schedule === 'every' ? Number(d.every_days) : null,
-            starts_on: d.schedule === 'every' ? d.starts_on || null : null,
+            starts_on: d.starts_on || null,
+            ends_on: d.ends_on || null,
+            // Sent only when the dialog had them (a new habit, or one opened with all its details).
+            ...(full
+                ? {
+                      description: d.description.trim() || null,
+                      why: d.why.trim() || null,
+                      area_id: d.area_id ? Number(d.area_id) : null,
+                      goal_ids: d.goal_ids,
+                  }
+                : {}),
             target: d.kind === 'avoid' ? 1 : Number(d.target) || 1,
             unit: counted ? d.unit || null : null,
             at_time: timed && d.at_time ? d.at_time : null,
@@ -464,6 +485,10 @@ export function HabitDialog({
         else form.post(route('habits.store'), opts);
     };
     const toggleDay = (d: number) => setData('days', data.days.includes(d) ? data.days.filter((x) => x !== d) : [...data.days, d].sort());
+    const full = !habitId || initial?.goal_ids !== undefined;
+    const nav = usePage<VelocityShared>().props.nav;
+    const goals = nav?.goals ?? [];
+    const areas = nav?.areas ?? [];
 
     return (
         <Modal title={habitId ? 'Edit habit' : 'New habit'} onClose={onClose}>
@@ -558,8 +583,7 @@ export function HabitDialog({
                                 aria-label="Every how many days"
                                 onChange={(e) => setData('every_days', e.target.value)}
                             />
-                            <span>days, from</span>
-                            <DatePick label="Starting on" value={data.starts_on} onChange={(v) => setData('starts_on', v)} placeholder="Today" />
+                            <span>days, counted from its start</span>
                         </div>
                     )}
                     {data.schedule === 'days' && (
@@ -643,6 +667,93 @@ export function HabitDialog({
                         ) : (
                             <span />
                         )}
+                    </div>
+                )}
+                <div className="vform-row">
+                    <Field id="h-starts" label="Starts" error={errors.starts_on}>
+                        <DatePick
+                            id="h-starts"
+                            value={data.starts_on}
+                            onChange={(v) => setData('starts_on', v)}
+                            placeholder={data.schedule === 'every' ? 'Today' : 'Now'}
+                        />
+                    </Field>
+                    <Field id="h-ends" label="Ends" error={errors.ends_on}>
+                        <DatePick
+                            id="h-ends"
+                            value={data.ends_on}
+                            onChange={(v) => setData('ends_on', v)}
+                            placeholder="No end"
+                            min={data.starts_on || undefined}
+                        />
+                    </Field>
+                </div>
+                <Field id="h-desc" label="What it is" error={errors.description}>
+                    <textarea
+                        id="h-desc"
+                        className="input vform-text"
+                        rows={2}
+                        maxLength={2000}
+                        value={data.description}
+                        placeholder="20 pages of any book, not the course reader"
+                        onChange={(e) => setData('description', e.target.value)}
+                    />
+                </Field>
+                <Field id="h-why" label="Why it matters" error={errors.why}>
+                    <textarea
+                        id="h-why"
+                        className="input vform-text"
+                        rows={2}
+                        maxLength={2000}
+                        value={data.why}
+                        placeholder="Reading every day keeps my head clear for the FYP"
+                        onChange={(e) => setData('why', e.target.value)}
+                    />
+                </Field>
+                {(goals.length > 0 || areas.length > 0) && (
+                    <div className="vform-row">
+                        <Field id="h-goals" label="Goals it serves" error={errors.goal_ids}>
+                            <span className="hb-goal-pick" id="h-goals">
+                                {data.goal_ids.map((id) => (
+                                    <span key={id} className="note-proj-chip">
+                                        <span>{goals.find((g) => g.id === id)?.title ?? 'Goal'}</span>
+                                        <button
+                                            type="button"
+                                            className="note-task-x"
+                                            aria-label="Take off this goal"
+                                            onClick={() =>
+                                                setData(
+                                                    'goal_ids',
+                                                    data.goal_ids.filter((x) => x !== id),
+                                                )
+                                            }
+                                        >
+                                            <Icon name="x" className="ic-xs" />
+                                        </button>
+                                    </span>
+                                ))}
+                                {goals.some((g) => !data.goal_ids.includes(g.id)) && (
+                                    <Select
+                                        className="note-project-sel"
+                                        value=""
+                                        label="Add a goal"
+                                        placeholder={data.goal_ids.length ? '+ Goal' : 'No goal'}
+                                        onChange={(v) => v && setData('goal_ids', [...data.goal_ids, Number(v)])}
+                                        options={goals
+                                            .filter((g) => !data.goal_ids.includes(g.id))
+                                            .map((g) => ({ value: String(g.id), label: g.title }))}
+                                    />
+                                )}
+                            </span>
+                        </Field>
+                        <Field id="h-area" label="Area" error={errors.area_id}>
+                            <Select
+                                id="h-area"
+                                value={data.area_id}
+                                onChange={(v) => setData('area_id', v)}
+                                options={[{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: String(a.id), label: a.name }))]}
+                            />
+                        </Field>
                     </div>
                 )}
                 <div className="vform-row">

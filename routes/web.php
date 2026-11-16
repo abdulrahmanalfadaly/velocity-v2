@@ -148,6 +148,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('routines', [RoutineController::class, 'store'])->name('routines.store');
         Route::patch('routines/{routine}', [RoutineController::class, 'update'])->name('routines.update');
         Route::delete('routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');
+        Route::post('routines/{routine}/archive', [RoutineController::class, 'archive'])->name('routines.archive');
+        Route::post('routines/{routine}/unarchive', [RoutineController::class, 'unarchive'])->name('routines.unarchive');
         Route::post('routines/{id}/restore', [RoutineController::class, 'restore'])->whereNumber('id')->name('routines.restore');
 
         Route::get('review', [ReviewController::class, 'index'])->name('review.index');

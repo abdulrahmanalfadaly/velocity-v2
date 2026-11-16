@@ -89,6 +89,9 @@ class HabitStats
             'minutes' => $h->minutes,
             'project' => $h->project ? ['id' => $h->project->id, 'name' => $h->project->name] : null,
             'archived' => $h->archived_at !== null,
+            'status' => $h->status($this->today),
+            'startsOn' => $h->starts_on?->toDateString(),
+            'endsOn' => $h->ends_on?->toDateString(),
         ];
     }
 
@@ -109,6 +112,10 @@ class HabitStats
             'since' => $this->start->toDateString(),
             'form' => self::form($h),
             'routines' => $h->routines->map(fn ($r) => ['id' => $r->id, 'name' => $r->name])->values(),
+            'description' => $h->description,
+            'why' => $h->why,
+            'goals' => $h->goals->map(fn ($g) => ['id' => $g->id, 'title' => $g->title, 'color' => $g->color])->values(),
+            'area' => $h->area ? ['id' => $h->area->id, 'name' => $h->area->name] : null,
             // Notes on check-ins, newest first.
             'notes' => array_map(fn ($date, $d) => ['date' => $date, 'note' => $d['note'], 'count' => $d['count'], 'skipped' => $d['skipped']], array_keys(array_slice($notes, 0, 30, true)), array_slice($notes, 0, 30, true)),
         ];
@@ -127,6 +134,11 @@ class HabitStats
             'per_month' => $h->per_month,
             'every_days' => $h->every_days,
             'starts_on' => $h->starts_on?->toDateString(),
+            'ends_on' => $h->ends_on?->toDateString(),
+            'description' => $h->description,
+            'why' => $h->why,
+            'area_id' => $h->area_id,
+            'goal_ids' => $h->goals()->pluck('goals.id')->map(fn ($id) => (int) $id)->all(),
             'target' => $h->target,
             'unit' => $h->unit,
             'at_time' => $h->at_time,
@@ -160,6 +172,10 @@ class HabitStats
         }
         if ($h->pausedOn($d)) {
             return 'paused';
+        }
+        // Before its start date or after its end date: not part of the habit.
+        if (! $h->activeOn($day)) {
+            return $h->starts_on && $d < $h->starts_on->toDateString() ? 'before' : 'off';
         }
         if ($h->less()) {
             // Fewer is better: a day is kept unless it went over; today is still going.

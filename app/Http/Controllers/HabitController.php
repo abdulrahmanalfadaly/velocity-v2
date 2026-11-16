@@ -52,7 +52,7 @@ class HabitController extends Controller
                 return $s->row() + ['days' => $view === 'week' ? $s->span($monday, 7) : $s->span($today->subDays(6), 7)];
             })->values();
 
-        $open = isset($q['habit']) ? $user->habits()->with(['entries', 'project', 'routines', 'pauses'])->find($q['habit']) : null;
+        $open = isset($q['habit']) ? $user->habits()->with(['entries', 'project', 'routines', 'pauses', 'goals:id,title,color', 'area:id,name'])->find($q['habit']) : null;
         $active = $user->habits()->whereNull('archived_at')->with(['entries' => fn ($e) => $e->where('day', '>=', $today->subDays(14)->toDateString()), 'pauses'])->get();
         $groups = $active->mapWithKeys(fn (Habit $h) => [$h->id => (new HabitStats($h, $today))->row()['group']]);
 
@@ -61,13 +61,16 @@ class HabitController extends Controller
             'today' => $today->toDateString(),
             'week' => ['start' => $monday->toDateString(), 'isThisWeek' => $monday->equalTo($thisMonday), 'days' => collect(range(0, 6))->map(fn ($i) => $monday->addDays($i)->toDateString())],
             'habits' => $rows,
-            'routine' => $routine ? ['id' => $routine->id, 'name' => $routine->name, 'habitIds' => $routine->habits()->pluck('habits.id')] : null,
+            'routine' => $routine ? [
+                'id' => $routine->id, 'name' => $routine->name, 'description' => $routine->description, 'archived' => $routine->archived_at !== null,
+                'habitIds' => $routine->habits()->pluck('habits.id'),
+            ] : null,
             'habit' => $open ? (new HabitStats($open, $today))->detail() + ['linkedNotes' => NoteLink::notesFor($user, 'habit', $open->id)] : null,
             'menu' => [
                 'today' => $groups->filter(fn ($g) => $g === 'todo')->count(),
                 'all' => $active->count(),
                 'archived' => $user->habits()->whereNotNull('archived_at')->count(),
-                'routines' => $user->routines()->with('habits:id')->get()->map(fn (Routine $r) => [
+                'routines' => $user->routines()->whereNull('archived_at')->with('habits:id')->get()->map(fn (Routine $r) => [
                     'id' => $r->id,
                     'name' => $r->name,
                     'done' => $r->habits->filter(fn ($h) => ($groups[$h->id] ?? null) === 'done')->count(),
@@ -76,6 +79,7 @@ class HabitController extends Controller
             ],
             'choices' => $active->sortBy(fn ($h) => mb_strtolower($h->name))->map(fn ($h) => ['id' => $h->id, 'name' => $h->name])->values(),
             'projects' => $user->projects()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
+            'archivedRoutines' => $view === 'archived' ? $user->routines()->whereNotNull('archived_at')->orderBy('name')->get(['id', 'name', 'description']) : [],
         ]);
     }
 
@@ -83,6 +87,7 @@ class HabitController extends Controller
     {
         $user = $request->user();
         $habit = $user->habits()->create($this->fields($request, $user));
+        $this->syncGoals($request, $habit);
         // Back where the dialog was opened, minus "?new=1" (Ctrl K's New habit), or a reload would open it again.
         $back = rtrim(preg_replace('/([?&])new=1(&|$)/', '$1', url()->previous()), '?&');
 
@@ -95,6 +100,7 @@ class HabitController extends Controller
         $this->own($habit, $user);
         $old = HabitStats::form($habit);
         $habit->update($this->fields($request, $user));
+        $this->syncGoals($request, $habit);
 
         return back()->with('toast', "Saved “{$habit->name}”")->with('undo', $this->undo('patch-habit', $habit->id, $old));
     }
@@ -322,7 +328,12 @@ class HabitController extends Controller
             'per_week' => ['exclude_unless:schedule,weekly', 'required', 'integer', 'between:1,7'],
             'per_month' => ['exclude_unless:schedule,monthly', 'required', 'integer', 'between:1,31'],
             'every_days' => ['exclude_unless:schedule,every', 'required', 'integer', 'between:2,365'],
-            'starts_on' => ['exclude_unless:schedule,every', 'nullable', 'date_format:Y-m-d'],
+            // Before its start and after its end it isn't due; every N days also counts from the start.
+            'starts_on' => ['nullable', 'date_format:Y-m-d'],
+            'ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:starts_on'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'why' => ['nullable', 'string', 'max:2000'],
+            'area_id' => ['nullable', 'integer', Rule::exists('areas', 'id')->where('user_id', $user->id)],
             'target' => ['exclude_if:kind,avoid', 'required', 'integer', Rule::when($request->input('kind') === 'minutes', 'between:1,1440', 'between:1,1000')],
             'unit' => ['nullable', 'string', 'max:24'],
             'at_time' => ['nullable', 'date_format:H:i', 'prohibited_if:schedule,weekly', 'prohibited_if:schedule,monthly', 'prohibited_if:kind,limit', 'prohibited_if:kind,avoid'],
@@ -331,7 +342,8 @@ class HabitController extends Controller
         ], [
             'at_time.prohibited_if' => 'Only a habit for set days can have a time on the Planner.',
             'schedule.in' => 'A limit or something to avoid is for every day, set days, or every few days.',
-        ], ['per_week' => 'times a week', 'per_month' => 'times a month', 'every_days' => 'every how many days', 'at_time' => 'time', 'target' => 'amount a day']);
+        ], ['per_week' => 'times a week', 'per_month' => 'times a month', 'every_days' => 'every how many days', 'at_time' => 'time', 'target' => 'amount a day',
+            'starts_on' => 'start', 'ends_on' => 'end']);
 
         $days = $d['schedule'] === 'days' ? array_values(array_unique(array_map('intval', $d['days']))) : null;
         if ($days) {
@@ -348,13 +360,31 @@ class HabitController extends Controller
             'per_week' => $d['schedule'] === 'weekly' ? (int) $d['per_week'] : null,
             'per_month' => $d['schedule'] === 'monthly' ? (int) $d['per_month'] : null,
             'every_days' => $d['schedule'] === 'every' ? (int) $d['every_days'] : null,
-            'starts_on' => $d['schedule'] === 'every' ? ($d['starts_on'] ?? app(Clock::class)->now()->timezone($user->timezone)->toDateString()) : null,
+            'starts_on' => $d['starts_on'] ?? ($d['schedule'] === 'every' ? app(Clock::class)->now()->timezone($user->timezone)->toDateString() : null),
+            'ends_on' => $d['ends_on'] ?? null,
             'target' => $target,
             'unit' => $kind === 'minutes' ? 'min' : ($kind !== 'avoid' && ($target > 1 || $kind === 'limit') ? ($d['unit'] ?? null) : null),
             'at_time' => $d['at_time'] ?? null,
             'minutes' => isset($d['at_time']) ? (int) $d['minutes'] : null,
             'project_id' => $d['project_id'] ?? null,
-        ];
+        ]
+            // Only when sent: a client that doesn't know them leaves them as they are.
+            + ($request->has('description') ? ['description' => trim((string) ($d['description'] ?? '')) ?: null] : [])
+            + ($request->has('why') ? ['why' => trim((string) ($d['why'] ?? '')) ?: null] : [])
+            + ($request->has('area_id') ? ['area_id' => $d['area_id'] ?? null] : []);
+    }
+
+    /** The goals it serves, when the dialog sends them ("goal_ids"). */
+    private function syncGoals(Request $request, Habit $habit): void
+    {
+        if (! $request->has('goal_ids')) {
+            return;
+        }
+        $ids = $request->validate([
+            'goal_ids' => ['present', 'array', 'max:10'],
+            'goal_ids.*' => ['integer', 'distinct', Rule::exists('goals', 'id')->where('user_id', $habit->user_id)->whereNull('deleted_at')],
+        ])['goal_ids'];
+        $habit->goals()->sync($ids);
     }
 
     private function today(User $user): CarbonImmutable

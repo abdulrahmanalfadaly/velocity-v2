@@ -185,6 +185,10 @@ export interface HabitToday {
     minutes: number | null;
     project: { id: number; name: string } | null;
     archived: boolean;
+    /** Active, paused today, not started yet (its start date is ahead) or finished (its end date has passed). */
+    status?: 'active' | 'paused' | 'notStarted' | 'finished';
+    startsOn?: string | null;
+    endsOn?: string | null;
 }
 
 export type HabitDayState = 'done' | 'partial' | 'skipped' | 'paused' | 'missed' | 'todo' | 'open' | 'off' | 'future' | 'before';

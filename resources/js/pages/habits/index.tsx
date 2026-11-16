@@ -33,6 +33,10 @@ type HabitDetail = HabitToday & {
     since: string;
     form: HabitForm;
     routines: { id: number; name: string }[];
+    description?: string | null;
+    why?: string | null;
+    goals?: { id: number; title: string; color: number }[];
+    area?: { id: number; name: string } | null;
 };
 
 interface Props extends VelocityShared {
@@ -40,7 +44,8 @@ interface Props extends VelocityShared {
     today: string;
     week: { start: string; isThisWeek: boolean; days: string[] };
     habits: HabitRow[];
-    routine: { id: number; name: string; habitIds: number[] } | null;
+    routine: { id: number; name: string; description?: string | null; archived?: boolean; habitIds: number[] } | null;
+    archivedRoutines?: { id: number; name: string; description: string | null }[];
     habit: HabitDetail | null;
     menu: { today: number; all: number; archived: number; routines: { id: number; name: string; done: number; of: number }[] };
     choices: { id: number; name: string }[];
@@ -79,7 +84,21 @@ export default function Habits() {
             window.history.replaceState(window.history.state, '', url);
         }
     }, []);
-    const edit = (h: HabitToday) => setDialog({ id: h.id, form: formOf(h) });
+    // Edit with everything about the habit (its description, why, goals): from its panel, loaded first if needed.
+    const edit = (h: HabitToday) => {
+        if (props.habit?.id === h.id) return setDialog({ id: h.id, form: props.habit.form });
+        router.get(
+            url({ habit: h.id }),
+            {},
+            {
+                ...keep,
+                onSuccess: (page) => {
+                    const d = (page.props as unknown as Props).habit;
+                    setDialog({ id: h.id, form: d?.id === h.id ? d.form : formOf(h) });
+                },
+            },
+        );
+    };
     const rowProps = {
         clock,
         activeId: props.habit?.id,
@@ -90,7 +109,7 @@ export default function Habits() {
 
     let content;
     if (view === 'week') content = <WeekView props={props} clock={clock} rowProps={rowProps} onNew={newHabit} />;
-    else if (view === 'archived') content = <ArchivedView habits={props.habits} onOpen={open} />;
+    else if (view === 'archived') content = <ArchivedView habits={props.habits} routines={props.archivedRoutines} onOpen={open} />;
     else if (props.routine) content = <RoutineView props={props} rowProps={rowProps} onEdit={() => setRoutineDialog('edit')} />;
     else content = <ListView props={props} clock={clock} rowProps={rowProps} onNew={newHabit} all={view === 'all'} />;
 
@@ -191,7 +210,8 @@ function Group({ title, rows, rowProps, steps }: { title: string; rows: HabitRow
 
 /** Today (grouped: to do, done, skipped, not today) or All habits (one list). */
 function ListView({ props, clock, rowProps, onNew, all }: { props: Props; clock: Clock; rowProps: RowProps; onNew: () => void; all: boolean }) {
-    const by = (g: HabitToday['group']) => props.habits.filter((h) => h.group === g);
+    // Today leaves out habits whose end date has passed (All habits keeps them under Finished).
+    const by = (g: HabitToday['group']) => props.habits.filter((h) => h.group === g && h.status !== 'finished');
     const todo = by('todo');
     return (
         <>
@@ -219,9 +239,23 @@ function ListView({ props, clock, rowProps, onNew, all }: { props: Props; clock:
                 </section>
             ) : all ? (
                 <section className="card hb-card">
-                    {props.habits.map((h) => (
-                        <Row key={h.id} h={h} {...rowProps} />
-                    ))}
+                    {props.habits
+                        .filter((h) => h.status !== 'finished')
+                        .map((h) => (
+                            <Row key={h.id} h={h} {...rowProps} />
+                        ))}
+                    {props.habits.some((h) => h.status === 'finished') && (
+                        <details className="hb-off">
+                            <summary>
+                                Finished <span>{props.habits.filter((h) => h.status === 'finished').length}</span>
+                            </summary>
+                            {props.habits
+                                .filter((h) => h.status === 'finished')
+                                .map((h) => (
+                                    <Row key={h.id} h={h} {...rowProps} />
+                                ))}
+                        </details>
+                    )}
                 </section>
             ) : (
                 <section className="card hb-card">
@@ -376,12 +410,27 @@ function RoutineView({ props, rowProps, onEdit }: { props: Props; rowProps: RowP
                     <h1 className="h1">
                         {routine.name} <span className="count">{now.length ? `${done} of ${now.length} today` : 'Nothing today'}</span>
                     </h1>
+                    {routine.description && <p className="page-sub">{routine.description}</p>}
                 </div>
                 <div className="page-actions">
                     <button className="btn btn-secondary" onClick={onEdit}>
                         <Icon name="sliders" />
                         Edit
                     </button>
+                    {routine.archived ? (
+                        <button className="btn btn-secondary" onClick={() => router.post(route('routines.unarchive', routine.id), {}, keep)}>
+                            Restore
+                        </button>
+                    ) : (
+                        <button
+                            className="icon-btn"
+                            aria-label={`Archive “${routine.name}”`}
+                            title="Archive"
+                            onClick={() => router.post(route('routines.archive', routine.id), {}, keep)}
+                        >
+                            <Icon name="archive" />
+                        </button>
+                    )}
                     <button
                         className="icon-btn"
                         aria-label={`Delete “${routine.name}”`}
@@ -409,7 +458,15 @@ function RoutineView({ props, rowProps, onEdit }: { props: Props; rowProps: RowP
     );
 }
 
-function ArchivedView({ habits, onOpen }: { habits: HabitRow[]; onOpen: (id: number) => void }) {
+function ArchivedView({
+    habits,
+    routines = [],
+    onOpen,
+}: {
+    habits: HabitRow[];
+    routines?: { id: number; name: string; description: string | null }[];
+    onOpen: (id: number) => void;
+}) {
     return (
         <>
             <header className="page-head">
@@ -418,7 +475,20 @@ function ArchivedView({ habits, onOpen }: { habits: HabitRow[]; onOpen: (id: num
                 </h1>
             </header>
             <section className="card hb-card">
-                {habits.length === 0 && <p className="card-empty hb-none">Nothing archived.</p>}
+                {habits.length === 0 && routines.length === 0 && <p className="card-empty hb-none">Nothing archived.</p>}
+                {routines.map((r) => (
+                    <div key={`r${r.id}`} className="hb-row is-archived">
+                        <Link className="hb-main" href={route('habits.index', { view: `r${r.id}` })}>
+                            <span className="hb-name">
+                                <Icon name="list" className="ic-xs" /> {r.name}
+                            </span>
+                            <span className="hb-sub">{r.description ?? 'Routine'}</span>
+                        </Link>
+                        <button className="btn btn-secondary btn-sm" onClick={() => router.post(route('routines.unarchive', r.id), {}, keep)}>
+                            Restore
+                        </button>
+                    </div>
+                ))}
                 {habits.map((h) => (
                     <div key={h.id} className="hb-row is-archived">
                         <button className="hb-main" onClick={() => onOpen(h.id)}>
@@ -506,6 +576,39 @@ function HabitPanel({
                     <h2 className="p-title">{h.name}</h2>
                 </div>
                 <p className="hb-p-sub">{habitSub(h)}</p>
+                {h.status && h.status !== 'active' && h.status !== 'paused' && (
+                    <p className="hb-status">
+                        {h.status === 'finished'
+                            ? `Finished · ended ${dayName(h.endsOn!, clock)}`
+                            : `Not started · starts ${dayName(h.startsOn!, clock)}`}
+                    </p>
+                )}
+                {(h.description || h.why) && (
+                    <div className="hb-about">
+                        {h.description && <p>{h.description}</p>}
+                        {h.why && (
+                            <p className="hb-why">
+                                <b>Why:</b> {h.why}
+                            </p>
+                        )}
+                    </div>
+                )}
+                {((h.goals ?? []).length > 0 || h.area) && (
+                    <div className="p-linked hb-goals">
+                        {(h.goals ?? []).map((g) => (
+                            <Link key={g.id} className="p-linked-note" href={`/goals?focus=g${g.id}`}>
+                                <Icon name="target" className="ic-sm" />
+                                <span>{g.title}</span>
+                            </Link>
+                        ))}
+                        {h.area && (
+                            <span className="p-linked-note">
+                                <Icon name="columns" className="ic-sm" />
+                                <span>{h.area.name}</span>
+                            </span>
+                        )}
+                    </div>
+                )}
                 <dl className="hb-stats">
                     <div>
                         <dt>Streak</dt>
@@ -607,7 +710,7 @@ function HabitPanel({
 
 /** A routine: its name and its habits in order (drag, or Up / Down). */
 function RoutineDialog({ routine, choices, onClose }: { routine: Props['routine']; choices: Props['choices']; onClose: () => void }) {
-    const form = useForm({ name: routine?.name ?? '', habit_ids: routine?.habitIds ?? [] });
+    const form = useForm({ name: routine?.name ?? '', description: routine?.description ?? '', habit_ids: routine?.habitIds ?? [] });
     const { data, setData, processing } = form;
     const errors = form.errors as Record<string, string | undefined>;
     const dragFrom = useRef<number | null>(null);
@@ -638,6 +741,15 @@ function RoutineDialog({ routine, choices, onClose }: { routine: Props['routine'
                     required
                     maxLength={80}
                     placeholder="Morning"
+                />
+                <TextField
+                    id="r-desc"
+                    label="Description"
+                    value={data.description}
+                    onValue={(v) => setData('description', v)}
+                    error={errors.description}
+                    maxLength={300}
+                    placeholder="Before leaving for campus, about 30 min"
                 />
                 <Field id="r-add" label="Habits, in order" error={errors.habit_ids}>
                     {ids.length > 0 && (

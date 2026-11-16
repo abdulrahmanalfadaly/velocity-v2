@@ -15,7 +15,7 @@ class RoutineController extends Controller
     {
         $user = $request->user();
         [$name, $ids] = $this->fields($request, $user);
-        $routine = $user->routines()->create(['name' => $name]);
+        $routine = $user->routines()->create(['name' => $name, 'description' => $this->description($request)]);
         $this->order($routine, $ids);
 
         return redirect()->route('habits.index', ['view' => "r{$routine->id}"])
@@ -26,12 +26,36 @@ class RoutineController extends Controller
     {
         $user = $request->user();
         $this->own($routine, $user);
-        $old = ['name' => $routine->name, 'habit_ids' => $routine->habits()->pluck('habits.id')->all()];
+        $old = ['name' => $routine->name, 'description' => $routine->description, 'habit_ids' => $routine->habits()->pluck('habits.id')->all()];
         [$name, $ids] = $this->fields($request, $user);
-        $routine->update(['name' => $name]);
+        $routine->update(['name' => $name, 'description' => $this->description($request)]);
         $this->order($routine, $ids);
 
         return back()->with('toast', "Saved “{$routine->name}”")->with('undo', $this->undo('patch-routine', $routine->id, $old));
+    }
+
+    /** Archive: out of the menu (Habits › Archived), its habits untouched. */
+    public function archive(Request $request, Routine $routine): RedirectResponse
+    {
+        $this->own($routine, $request->user());
+        $routine->update(['archived_at' => now()]);
+
+        return redirect()->route('habits.index')->with('toast', "Archived “{$routine->name}”")->with('undo', $this->undo('unarchive-routine', $routine->id));
+    }
+
+    public function unarchive(Request $request, Routine $routine): RedirectResponse
+    {
+        $this->own($routine, $request->user());
+        $routine->update(['archived_at' => null]);
+
+        return redirect()->route('habits.index', ['view' => "r{$routine->id}"])->with('toast', "“{$routine->name}” is back");
+    }
+
+    private function description(Request $request): ?string
+    {
+        $d = $request->validate(['description' => ['nullable', 'string', 'max:300']]);
+
+        return trim((string) ($d['description'] ?? '')) ?: null;
     }
 
     public function destroy(Request $request, Routine $routine): RedirectResponse
