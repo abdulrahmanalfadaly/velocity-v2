@@ -80,6 +80,27 @@ export default function TasksIndex() {
     };
     const [weights, setWeights] = useState(props.settings.weights);
     const [popOpen, setPopOpen] = useState(false);
+    const weightsBtn = useRef<HTMLButtonElement>(null);
+    const weightsPop = useRef<HTMLDivElement>(null);
+    // The weights popover closes with Escape (back to its button) or a click outside it.
+    useEffect(() => {
+        if (!popOpen) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape' || document.querySelector('.sel-pop, .dp-pop')) return;
+            setPopOpen(false);
+            weightsBtn.current?.focus();
+        };
+        const onDown = (e: PointerEvent) => {
+            const t = e.target as Element;
+            if (!weightsPop.current?.contains(t) && !weightsBtn.current?.contains(t) && !t.closest?.('.sel-pop, .dp-pop')) setPopOpen(false);
+        };
+        document.addEventListener('keydown', onKey);
+        document.addEventListener('pointerdown', onDown, true);
+        return () => {
+            document.removeEventListener('keydown', onKey);
+            document.removeEventListener('pointerdown', onDown, true);
+        };
+    }, [popOpen]);
     const [text, setText] = useState('');
     // Select mode: tick several tasks, then act on all of them from the bar at the bottom.
     const [picked, setPicked] = useState<number[] | null>(null);
@@ -165,7 +186,7 @@ export default function TasksIndex() {
                     <TaskPanel key={props.selected.id} task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} />
                 ) : undefined
             }
-            onEscape={() => (popOpen ? setPopOpen(false) : picked ? setPicked(null) : props.selected ? open(null) : undefined)}
+            onEscape={() => (picked ? setPicked(null) : props.selected ? open(null) : undefined)}
         >
             <div className="main-inner">
                 <header className="page-head">
@@ -187,16 +208,17 @@ export default function TasksIndex() {
                             </div>
                             <div className="pop-wrap">
                                 <button
+                                    ref={weightsBtn}
                                     className="btn btn-secondary"
                                     aria-expanded={popOpen}
-                                    aria-controls="weights-pop"
+                                    aria-controls={popOpen ? 'weights-pop' : undefined}
                                     onClick={() => setPopOpen((o) => !o)}
                                 >
                                     <Icon name="sliders" />
                                     <span className="btn-label">Weights</span>
                                 </button>
                                 {popOpen && (
-                                    <div className="popover" id="weights-pop" role="dialog" aria-label="Weights">
+                                    <div className="popover" id="weights-pop" role="dialog" aria-label="Weights" ref={weightsPop}>
                                         <p className="pop-title">Weights</p>
                                         {CRIT.map((c) => (
                                             <div className="w-row" key={c.k}>

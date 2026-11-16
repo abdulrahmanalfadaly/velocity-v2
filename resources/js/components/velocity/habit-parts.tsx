@@ -1,3 +1,4 @@
+import { useReturnFocus } from '@/hooks/use-return-focus';
 import { type Clock, hm12 } from '@/lib/velocity';
 import type { HabitDay, HabitToday, VelocityShared } from '@/types/velocity';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
@@ -165,6 +166,7 @@ export function Pop({
     children: ReactNode;
     width?: number;
 }) {
+    useReturnFocus();
     const box = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const onDown = (e: PointerEvent) => {

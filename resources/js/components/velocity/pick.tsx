@@ -24,7 +24,13 @@ export function Picker({
     const [q, setQ] = useState('');
     const [hi, setHi] = useState(0);
     const box = useRef<HTMLDivElement>(null);
+    const btn = useRef<HTMLButtonElement>(null);
     const input = useRef<HTMLInputElement>(null);
+    // Closed from the keyboard (Escape, Enter): back to the button.
+    const close = () => {
+        setOpen(false);
+        btn.current?.focus();
+    };
     useEffect(() => {
         if (!open) return;
         input.current?.focus();
@@ -36,12 +42,12 @@ export function Picker({
     const matches = options.filter((o) => !taken.includes(o.id) && words.every((w) => o.title.toLowerCase().includes(w))).slice(0, 8);
     const pick = (id: number) => {
         onPick(id);
-        setOpen(false);
+        close();
         setQ('');
     };
     return (
         <div className="note-pick" ref={box}>
-            <button type="button" className="note-add" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            <button ref={btn} type="button" className="note-add" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
                 <Icon name="plus" className="ic-xs" />
                 {label}
             </button>
@@ -60,7 +66,7 @@ export function Picker({
                         onKeyDown={(e) => {
                             if (e.key === 'Escape') {
                                 e.stopPropagation();
-                                return setOpen(false);
+                                return close();
                             }
                             if (e.key === 'ArrowDown') setHi((h) => Math.min(h + 1, matches.length - 1));
                             else if (e.key === 'ArrowUp') setHi((h) => Math.max(h - 1, 0));

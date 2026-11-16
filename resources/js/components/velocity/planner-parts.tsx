@@ -1,3 +1,4 @@
+import { useReturnFocus } from '@/hooks/use-return-focus';
 import { fmtHours } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
@@ -258,6 +259,7 @@ export function BlockMenu({
         onClose();
     };
     const { props } = usePage<VelocityShared>();
+    useReturnFocus();
     const box = useRef<HTMLDivElement>(null);
     // Opens where it was clicked, moved up as far as needed to fit on the screen.
     const [top, setTop] = useState(() => Math.max(8, y));

@@ -1,3 +1,4 @@
+import { useReturnFocus } from '@/hooks/use-return-focus';
 import { goalVar } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { router, useForm, usePage } from '@inertiajs/react';
@@ -9,6 +10,7 @@ import { Select } from './select';
 
 /** A dialog over the page: Escape or a click outside closes it, and focus starts in the first field. */
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+    useReturnFocus();
     const box = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();

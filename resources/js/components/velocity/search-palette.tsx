@@ -1,3 +1,4 @@
+import { useReturnFocus } from '@/hooks/use-return-focus';
 import type { VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
@@ -76,6 +77,7 @@ export function highlight(text: string, q: string): ReactNode {
  * "focus"). With nothing typed it shows what was opened last. Arrow keys move, Enter opens.
  */
 export function SearchPalette({ onClose, onAdd }: { onClose: () => void; onAdd: () => void }) {
+    useReturnFocus();
     const { props } = usePage<VelocityShared>();
     const [q, setQ] = useState('');
     const [groups, setGroups] = useState<{ label: string; items: Found[] }[]>([]);

@@ -119,6 +119,8 @@ function Wallpaper({ current, own }: { current: string | null; own: string | nul
                         accept="image/jpeg,image/png,image/webp"
                         className="sr-only"
                         id="wall-file"
+                        tabIndex={-1}
+                        aria-label="Picture for the wallpaper"
                         onChange={(e) => upload(e.target.files?.[0])}
                     />
                     <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => file.current?.click()}>

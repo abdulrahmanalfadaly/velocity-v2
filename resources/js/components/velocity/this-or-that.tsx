@@ -1,7 +1,7 @@
 import { Clock, dueInfo, fmtHours, goalVar } from '@/lib/velocity';
 import type { RankedTask, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StartFocus } from './focus';
 import { Modal } from './forms';
 import { Icon } from './icon';
@@ -55,7 +55,7 @@ export function ThisOrThat({
     // ← and → (or 1 and 2) choose; Backspace goes back one.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if ((e.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) return;
+            if (e.target instanceof Element && e.target.closest('input, textarea, [contenteditable="true"]')) return;
             let act: (() => void) | null = null;
             if (pair && (e.key === 'ArrowLeft' || e.key === '1')) act = () => choose(0);
             else if (pair && (e.key === 'ArrowRight' || e.key === '2')) act = () => choose(1);
@@ -68,6 +68,14 @@ export function ThisOrThat({
         return () => document.removeEventListener('keydown', onKey);
     });
 
+    // The keyboard stays inside: on the first card, then on Start focus once one is left.
+    const box = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const el = box.current;
+        if (!el || el.closest('[role="dialog"]')?.contains(document.activeElement)) return;
+        el.querySelector<HTMLElement>('button.tot-card, .tot-actions button')?.focus();
+    });
+
     // Focus started on the one you chose: this is done.
     const focusOn = props.focusSession?.subject;
     useEffect(() => {
@@ -76,7 +84,7 @@ export function ThisOrThat({
 
     return (
         <Modal title="This or that" onClose={onClose}>
-            <div className="tot">
+            <div className="tot" ref={box}>
                 {pair ? (
                     <>
                         <p className="tot-ask">Which would you rather do first?</p>

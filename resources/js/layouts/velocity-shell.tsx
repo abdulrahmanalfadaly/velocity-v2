@@ -156,6 +156,10 @@ export default function VelocityShell({ title, section, active, children, panel,
                 data-wall={props.wallpaper?.name}
                 style={props.wallpaper?.url ? ({ ['--wall-img' as string]: `url("${props.wallpaper.url}")` } as CSSProperties) : undefined}
             >
+                {/* The first Tab on any page: straight to the page itself, past the menus. */}
+                <a className="skip-link" href="#main">
+                    Skip to content
+                </a>
                 <header className="gtop">
                     {hasMenu && (
                         <button className="icon-btn gtop-menu" onClick={() => setOverlay('drawer')} aria-label={`Open the ${sectionLabel} menu`}>
@@ -210,7 +214,7 @@ export default function VelocityShell({ title, section, active, children, panel,
                     </aside>
                 )}
 
-                <main className="main" id="main">
+                <main className="main" id="main" tabIndex={-1}>
                     {children}
                 </main>
 

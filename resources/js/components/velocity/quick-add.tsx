@@ -1,3 +1,4 @@
+import { useReturnFocus } from '@/hooks/use-return-focus';
 import { Clock, dueInfo, fmtHours, LEVEL, repeatText } from '@/lib/velocity';
 import type { CriterionKey, RepeatRule, VelocityShared } from '@/types/velocity';
 import { router, usePage } from '@inertiajs/react';
@@ -94,6 +95,7 @@ const wordsIn = (text: string) =>
 
 /** Add a task, an event or a person from anywhere (Ctrl Shift K). Dates, times, hours and #project are picked out of what you type. */
 export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectId?: number }) {
+    useReturnFocus();
     const { props } = usePage<VelocityShared>();
     const clock = Clock.from(props.clock);
     const today = clock.localInput(clock.now.toISOString()).slice(0, 10);
