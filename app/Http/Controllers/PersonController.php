@@ -33,7 +33,7 @@ class PersonController extends Controller
         $people = $user->people()
             ->when($view === 'archived', fn ($b) => $b->whereNotNull('archived_at'), fn ($b) => $b->whereNull('archived_at'))
             ->when($group, fn ($b) => $b->whereHas('groups', fn ($g) => $g->whereKey($group->id)))
-            ->with(['dates', 'groups', 'catchUps'])
+            ->with(['dates', 'groups', 'catchUps', 'contacts'])
             ->orderBy('name')->get();
         $rows = $people->map(fn (Person $p) => PeopleInfo::row($p, $today));
         if ($view === 'attention') {
@@ -147,8 +147,10 @@ class PersonController extends Controller
     {
         $d = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'nickname' => ['nullable', 'string', 'max:60'],
             'relationship' => ['nullable', 'string', 'max:80'],
             'organisation' => ['nullable', 'string', 'max:120'],
+            'location' => ['nullable', 'string', 'max:120'],
             'catch_up_days' => ['nullable', 'integer', 'between:1,365'],
             'contacts' => ['present', 'array', 'max:20'],
             'contacts.*.kind' => ['required', Rule::in(Person::CONTACT_KINDS)],
@@ -168,6 +170,8 @@ class PersonController extends Controller
                 $errors["contacts.{$i}.value"] = 'That isn’t an email address.';
             } elseif ($c['kind'] === 'phone' && ! preg_match('/^[0-9+()\-.\s\/]{3,40}$/', $value)) {
                 $errors["contacts.{$i}.value"] = 'A phone number has digits, spaces and + ( ) - only.';
+            } elseif ($c['kind'] === 'username') {
+                $value = ltrim($value, '@ ') === '' ? $value : '@'.ltrim($value, '@ ');
             } elseif ($c['kind'] === 'link') {
                 $value = preg_match('~^https?://~i', $value) ? $value : "https://{$value}";
                 if (! filter_var($value, FILTER_VALIDATE_URL) || preg_match('~^https?://[^/]*@~i', $value)) {
@@ -192,7 +196,10 @@ class PersonController extends Controller
             'relationship' => $d['relationship'] ?? null,
             'organisation' => $d['organisation'] ?? null,
             'catch_up_days' => $d['catch_up_days'] ?? null,
-        ], $contacts, array_values(array_unique($groups))];
+        ]
+            // Only when sent: a client that doesn't know them leaves them as they are.
+            + ($request->has('nickname') ? ['nickname' => trim((string) ($d['nickname'] ?? '')) ?: null] : [])
+            + ($request->has('location') ? ['location' => trim((string) ($d['location'] ?? '')) ?: null] : []), $contacts, array_values(array_unique($groups))];
     }
 
     public static function sync(Person $person, array $contacts, array $groups): void

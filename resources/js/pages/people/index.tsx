@@ -49,6 +49,10 @@ export default function People() {
     const open = (id: number | null) =>
         router.get(route('people.index', { view: view === 'all' ? undefined : view, person: id ?? undefined }), {}, keep);
     const title = props.group?.name ?? TITLES[view] ?? 'People';
+    // The list's search: names, nicknames, who they are, where, groups and contacts.
+    const [q, setQ] = useState('');
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const shown = props.people.filter((p) => words.every((w) => `${p.name.toLowerCase()} ${p.find ?? ''}`.includes(w)));
     useEffect(() => {
         const url = new URL(window.location.href);
         if (url.searchParams.get('new') === '1') {
@@ -97,6 +101,14 @@ export default function People() {
                         )}
                     </div>
                 </header>
+                {view !== 'dates' && props.people.length > 0 && (
+                    <div className="hb-filters" role="search">
+                        <span className="notes-search hb-search">
+                            <Icon name="search" className="ic-sm" />
+                            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people" aria-label="Search people" />
+                        </span>
+                    </div>
+                )}
                 {view === 'dates' ? (
                     <DatesList dates={props.upcoming} clock={clock} activeId={props.person?.id} onOpen={open} />
                 ) : props.people.length === 0 ? (
@@ -111,7 +123,8 @@ export default function People() {
                     </section>
                 ) : (
                     <section className="card pp-list">
-                        {props.people.map((p) => {
+                        {shown.length === 0 && <p className="card-empty">Nobody matches “{q}”.</p>}
+                        {shown.map((p) => {
                             const next = nextLine(p, clock);
                             return (
                                 <div key={p.id} className={`pp-row${props.person?.id === p.id ? ' is-active' : ''}`}>
@@ -122,7 +135,10 @@ export default function People() {
                                     >
                                         <Avatar initials={p.initials} />
                                         <span className="pp-row-main">
-                                            <span className="pp-name">{p.name}</span>
+                                            <span className="pp-name">
+                                                {p.name}
+                                                {p.nickname && <small className="pp-nick-inline"> ({p.nickname})</small>}
+                                            </span>
                                             <span className="pp-sub">{[p.relationship, p.organisation].filter(Boolean).join(' · ') || ' '}</span>
                                         </span>
                                         {next && (
@@ -311,8 +327,15 @@ function PersonPanel({
                     <Avatar initials={p.initials} big />
                     <div>
                         <h2 className="p-title">{p.name}</h2>
+                        {p.nickname && <p className="pp-nick">“{p.nickname}”</p>}
                         {(p.relationship || p.organisation) && (
                             <p className="hb-p-sub">{[p.relationship, p.organisation].filter(Boolean).join(' · ')}</p>
+                        )}
+                        {p.location && (
+                            <p className="hb-p-sub pp-loc">
+                                <Icon name="pin" className="ic-xs" />
+                                {p.location}
+                            </p>
                         )}
                     </div>
                 </div>

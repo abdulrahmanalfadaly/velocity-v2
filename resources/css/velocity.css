@@ -1796,6 +1796,12 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .hb-numbers-from { margin: 6px 0 0; font-size: 12px; color: var(--text-3); }
 .hb-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
 .hb-search { flex: 1 1 220px; max-width: 360px; }
+/* People: nickname, location, moving contacts. */
+.pp-nick { margin: 0; font-size: 13.5px; color: var(--text-2); }
+.pp-nick-inline { font-weight: 500; color: var(--text-3); }
+.pp-loc { display: inline-flex; align-items: center; gap: 4px; }
+.pp-contact-move { display: inline-flex; flex-direction: column; }
+.pp-contact-move .icon-btn { width: 22px; height: 16px; }
 /* Home: "I have [30 min] [low energy]" on Do next, the Inbox link, Refresh. */
 .fit-pick { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-right: auto; margin-left: 10px; font-size: 13px; color: var(--text-3); }
 .fit-label { margin-right: 2px; }
@@ -2149,7 +2155,7 @@ a.pp-contact .pp-contact-value { color: var(--violet-ink); }
 .pp-newtask .input { flex: 1 1 200px; height: 30px; }
 
 .pp-contacts-edit { display: grid; gap: 6px; }
-.pp-contact-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 96px 32px; gap: 6px; align-items: center; }
+.pp-contact-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 96px 24px 32px; gap: 6px; align-items: center; }
 .pp-contact-error { grid-column: 2 / -1; }
 .pp-add-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .pp-groups-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -2186,8 +2192,8 @@ a.pp-contact .pp-contact-value { color: var(--violet-ink); }
 
 @media (max-width: 560px) {
     .pp-next { max-width: 40%; }
-    .pp-contact-row { grid-template-columns: 84px minmax(0, 1fr) 32px; }
-    .pp-contact-label { grid-column: 2; }
+    .pp-contact-row { grid-template-columns: 84px minmax(0, 1fr) 24px 32px; }
+    .pp-contact-label { grid-column: 2; grid-row: 2; }
     .pd-when { grid-template-columns: 80px minmax(0, 1fr); }
 }
 

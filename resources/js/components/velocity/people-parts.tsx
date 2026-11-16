@@ -8,7 +8,7 @@ import { Pop } from './habit-parts';
 import { Icon } from './icon';
 import { Select } from './select';
 
-export type ContactKind = 'email' | 'phone' | 'link' | 'other';
+export type ContactKind = 'email' | 'phone' | 'link' | 'username' | 'other';
 export type DateKind = 'birthday' | 'anniversary' | 'other';
 export type CatchUpKind = 'message' | 'call' | 'met' | 'other';
 
@@ -33,9 +33,13 @@ export interface PersonDate {
 export interface PersonRow {
     id: number;
     name: string;
+    nickname?: string | null;
     initials: string;
     relationship: string | null;
     organisation: string | null;
+    location?: string | null;
+    /** Lower-case words the list's search also looks through. */
+    find?: string;
     groups: { id: number; name: string }[];
     date: PersonDate | null;
     /** late: days past the catch-up date (0 = today); negative = still to come. */
@@ -46,8 +50,10 @@ export interface PersonRow {
 
 export interface PersonForm {
     name: string;
+    nickname?: string | null;
     relationship: string | null;
     organisation: string | null;
+    location?: string | null;
     catch_up_days: number | null;
     contacts: { kind: ContactKind; label: string | null; value: string }[];
     group_ids: number[];
@@ -73,8 +79,8 @@ export const keep = { preserveScroll: true, preserveState: true };
 export const DATE_ICON: Record<DateKind, string> = { birthday: 'gift', anniversary: 'heart', other: 'calendar' };
 export const CATCH_ICON: Record<CatchUpKind, string> = { message: 'message', call: 'phone', met: 'coffee', other: 'person' };
 const CATCH_LABEL: Record<CatchUpKind, string> = { message: 'Message', call: 'Call', met: 'Met up', other: 'Other' };
-const CONTACT_ICON: Record<ContactKind, string> = { email: 'mail', phone: 'phone', link: 'link', other: 'info' };
-const CONTACT_LABEL: Record<ContactKind, string> = { email: 'Email', phone: 'Phone', link: 'Link', other: 'Other' };
+const CONTACT_ICON: Record<ContactKind, string> = { email: 'mail', phone: 'phone', link: 'link', username: 'person', other: 'info' };
+const CONTACT_LABEL: Record<ContactKind, string> = { email: 'Email', phone: 'Phone', link: 'Link', username: 'Username', other: 'Other' };
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const EVERY: [number, string][] = [
     [7, 'Every week'],
@@ -167,8 +173,10 @@ export function PersonDialog({
 }) {
     const form = useForm({
         name: initial?.name ?? '',
+        nickname: initial?.nickname ?? '',
         relationship: initial?.relationship ?? '',
         organisation: initial?.organisation ?? '',
+        location: initial?.location ?? '',
         every: initial?.catch_up_days ? String(initial.catch_up_days) : '',
         contacts: initial?.contacts ?? [],
         group_ids: initial?.group_ids ?? (view?.startsWith('g') ? [Number(view.slice(1))] : []),
@@ -184,6 +192,12 @@ export function PersonDialog({
             'contacts',
             data.contacts.map((c, j) => (j === i ? { ...c, ...patch } : c)),
         );
+    // Contacts show in the order given here.
+    const moveContact = (i: number, by: -1 | 1) => {
+        const next = [...data.contacts];
+        [next[i], next[i + by]] = [next[i + by], next[i]];
+        setData('contacts', next);
+    };
     const addGroup = () => {
         const name = newGroup.trim();
         if (!name) return;
@@ -196,8 +210,10 @@ export function PersonDialog({
         e.preventDefault();
         form.transform((d) => ({
             name: d.name,
+            nickname: d.nickname.trim() || null,
             relationship: d.relationship || null,
             organisation: d.organisation || null,
+            location: d.location.trim() || null,
             catch_up_days: d.every ? Number(d.every) : null,
             contacts: d.contacts.filter((c) => c.value.trim() !== ''),
             group_ids: d.group_ids,
@@ -211,15 +227,26 @@ export function PersonDialog({
     return (
         <Modal title={personId ? 'Edit person' : 'New person'} onClose={onClose}>
             <form className="vform" onSubmit={submit}>
-                <TextField
-                    id="pp-name"
-                    label="Name"
-                    value={data.name}
-                    onValue={(v) => setData('name', v)}
-                    error={errors.name}
-                    required
-                    maxLength={120}
-                />
+                <div className="vform-row">
+                    <TextField
+                        id="pp-name"
+                        label="Name"
+                        value={data.name}
+                        onValue={(v) => setData('name', v)}
+                        error={errors.name}
+                        required
+                        maxLength={120}
+                    />
+                    <TextField
+                        id="pp-nick"
+                        label="Nickname"
+                        value={data.nickname}
+                        onValue={(v) => setData('nickname', v)}
+                        error={errors.nickname}
+                        placeholder="What you call them"
+                        maxLength={60}
+                    />
+                </div>
                 <div className="vform-row">
                     <TextField
                         id="pp-rel"
@@ -240,6 +267,15 @@ export function PersonDialog({
                         maxLength={120}
                     />
                 </div>
+                <TextField
+                    id="pp-loc"
+                    label="Location"
+                    value={data.location}
+                    onValue={(v) => setData('location', v)}
+                    error={errors.location}
+                    placeholder="Kuala Lumpur"
+                    maxLength={120}
+                />
                 <Field id="pp-contact-0" label="How to reach them">
                     <div className="pp-contacts-edit">
                         {data.contacts.map((c, i) => (
@@ -263,7 +299,9 @@ export function PersonDialog({
                                               ? '+60 12 345 6789'
                                               : c.kind === 'link'
                                                 ? 'linkedin.com/in/…'
-                                                : ''
+                                                : c.kind === 'username'
+                                                  ? '@sara'
+                                                  : ''
                                     }
                                     onChange={(e) => setContact(i, { value: e.target.value })}
                                     maxLength={255}
@@ -272,10 +310,30 @@ export function PersonDialog({
                                     className="input pp-contact-label"
                                     value={c.label ?? ''}
                                     aria-label="Label"
-                                    placeholder="Label"
+                                    placeholder={c.kind === 'username' ? 'Instagram, GitHub…' : 'Label'}
                                     onChange={(e) => setContact(i, { label: e.target.value || null })}
                                     maxLength={40}
                                 />
+                                <span className="pp-contact-move">
+                                    <button
+                                        type="button"
+                                        className="icon-btn"
+                                        aria-label="Move up"
+                                        disabled={i === 0}
+                                        onClick={() => moveContact(i, -1)}
+                                    >
+                                        <Icon name="chevU" className="ic-xs" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="icon-btn"
+                                        aria-label="Move down"
+                                        disabled={i === data.contacts.length - 1}
+                                        onClick={() => moveContact(i, 1)}
+                                    >
+                                        <Icon name="chevD" className="ic-xs" />
+                                    </button>
+                                </span>
                                 <button
                                     type="button"
                                     className="icon-btn"

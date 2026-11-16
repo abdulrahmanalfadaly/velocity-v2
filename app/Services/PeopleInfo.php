@@ -32,9 +32,14 @@ class PeopleInfo
         return [
             'id' => $p->id,
             'name' => $p->name,
+            'nickname' => $p->nickname,
             'initials' => $p->initials(),
             'relationship' => $p->relationship,
             'organisation' => $p->organisation,
+            'location' => $p->location,
+            // What the list's search box looks through besides the names (lower case).
+            'find' => mb_strtolower(implode(' ', array_filter([$p->nickname, $p->relationship, $p->organisation, $p->location,
+                ...$p->groups->pluck('name')->all(), ...($p->relationLoaded('contacts') ? $p->contacts->pluck('value')->all() : [])]))),
             'groups' => $p->groups->map(fn ($g) => ['id' => $g->id, 'name' => $g->name])->values(),
             'date' => $date,
             'catchUp' => $catch ? ['next' => $catch->toDateString(), 'late' => $late] : null,
@@ -75,8 +80,10 @@ class PeopleInfo
     {
         return [
             'name' => $p->name,
+            'nickname' => $p->nickname,
             'relationship' => $p->relationship,
             'organisation' => $p->organisation,
+            'location' => $p->location,
             'catch_up_days' => $p->catch_up_days,
             'contacts' => $p->contacts->map(fn ($c) => ['kind' => $c->kind, 'label' => $c->label, 'value' => $c->value])->values()->all(),
             'group_ids' => $p->groups->pluck('id')->all(),

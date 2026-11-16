@@ -76,10 +76,11 @@ class SearchController extends Controller
         $habits = $live($user->habits())->where('name', 'like', $like)->with('project')->orderBy('name')->limit(4 * $more)->get()
             ->map(fn ($h) => ['kind' => 'habit', 'id' => $h->id, 'title' => $h->name, 'sub' => $tag($h, $h->project?->name ?? $h->scheduleLabel()), 'url' => route('habits.index', ['habit' => $h->id])]);
         $people = $live($user->people())
-            ->where(fn ($w) => $w->where('name', 'like', $like)->orWhere('relationship', 'like', $like)->orWhere('organisation', 'like', $like)
+            ->where(fn ($w) => $w->where('name', 'like', $like)->orWhere('nickname', 'like', $like)->orWhere('relationship', 'like', $like)
+                ->orWhere('organisation', 'like', $like)->orWhere('location', 'like', $like)
                 ->orWhereHas('contacts', fn ($c) => $c->where('value', 'like', $like)))
             ->orderBy('name')->limit(4 * $more)->get()
-            ->map(fn ($p) => ['kind' => 'person', 'id' => $p->id, 'title' => $p->name, 'sub' => $tag($p, collect([$p->relationship, $p->organisation])->filter()->join(' · ') ?: 'Person'), 'url' => route('people.index', ['person' => $p->id])]);
+            ->map(fn ($p) => ['kind' => 'person', 'id' => $p->id, 'title' => $p->nickname ? "{$p->name} ({$p->nickname})" : $p->name, 'sub' => $tag($p, collect([$p->relationship, $p->organisation])->filter()->join(' · ') ?: 'Person'), 'url' => route('people.index', ['person' => $p->id])]);
         $events = $this->events($user, $like, 4 * $more);
 
         return array_values(array_filter([

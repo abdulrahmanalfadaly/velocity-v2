@@ -13,11 +13,12 @@ class Person extends Model
 {
     use SoftDeletes;
 
-    public const CONTACT_KINDS = ['email', 'phone', 'link', 'other'];
+    /** "username": a handle on some service ("@sara", label: Instagram). */
+    public const CONTACT_KINDS = ['email', 'phone', 'link', 'username', 'other'];
 
     public const CATCH_UP_KINDS = ['message', 'call', 'met', 'other'];
 
-    protected $fillable = ['name', 'relationship', 'organisation', 'about', 'catch_up_days', 'archived_at'];
+    protected $fillable = ['name', 'nickname', 'relationship', 'organisation', 'location', 'about', 'catch_up_days', 'archived_at'];
 
     protected function casts(): array
     {
