@@ -1,6 +1,7 @@
 import { CALENDARS, type CalendarKey, EventDialog, type EventForm } from '@/components/velocity/event-dialog';
 import { DayEditor } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
+import { MonthGrid } from '@/components/velocity/planner-month';
 import { BlockMenu, type Hours, HoursDialog, type PlanBlock } from '@/components/velocity/planner-parts';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, fmtHours, round1 } from '@/lib/velocity';
@@ -29,8 +30,15 @@ interface Unbooked {
     dueAt: string | null;
     dueInPeriod: boolean;
 }
+type View = 'day' | 'week' | 'month';
+const VIEWS: [View, string, string][] = [
+    ['day', 'Day', 'planner'],
+    ['week', 'Week', 'columns'],
+    ['month', 'Month', 'calendar'],
+];
+
 interface Props extends VelocityShared {
-    view: 'day' | 'week';
+    view: View;
     date: string;
     today: string;
     days: string[];
@@ -195,6 +203,11 @@ export default function Planner() {
     const events = props.events.filter((e) => !hidden.includes(e.calendar));
     const go = (date: string, view = props.view) => router.get('/planner', { date, view }, { preserveScroll: true });
     const step = props.view === 'week' ? 7 : 1;
+    const firstOfMonth = `${props.date.slice(0, 8)}01`;
+    // Back or on by one day, week or month (a month: to its first day).
+    const move = (dir: -1 | 1) =>
+        go(props.view === 'month' ? `${shift(firstOfMonth, dir < 0 ? -1 : 32).slice(0, 8)}01` : shift(props.date, dir * step));
+    const unit = props.view === 'month' ? 'month' : props.view === 'week' ? 'week' : 'day';
     const plan = (taskId?: number) => router.post(route('planner.plan'), { date: props.date, span: props.view, task_id: taskId ?? null }, keep);
 
     // Phones show one day at a time. (A moment later: on the first draw Inertia isn't ready to move yet.)
@@ -392,9 +405,12 @@ export default function Planner() {
     };
 
     const range =
-        props.view === 'week'
-            ? `${clock.date(at(props.days[0]), { day: 'numeric', month: 'short' })} – ${clock.date(at(props.days[6]), { day: 'numeric', month: 'short', year: 'numeric' })}`
-            : clock.date(at(props.date), { weekday: 'long', day: 'numeric', month: 'long' });
+        props.view === 'month'
+            ? clock.date(at(firstOfMonth), { month: 'long', year: 'numeric' })
+            : props.view === 'week'
+              ? `${clock.date(at(props.days[0]), { day: 'numeric', month: 'short' })} – ${clock.date(at(props.days[6]), { day: 'numeric', month: 'short', year: 'numeric' })}`
+              : clock.date(at(props.date), { weekday: 'long', day: 'numeric', month: 'long' });
+    const showsToday = props.view === 'month' ? props.date.slice(0, 7) === props.today.slice(0, 7) : props.days.includes(props.today);
     const allDay = events.filter((e) => e.allDay);
 
     const newAt = (day: string, e: MouseEvent<HTMLDivElement>) => {
@@ -429,28 +445,20 @@ export default function Planner() {
                     </div>
                     <div className="page-actions">
                         <div className="planner-nav">
-                            <button
-                                className="icon-btn"
-                                aria-label={props.view === 'week' ? 'Previous week' : 'Previous day'}
-                                onClick={() => go(shift(props.date, -step))}
-                            >
+                            <button className="icon-btn" aria-label={`Previous ${unit}`} onClick={() => move(-1)}>
                                 <Icon name="chevL" />
                             </button>
-                            <button className="btn btn-secondary btn-sm" onClick={() => go(props.today)} disabled={props.days.includes(props.today)}>
+                            <button className="btn btn-secondary btn-sm" onClick={() => go(props.today)} disabled={showsToday}>
                                 Today
                             </button>
-                            <button
-                                className="icon-btn"
-                                aria-label={props.view === 'week' ? 'Next week' : 'Next day'}
-                                onClick={() => go(shift(props.date, step))}
-                            >
+                            <button className="icon-btn" aria-label={`Next ${unit}`} onClick={() => move(1)}>
                                 <Icon name="chevR" />
                             </button>
                         </div>
                         <div className="layout-seg planner-views" role="radiogroup" aria-label="Show">
-                            {(['day', 'week'] as const).map((v) => (
+                            {VIEWS.map(([v, label]) => (
                                 <button key={v} role="radio" aria-checked={props.view === v} onClick={() => go(props.date, v)}>
-                                    {v === 'day' ? 'Day' : 'Week'}
+                                    {label}
                                 </button>
                             ))}
                         </div>
@@ -458,226 +466,244 @@ export default function Planner() {
                             <Icon name="plus" />
                             <span className="btn-label">Event</span>
                         </button>
-                        <button className="btn btn-primary" onClick={() => plan()}>
-                            <Icon name="wand" />
-                            <span className="btn-label">{props.view === 'week' ? 'Plan week' : 'Plan day'}</span>
-                        </button>
+                        {props.view !== 'month' && (
+                            <button className="btn btn-primary" onClick={() => plan()}>
+                                <Icon name="wand" />
+                                <span className="btn-label">{props.view === 'week' ? 'Plan week' : 'Plan day'}</span>
+                            </button>
+                        )}
                     </div>
                 </header>
 
-                <div className={`pgrid-wrap is-${props.view}`} style={{ ['--days' as string]: props.days.length }}>
-                    <div className="pg-head">
-                        <span className="pg-gutter" />
-                        {props.days.map((d) => (
-                            <button
-                                key={d}
-                                className={`pg-day${d === props.today ? ' is-today' : ''}`}
-                                onClick={() => props.view === 'week' && go(d, 'day')}
-                                aria-label={clock.date(at(d), { weekday: 'long', day: 'numeric', month: 'long' })}
-                            >
-                                <span>{clock.weekday(at(d))}</span>
-                                <b>{clock.date(at(d), { day: 'numeric' })}</b>
-                                <i className={`pg-load${(load[d] ?? 0) > props.dayLimit * 60 ? ' is-over' : ''}`}>
-                                    {load[d] ? `${round1(load[d] / 60)} / ${round1(props.dayLimit)} h` : ''}
-                                </i>
-                            </button>
-                        ))}
-                    </div>
-                    {(allDay.length > 0 || (props.personDates ?? []).length > 0 || (props.followUps ?? []).length > 0) && (
-                        <div className="pg-allday">
-                            <span className="pg-gutter">all day</span>
+                {props.view === 'month' ? (
+                    <MonthGrid
+                        days={props.days}
+                        month={props.date.slice(0, 7)}
+                        today={props.today}
+                        events={events}
+                        blocks={props.blocks}
+                        dueTasks={props.dueTasks}
+                        personDates={props.personDates ?? []}
+                        followUps={props.followUps ?? []}
+                        clock={clock}
+                        onEvent={openEvent}
+                        onDay={(d) => go(d, 'day')}
+                    />
+                ) : (
+                    <div className={`pgrid-wrap is-${props.view}`} style={{ ['--days' as string]: props.days.length }}>
+                        <div className="pg-head">
+                            <span className="pg-gutter" />
                             {props.days.map((d) => (
-                                <div key={d} className="pg-allday-col">
-                                    {allDay
-                                        .filter((e) => {
-                                            const s = local(clock, e.start).date;
-                                            const end = shift(local(clock, e.end).date, -1);
-                                            return s <= d && d <= end;
-                                        })
-                                        .map((e) => (
-                                            <button key={e.key} className={`pev is-${e.calendar}`} onClick={() => openEvent(e)}>
-                                                <Icon name={ICON[e.calendar]} className="ic-xs" />
-                                                <span className="pev-title">{e.title}</span>
-                                            </button>
-                                        ))}
-                                    {(props.personDates ?? [])
-                                        .filter((pd) => pd.date === d)
-                                        .map((pd) => (
-                                            <Link key={pd.key} className="pev is-date" href={`/people?person=${pd.personId}`}>
-                                                <Icon
-                                                    name={pd.kind === 'birthday' ? 'gift' : pd.kind === 'anniversary' ? 'heart' : 'calendar'}
-                                                    className="ic-xs"
-                                                />
-                                                <span className="pev-title">{pd.title}</span>
-                                            </Link>
-                                        ))}
-                                    {(props.followUps ?? [])
-                                        .filter((f) => f.date === d)
-                                        .map((f) => (
-                                            <Link
-                                                key={`f${f.id}`}
-                                                className="pev is-date"
-                                                href={`/tasks/waiting?task=${f.id}`}
-                                                title={`Follow up: ${f.title}`}
-                                            >
-                                                <Icon name="followUp" className="ic-xs" />
-                                                <span className="pev-title">{f.title}</span>
-                                            </Link>
-                                        ))}
-                                </div>
+                                <button
+                                    key={d}
+                                    className={`pg-day${d === props.today ? ' is-today' : ''}`}
+                                    onClick={() => props.view === 'week' && go(d, 'day')}
+                                    aria-label={clock.date(at(d), { weekday: 'long', day: 'numeric', month: 'long' })}
+                                >
+                                    <span>{clock.weekday(at(d))}</span>
+                                    <b>{clock.date(at(d), { day: 'numeric' })}</b>
+                                    <i className={`pg-load${(load[d] ?? 0) > props.dayLimit * 60 ? ' is-over' : ''}`}>
+                                        {load[d] ? `${round1(load[d] / 60)} / ${round1(props.dayLimit)} h` : ''}
+                                    </i>
+                                </button>
                             ))}
                         </div>
-                    )}
-                    <div className="pg-scroll" ref={scroller}>
-                        <div className="pg-body" style={{ height: 24 * HOUR }}>
-                            <div className="pg-gutter pg-hours" aria-hidden="true">
-                                {Array.from({ length: 24 }, (_, h) => (
-                                    <span key={h} style={{ top: h * HOUR }}>
-                                        {h === 0 ? '' : minLabel(h * 60, true)}
-                                    </span>
+                        {(allDay.length > 0 || (props.personDates ?? []).length > 0 || (props.followUps ?? []).length > 0) && (
+                            <div className="pg-allday">
+                                <span className="pg-gutter">all day</span>
+                                {props.days.map((d) => (
+                                    <div key={d} className="pg-allday-col">
+                                        {allDay
+                                            .filter((e) => {
+                                                const s = local(clock, e.start).date;
+                                                const end = shift(local(clock, e.end).date, -1);
+                                                return s <= d && d <= end;
+                                            })
+                                            .map((e) => (
+                                                <button key={e.key} className={`pev is-${e.calendar}`} onClick={() => openEvent(e)}>
+                                                    <Icon name={ICON[e.calendar]} className="ic-xs" />
+                                                    <span className="pev-title">{e.title}</span>
+                                                </button>
+                                            ))}
+                                        {(props.personDates ?? [])
+                                            .filter((pd) => pd.date === d)
+                                            .map((pd) => (
+                                                <Link key={pd.key} className="pev is-date" href={`/people?person=${pd.personId}`}>
+                                                    <Icon
+                                                        name={pd.kind === 'birthday' ? 'gift' : pd.kind === 'anniversary' ? 'heart' : 'calendar'}
+                                                        className="ic-xs"
+                                                    />
+                                                    <span className="pev-title">{pd.title}</span>
+                                                </Link>
+                                            ))}
+                                        {(props.followUps ?? [])
+                                            .filter((f) => f.date === d)
+                                            .map((f) => (
+                                                <Link
+                                                    key={`f${f.id}`}
+                                                    className="pev is-date"
+                                                    href={`/tasks/waiting?task=${f.id}`}
+                                                    title={`Follow up: ${f.title}`}
+                                                >
+                                                    <Icon name="followUp" className="ic-xs" />
+                                                    <span className="pev-title">{f.title}</span>
+                                                </Link>
+                                            ))}
+                                    </div>
                                 ))}
                             </div>
-                            {props.days.map((d) => (
-                                <div
-                                    key={d}
-                                    ref={(el) => {
-                                        cols.current[d] = el;
-                                    }}
-                                    className={`pg-col${d === props.today ? ' is-today' : ''}`}
-                                    onClick={(e) => newAt(d, e)}
-                                    role="presentation"
-                                    title="Click to add an event"
-                                >
-                                    {pieces[d].map((p) => {
-                                        const style = {
-                                            top: (p.top / 60) * HOUR,
-                                            height: Math.max(20, ((p.bottom - p.top) / 60) * HOUR - 2),
-                                            left: `calc(${(p.lane / p.lanes) * 100}% + 2px)`,
-                                            width: `calc(${100 / p.lanes}% - 4px)`,
-                                        };
-                                        const short = p.bottom - p.top < 45;
-                                        if (p.it.kind === 'block') {
-                                            const { bl, s, e } = p.it;
-                                            const when = `${minLabel(s.min)}–${minLabel(e.min)}`;
+                        )}
+                        <div className="pg-scroll" ref={scroller}>
+                            <div className="pg-body" style={{ height: 24 * HOUR }}>
+                                <div className="pg-gutter pg-hours" aria-hidden="true">
+                                    {Array.from({ length: 24 }, (_, h) => (
+                                        <span key={h} style={{ top: h * HOUR }}>
+                                            {h === 0 ? '' : minLabel(h * 60, true)}
+                                        </span>
+                                    ))}
+                                </div>
+                                {props.days.map((d) => (
+                                    <div
+                                        key={d}
+                                        ref={(el) => {
+                                            cols.current[d] = el;
+                                        }}
+                                        className={`pg-col${d === props.today ? ' is-today' : ''}`}
+                                        onClick={(e) => newAt(d, e)}
+                                        role="presentation"
+                                        title="Click to add an event"
+                                    >
+                                        {pieces[d].map((p) => {
+                                            const style = {
+                                                top: (p.top / 60) * HOUR,
+                                                height: Math.max(20, ((p.bottom - p.top) / 60) * HOUR - 2),
+                                                left: `calc(${(p.lane / p.lanes) * 100}% + 2px)`,
+                                                width: `calc(${100 / p.lanes}% - 4px)`,
+                                            };
+                                            const short = p.bottom - p.top < 45;
+                                            if (p.it.kind === 'block') {
+                                                const { bl, s, e } = p.it;
+                                                const when = `${minLabel(s.min)}–${minLabel(e.min)}`;
+                                                return (
+                                                    <button
+                                                        key={p.it.key}
+                                                        className={`pblock${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}`}
+                                                        style={style}
+                                                        onPointerDown={(ev) => bl.id > 0 && grabBlock(ev, bl, s)}
+                                                        onClick={(ev) => openBlock(ev, bl, s, e)}
+                                                        onContextMenu={(ev) => ev.preventDefault()}
+                                                        title={clashes.has(bl.id) ? `${bl.title} · overlaps something` : bl.title}
+                                                        aria-label={`${bl.title}, ${when}${clashes.has(bl.id) ? ', overlaps something' : ''}`}
+                                                        aria-haspopup="menu"
+                                                    >
+                                                        <span className="pblock-title">
+                                                            {bl.rank && <span className="pblock-rank">#{bl.rank}</span>}
+                                                            {bl.title}
+                                                            {bl.pinned && <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />}
+                                                        </span>
+                                                        <span className="pblock-sub">
+                                                            {clashes.has(bl.id) && <Icon name="alert" className="ic-xs pblock-clash" />}
+                                                            {when}
+                                                        </span>
+                                                        {bl.id > 0 && (
+                                                            <span
+                                                                className="pblock-resize"
+                                                                aria-hidden="true"
+                                                                title="Drag to change the length"
+                                                                onPointerDown={(ev) => grabResize(ev, bl, s)}
+                                                            />
+                                                        )}
+                                                    </button>
+                                                );
+                                            }
+                                            if (p.it.kind === 'habit') {
+                                                const hb = p.it.hb;
+                                                return (
+                                                    <button
+                                                        key={p.it.key}
+                                                        className={`pev is-habit${hb.done ? ' is-done' : ''}${short ? ' is-short' : ''}`}
+                                                        style={style}
+                                                        onClick={(ev) => {
+                                                            const r = ev.currentTarget.getBoundingClientRect();
+                                                            setHabitSlot({ hb, x: r.left, y: r.bottom + 4 });
+                                                        }}
+                                                        aria-label={`Habit: ${hb.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}${hb.done ? ', done' : ''}`}
+                                                    >
+                                                        <span className="pev-title">
+                                                            <Icon name={hb.done ? 'check' : 'habits'} className="ic-xs" />
+                                                            {hb.title}
+                                                        </span>
+                                                        <span className="pev-sub">
+                                                            {clock.time(hb.start)}–{clock.time(hb.end)}
+                                                            {hb.target > 1 ? ` · ${hb.count} of ${hb.target}` : ''}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            }
+                                            const ev = p.it.ev;
                                             return (
                                                 <button
                                                     key={p.it.key}
-                                                    className={`pblock${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}`}
+                                                    className={`pev is-${ev.calendar}${short ? ' is-short' : ''}`}
                                                     style={style}
-                                                    onPointerDown={(ev) => bl.id > 0 && grabBlock(ev, bl, s)}
-                                                    onClick={(ev) => openBlock(ev, bl, s, e)}
-                                                    onContextMenu={(ev) => ev.preventDefault()}
-                                                    title={clashes.has(bl.id) ? `${bl.title} · overlaps something` : bl.title}
-                                                    aria-label={`${bl.title}, ${when}${clashes.has(bl.id) ? ', overlaps something' : ''}`}
-                                                    aria-haspopup="menu"
-                                                >
-                                                    <span className="pblock-title">
-                                                        {bl.rank && <span className="pblock-rank">#{bl.rank}</span>}
-                                                        {bl.title}
-                                                        {bl.pinned && <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />}
-                                                    </span>
-                                                    <span className="pblock-sub">
-                                                        {clashes.has(bl.id) && <Icon name="alert" className="ic-xs pblock-clash" />}
-                                                        {when}
-                                                    </span>
-                                                    {bl.id > 0 && (
-                                                        <span
-                                                            className="pblock-resize"
-                                                            aria-hidden="true"
-                                                            title="Drag to change the length"
-                                                            onPointerDown={(ev) => grabResize(ev, bl, s)}
-                                                        />
-                                                    )}
-                                                </button>
-                                            );
-                                        }
-                                        if (p.it.kind === 'habit') {
-                                            const hb = p.it.hb;
-                                            return (
-                                                <button
-                                                    key={p.it.key}
-                                                    className={`pev is-habit${hb.done ? ' is-done' : ''}${short ? ' is-short' : ''}`}
-                                                    style={style}
-                                                    onClick={(ev) => {
-                                                        const r = ev.currentTarget.getBoundingClientRect();
-                                                        setHabitSlot({ hb, x: r.left, y: r.bottom + 4 });
-                                                    }}
-                                                    aria-label={`Habit: ${hb.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}${hb.done ? ', done' : ''}`}
+                                                    onClick={() => openEvent(ev)}
+                                                    aria-label={`${LABEL[ev.calendar]}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}`}
                                                 >
                                                     <span className="pev-title">
-                                                        <Icon name={hb.done ? 'check' : 'habits'} className="ic-xs" />
-                                                        {hb.title}
+                                                        <Icon name={ICON[ev.calendar]} className="ic-xs" />
+                                                        {ev.title}
                                                     </span>
                                                     <span className="pev-sub">
-                                                        {clock.time(hb.start)}–{clock.time(hb.end)}
-                                                        {hb.target > 1 ? ` · ${hb.count} of ${hb.target}` : ''}
+                                                        {clock.time(ev.start)}–{clock.time(ev.end)}
+                                                        {ev.location ? ` · ${ev.location}` : ''}
                                                     </span>
                                                 </button>
                                             );
-                                        }
-                                        const ev = p.it.ev;
-                                        return (
-                                            <button
-                                                key={p.it.key}
-                                                className={`pev is-${ev.calendar}${short ? ' is-short' : ''}`}
-                                                style={style}
-                                                onClick={() => openEvent(ev)}
-                                                aria-label={`${LABEL[ev.calendar]}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}`}
-                                            >
-                                                <span className="pev-title">
-                                                    <Icon name={ICON[ev.calendar]} className="ic-xs" />
-                                                    {ev.title}
-                                                </span>
-                                                <span className="pev-sub">
-                                                    {clock.time(ev.start)}–{clock.time(ev.end)}
-                                                    {ev.location ? ` · ${ev.location}` : ''}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                    {props.dueTasks
-                                        .filter((t) => local(clock, t.dueAt).date === d)
-                                        .map((t) => {
-                                            const m = local(clock, t.dueAt).min;
-                                            // On top of a class or booked time: only a small flag at the edge, so it stays readable.
-                                            const over = pieces[d].some((p) => p.top < m + 15 && p.bottom > m - 15);
-                                            return (
-                                                <a
-                                                    key={t.id}
-                                                    className={`pg-due${over ? ' is-compact' : ''}`}
-                                                    href={`/tasks?task=${t.id}`}
-                                                    style={{ top: (m / 60) * HOUR - 9 }}
-                                                    title={`Due: ${t.title}`}
-                                                    aria-label={`Due: ${t.title}`}
-                                                >
-                                                    <Icon name="flag" className="ic-xs" />
-                                                    {!over && t.title}
-                                                </a>
-                                            );
                                         })}
-                                    {drag?.to?.date === d && (
-                                        <span
-                                            className="pblock is-ghost"
-                                            style={{
-                                                top: (drag.to.min / 60) * HOUR,
-                                                height: Math.max(20, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 2),
-                                                left: 2,
-                                                right: 2,
-                                            }}
-                                            aria-hidden="true"
-                                        >
-                                            <span className="pblock-title">{drag.title}</span>
-                                            <span className="pblock-sub">
-                                                {minLabel(drag.to.min)}–{minLabel(later(drag.to, drag.minutes).min)}
+                                        {props.dueTasks
+                                            .filter((t) => local(clock, t.dueAt).date === d)
+                                            .map((t) => {
+                                                const m = local(clock, t.dueAt).min;
+                                                // On top of a class or booked time: only a small flag at the edge, so it stays readable.
+                                                const over = pieces[d].some((p) => p.top < m + 15 && p.bottom > m - 15);
+                                                return (
+                                                    <a
+                                                        key={t.id}
+                                                        className={`pg-due${over ? ' is-compact' : ''}`}
+                                                        href={`/tasks?task=${t.id}`}
+                                                        style={{ top: (m / 60) * HOUR - 9 }}
+                                                        title={`Due: ${t.title}`}
+                                                        aria-label={`Due: ${t.title}`}
+                                                    >
+                                                        <Icon name="flag" className="ic-xs" />
+                                                        {!over && t.title}
+                                                    </a>
+                                                );
+                                            })}
+                                        {drag?.to?.date === d && (
+                                            <span
+                                                className="pblock is-ghost"
+                                                style={{
+                                                    top: (drag.to.min / 60) * HOUR,
+                                                    height: Math.max(20, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 2),
+                                                    left: 2,
+                                                    right: 2,
+                                                }}
+                                                aria-hidden="true"
+                                            >
+                                                <span className="pblock-title">{drag.title}</span>
+                                                <span className="pblock-sub">
+                                                    {minLabel(drag.to.min)}–{minLabel(later(drag.to, drag.minutes).min)}
+                                                </span>
                                             </span>
-                                        </span>
-                                    )}
-                                    {d === props.today && <span className="pg-now" style={{ top: (nowMin / 60) * HOUR }} aria-hidden="true" />}
-                                </div>
-                            ))}
+                                        )}
+                                        {d === props.today && <span className="pg-now" style={{ top: (nowMin / 60) * HOUR }} aria-hidden="true" />}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
             {dialog && (
                 <EventDialog
@@ -721,7 +747,6 @@ export default function Planner() {
     );
 }
 
-/** The Planner's side menu: New event, a month calendar, Day / Week, calendars, working hours and what is not booked yet. */
 /** Free time in working hours for the days shown (around events, habit times and booked blocks), and Copy to send it to someone. */
 function FreeTime({ free, clock }: { free: Props['free']; clock: Clock }) {
     const [copied, setCopied] = useState(false);
@@ -765,6 +790,7 @@ function FreeTime({ free, clock }: { free: Props['free']; clock: Clock }) {
     );
 }
 
+/** The Planner's side menu: New event, a month calendar, Day / Week / Month, calendars, working hours and what is not booked yet. */
 function PlannerMenu({
     props,
     clock,
@@ -784,7 +810,7 @@ function PlannerMenu({
     onHours: () => void;
     onBook: (taskId: number) => void;
     onGrab: (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => void;
-    go: (date: string, view?: 'day' | 'week') => void;
+    go: (date: string, view?: View) => void;
 }) {
     const first = `${props.date.slice(0, 8)}01`;
     const monthStart = new Date(`${first}T12:00:00Z`);
@@ -832,15 +858,15 @@ function PlannerMenu({
                 </div>
             </div>
             <nav className="nav" aria-label="Planner">
-                {(['day', 'week'] as const).map((v) => (
+                {VIEWS.map(([v, label, icon]) => (
                     <button
                         key={v}
                         className={`nav-item${props.view === v ? ' is-active' : ''}`}
                         aria-current={props.view === v ? 'page' : undefined}
                         onClick={() => go(props.date, v)}
                     >
-                        <Icon name={v === 'day' ? 'planner' : 'columns'} />
-                        <span className="label">{v === 'day' ? 'Day' : 'Week'}</span>
+                        <Icon name={icon} />
+                        <span className="label">{label}</span>
                     </button>
                 ))}
                 <div className="nav-label">Calendars</div>
@@ -860,7 +886,7 @@ function PlannerMenu({
                     <Icon name="calClock" />
                     <span className="label">Working hours</span>
                 </button>
-                <FreeTime free={props.free ?? []} clock={clock} />
+                {props.view !== 'month' && <FreeTime free={props.free ?? []} clock={clock} />}
                 {props.unbooked.length > 0 && (
                     <>
                         <div className="nav-label">

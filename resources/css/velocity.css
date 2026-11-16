@@ -1656,6 +1656,56 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .pg-load { min-height: 14px; font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-load.is-over { color: var(--text); font-weight: 750; }
 
+/* Planner month: a box per day with its first few things; a day number or "+2 more" opens the day. */
+.mgrid { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.mg-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.mg-head span { padding: 8px 10px; font-size: 12px; color: var(--text-3); }
+.mg-body { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: minmax(112px, 1fr); }
+.mg-day { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 5px 5px 6px; border-left: 1px solid var(--line); border-top: 1px solid var(--line); cursor: pointer; }
+.mg-day:nth-child(7n + 1) { border-left: 0; }
+.mg-day:nth-child(-n + 7) { border-top: 0; }
+.mg-day:hover { background: var(--hover); }
+.mg-day.is-out { background: var(--surface-2); }
+.mg-day.is-out .mg-num { color: var(--faint); }
+.mg-num { align-self: flex-start; display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border: 0; border-radius: 8px; background: none;
+    font: inherit; font-size: 12.5px; font-weight: 700; color: var(--text); cursor: pointer; font-variant-numeric: tabular-nums; }
+.mg-num:hover { background: var(--surface-3); }
+.mg-day.is-today .mg-num { background: var(--violet); color: var(--on-accent); }
+.mg-items { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.mg-item { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 2px 6px; border: 1px solid transparent; border-radius: 6px;
+    background: var(--surface-3); color: var(--text); font: inherit; font-size: 11.5px; line-height: 1.3; text-align: left; text-decoration: none; cursor: pointer; }
+.mg-item:hover { border-color: var(--line-strong); }
+.mg-item .ic { flex: none; color: var(--text-3); }
+.mg-item.is-event { border-left: 3px solid var(--line-strong); }
+.mg-item.is-event.is-work { border-left-style: double; border-left-width: 4px; }
+.mg-item.is-event.is-personal { border-left-style: dashed; }
+.mg-item.is-block { background: var(--violet-soft); color: var(--violet-ink); }
+.mg-item.is-due, .mg-item.is-date { background: none; border: 1px dashed var(--line-strong); color: var(--text-2); }
+.mg-item.is-due.is-late { border-color: var(--critical-ink); color: var(--critical-ink); }
+.mg-item.is-due.is-late .ic { color: var(--critical-ink); }
+.mg-time { flex: none; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.mg-item.is-block .mg-time, .mg-rank { color: var(--violet-ink); }
+.mg-rank { flex: none; font-weight: 750; font-variant-numeric: tabular-nums; }
+.mg-t { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
+.mg-item.is-block .mg-t { color: var(--text); }
+.mg-more { align-self: flex-start; padding: 1px 6px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 11.5px; font-weight: 650; color: var(--text-2); cursor: pointer; }
+.mg-more:hover { background: var(--surface-3); color: var(--text); }
+@media (max-width: 767px) {
+    /* Phones: each thing is a small mark; tapping a day opens it. */
+    .mgrid { border-radius: 12px; }
+    .mg-head span { padding: 6px 0; text-align: center; font-size: 11px; }
+    .mg-body { grid-auto-rows: minmax(64px, 1fr); }
+    .mg-day { align-items: center; padding: 4px 2px; }
+    .mg-num { align-self: center; }
+    .mg-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; pointer-events: none; }
+    .mg-item { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: var(--text-3); }
+    .mg-item > * { display: none; }
+    .mg-item.is-block { background: var(--violet); }
+    .mg-item.is-due, .mg-item.is-date { background: var(--faint); }
+    .mg-item.is-due.is-late { background: var(--critical-ink); }
+    .mg-more { display: none; }
+}
+
 .bmenu { position: fixed; z-index: 70; width: 260px; padding: 6px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-lg); animation: pop-in .14s var(--ease); }
 .bmenu-head { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 .bmenu-head b { font-size: 13.5px; line-height: 1.3; overflow-wrap: anywhere; }

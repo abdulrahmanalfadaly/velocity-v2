@@ -225,7 +225,7 @@ class TaskController extends Controller
         ]);
         $task = $this->actions->quickAdd($user, $data['text'], $data['importance'] ?? null, $data['urgency'] ?? null, $data['project_id'] ?? null, $data['plain'] ?? []);
         $rank = $this->ranking->rank($user)->rankOf($task->id);
-        $later = ! $rank && $task->available_from?->isFuture() ? ' · starts '.$task->available_from->timezone($user->timezone)->format('D j M') : '';
+        $later = ! $rank && $task->available_from && $task->available_from > $this->ranking->now() ? ' · starts '.$task->available_from->timezone($user->timezone)->format('D j M') : '';
 
         return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : $later))->with('undo', $this->undo('delete-task', $task->id));
     }

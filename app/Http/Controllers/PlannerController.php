@@ -16,7 +16,7 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/** The Planner: a day or a week of classes, events and the time booked for tasks. */
+/** The Planner: a day, a week or a month of classes, events and the time booked for tasks. */
 class PlannerController extends Controller
 {
     public function __construct(private readonly RankingService $ranking, private readonly PlanBuilder $builder) {}
@@ -25,12 +25,20 @@ class PlannerController extends Controller
     {
         $user = $request->user();
         $tz = $user->timezone;
-        $q = $request->validate(['date' => ['nullable', 'date_format:Y-m-d'], 'view' => ['nullable', Rule::in(['day', 'week'])]]);
+        $q = $request->validate(['date' => ['nullable', 'date_format:Y-m-d'], 'view' => ['nullable', Rule::in(['day', 'week', 'month'])]]);
         $today = $this->ranking->now()->timezone($tz)->startOfDay();
         $anchor = isset($q['date']) ? CarbonImmutable::parse($q['date'], $tz)->startOfDay() : $today;
         $view = $q['view'] ?? 'week';
-        $first = $view === 'week' ? $anchor->startOfWeek(CarbonImmutable::MONDAY) : $anchor;
-        $count = $view === 'week' ? 7 : 1;
+        [$first, $count] = match ($view) {
+            'day' => [$anchor, 1],
+            'week' => [$anchor->startOfWeek(CarbonImmutable::MONDAY), 7],
+            // Whole weeks, Monday first, from the week the month starts in to the week it ends in.
+            'month' => [
+                $anchor->startOfMonth()->startOfWeek(CarbonImmutable::MONDAY),
+                7 * (int) ceil(($anchor->startOfMonth()->dayOfWeekIso - 1 + $anchor->daysInMonth) / 7),
+            ],
+        };
+        $month = $view === 'month';
 
         $days = collect(range(0, $count - 1))->map(fn ($i) => $first->addDays($i)->toDateString());
         $from = $first->utc();
@@ -58,13 +66,14 @@ class PlannerController extends Controller
             'blocks' => $user->plannerBlocks()->active()->with('task:id,title,due_at')
                 ->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get()
                 ->map(fn (PlannerBlock $b) => self::block($b, $list)),
-            'habitTimes' => HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
+            // The month shows no habit times, free time or booking list: too much for small day boxes.
+            'habitTimes' => $month ? [] : HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
                 ->map(fn ($o) => HabitTimes::present($o))->values(),
             'personDates' => PeopleInfo::between($user, $first, $first->addDays($count)),
             'followUps' => $user->tasks()->open()->whereDate('follow_up_on', '>=', $first->toDateString())->whereDate('follow_up_on', '<=', $first->addDays($count - 1)->toDateString())
                 ->get(['id', 'title', 'follow_up_on'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'date' => $t->follow_up_on->toDateString()])->values(),
-            'unbooked' => $this->builder->unbooked($user, $days->all(), $list),
-            'free' => $this->builder->free($user, $days->all()),
+            'unbooked' => $month ? [] : $this->builder->unbooked($user, $days->all(), $list),
+            'free' => $month ? [] : $this->builder->free($user, $days->all()),
             'hours' => PlanBuilder::hours($user),
             'dayLimit' => $user->weights()->hours_per_day,
             'busy' => $busy,
