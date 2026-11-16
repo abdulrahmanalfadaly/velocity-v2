@@ -66,6 +66,12 @@ class Project extends Model
         return $this->hasMany(Note::class)->latest('updated_at');
     }
 
+    /** Notes that are in this project besides their first one. */
+    public function sharedNotes(): BelongsToMany
+    {
+        return $this->belongsToMany(Note::class, 'note_project');
+    }
+
     public function habits(): HasMany
     {
         return $this->hasMany(Habit::class)->whereNull('archived_at');

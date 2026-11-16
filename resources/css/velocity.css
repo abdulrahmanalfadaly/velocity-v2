@@ -1776,6 +1776,9 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 /* Notes: the paragraph a task came from, shown for a moment; an archived note. */
 .note-body .is-found { background: var(--violet-soft); border-radius: 6px; box-shadow: 0 0 0 4px var(--violet-soft); transition: background .6s, box-shadow .6s; }
 .note-archived { margin: 4px 0 8px; }
+.note-proj-chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 8px; border-radius: 7px; background: var(--surface-3); font-size: 12.5px; font-weight: 600; }
+.note-proj-chip a { color: var(--text); text-decoration: none; }
+.note-proj-chip a:hover { text-decoration: underline; }
 /* Home: "I have [30 min] [low energy]" on Do next, the Inbox link, Refresh. */
 .fit-pick { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; margin-right: auto; margin-left: 10px; font-size: 13px; color: var(--text-3); }
 .fit-label { margin-right: 2px; }

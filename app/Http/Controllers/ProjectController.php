@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\ProjectActions;
 use App\Models\FocusSession;
+use App\Models\Note;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskFile;
@@ -144,7 +145,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
         $this->own($project, $user);
-        $project->load(['goal', 'area', 'milestones', 'notes', 'habits.entries', 'habits.project', 'people']);
+        $project->load(['goal', 'area', 'milestones', 'habits.entries', 'habits.project', 'people']);
 
         $list = $ranking->rank($user);
         $open = $list->toArray(fn (Task $t) => $t->project_id === $project->id);
@@ -192,7 +193,9 @@ class ProjectController extends Controller
             'habits' => $project->habits->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
             'people' => $project->people->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'initials' => $p->initials(), 'relationship' => $p->relationship])->values(),
             'peopleChoices' => $request->user()->people()->whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
-            'notes' => $project->notes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
+            // Its notes: those it is the first project of, and those also in it; archived ones aside.
+            'notes' => Note::where('user_id', $project->user_id)->inProject($project->id)->whereNull('archived_at')->with('event')->latest('updated_at')->get()
+                ->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle(), 'updatedAt' => $n->updated_at?->toIso8601ZuluString()])->values(),
             // The project's own files, and the files on its tasks (with the task they are on).
             'files' => $project->files()->get()->map(fn ($f) => $f->present() + ['task' => null])->concat(
                 TaskFile::whereIn('task_id', $project->tasks()->whereNull('archived_at')->select('id'))->with('task:id,title')->latest('id')->limit(200)->get()

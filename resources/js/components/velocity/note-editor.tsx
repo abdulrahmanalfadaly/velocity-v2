@@ -1,7 +1,7 @@
 import { sendFiles, sendJson } from '@/lib/http';
 import type { Clock } from '@/lib/velocity';
-import type { TaskFileInfo } from '@/types/velocity';
-import { Link, router } from '@inertiajs/react';
+import type { TaskFileInfo, VelocityShared } from '@/types/velocity';
+import { Link, router, usePage } from '@inertiajs/react';
 import Image from '@tiptap/extension-image';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { TableKit } from '@tiptap/extension-table';
@@ -30,6 +30,9 @@ export interface NoteDetail {
     /** Archived: kept but read-only, out of the lists. */
     archivedAt?: string | null;
     projectId: number | null;
+    /** Every project it is in, its own (first) one first. */
+    projectIds?: number[];
+    areaId?: number | null;
     journalDate: string | null;
     event: { id: number; title: string; calendar: 'class' | 'work' | 'personal'; date: string; gone: boolean } | null;
     tasks: { id: number; title: string; status: string; rank: number | null }[];
@@ -90,6 +93,9 @@ export function NoteEditor({
 }) {
     const [title, setTitle] = useState(note.title);
     const archived = !!note.archivedAt;
+    const areas = usePage<VelocityShared>().props.nav?.areas ?? [];
+    const projectIds = note.projectIds ?? (note.projectId ? [note.projectId] : []);
+    const setProjects = (ids: number[]) => router.patch(route('notes.update', note.id), { project_ids: ids }, keep);
     const [status, setStatus] = useState<Status>('idle');
     const [error, setError] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -428,14 +434,45 @@ export function NoteEditor({
                         </Link>
                     ))}
                 {!note.journalDate && (
+                    // Its projects (the first is its own: tasks made from it go there) and its area.
                     <span className="note-project">
                         <Icon name="folder" className="ic-sm" />
+                        {projectIds.map((id) => (
+                            <span key={id} className="note-proj-chip">
+                                <Link href={`/projects/${id}`}>{projects.find((p) => p.id === id)?.name ?? 'Project'}</Link>
+                                {!archived && (
+                                    <button
+                                        className="note-task-x"
+                                        aria-label={`Take out of “${projects.find((p) => p.id === id)?.name ?? 'project'}”`}
+                                        onClick={() => setProjects(projectIds.filter((x) => x !== id))}
+                                    >
+                                        <Icon name="x" className="ic-xs" />
+                                    </button>
+                                )}
+                            </span>
+                        ))}
+                        {!archived && projects.some((p) => !projectIds.includes(p.id)) && (
+                            <Select
+                                className="note-project-sel"
+                                value=""
+                                label="Add to a project"
+                                placeholder={projectIds.length ? '+ Project' : 'No project'}
+                                onChange={(v) => v && setProjects([...projectIds, Number(v)])}
+                                options={projects.filter((p) => !projectIds.includes(p.id)).map((p) => ({ value: String(p.id), label: p.name }))}
+                            />
+                        )}
+                    </span>
+                )}
+                {!note.journalDate && (areas.length > 0 || note.areaId) && (
+                    <span className="note-project">
+                        <Icon name="columns" className="ic-sm" />
                         <Select
                             className="note-project-sel"
-                            value={String(note.projectId ?? '')}
-                            label="Project"
-                            onChange={(v) => router.patch(route('notes.update', note.id), { project_id: v ? Number(v) : null }, keep)}
-                            options={[{ value: '', label: 'No project' }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+                            value={String(note.areaId ?? '')}
+                            label="Area"
+                            disabled={archived}
+                            onChange={(v) => router.patch(route('notes.update', note.id), { area_id: v ? Number(v) : null }, keep)}
+                            options={[{ value: '', label: 'No area' }, ...areas.map((a) => ({ value: String(a.id), label: a.name }))]}
                         />
                     </span>
                 )}

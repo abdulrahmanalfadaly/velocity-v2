@@ -160,24 +160,46 @@ class NoteController extends Controller
         return response()->noContent();
     }
 
-    /** Pin, or move to another project (or out of one). */
+    /**
+     * Pin, file into projects ("project_ids": the first is its own, where tasks made from it go;
+     * "project_id" moves it to one) or into an area.
+     */
     public function update(Request $request, Note $note): RedirectResponse
     {
         $user = $request->user();
         $this->own($note, $user);
+        $own = fn (string $table) => Rule::exists($table, 'id')->where('user_id', $user->id);
         $data = $request->validate([
             'pinned' => ['sometimes', 'boolean'],
-            'project_id' => ['sometimes', 'nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
+            'project_id' => ['sometimes', 'nullable', 'integer', $own('projects')],
+            'project_ids' => ['sometimes', 'array', 'max:20'],
+            'project_ids.*' => ['integer', 'distinct', $own('projects')],
+            'area_id' => ['sometimes', 'nullable', 'integer', $own('areas')],
         ]);
-        $old = array_intersect_key(['pinned' => $note->pinned, 'project_id' => $note->project_id], $data);
+        $old = array_intersect_key(['pinned' => $note->pinned, 'project_id' => $note->project_id, 'project_ids' => $note->projectIds(), 'area_id' => $note->area_id], $data);
         $note->timestamps = false; // filing a note isn't editing it: it keeps its place in the list
-        $note->fill($data)->save();
-        if (! $note->wasChanged('project_id')) {
-            return back();
+        if (array_key_exists('project_ids', $data)) {
+            $ids = array_values(array_map('intval', $data['project_ids']));
+            $note->project_id = $ids[0] ?? null;
+            $note->extraProjects()->sync(array_slice($ids, 1));
+            unset($data['project_ids']);
         }
-        $toast = $note->project_id ? "Moved to {$note->project->name}" : 'Taken out of the project';
+        $note->fill($data)->save();
+        if (array_key_exists('project_id', $data)) {
+            $note->extraProjects()->detach($note->project_id);
+        }
+        $toast = match (true) {
+            array_key_exists('project_ids', $old) && $old['project_ids'] !== $note->projectIds() => match (count($note->projectIds())) {
+                0 => 'Taken out of its projects',
+                1 => "In {$note->project->name}",
+                default => 'In '.count($note->projectIds()).' projects',
+            },
+            array_key_exists('project_id', $data) && $note->wasChanged('project_id') => $note->project_id ? "Moved to {$note->project->name}" : 'Taken out of the project',
+            array_key_exists('area_id', $data) && $note->wasChanged('area_id') => $note->area_id ? "Moved to {$note->area->name}" : 'Taken out of the area',
+            default => null,
+        };
 
-        return back()->with('toast', $toast)->with('undo', $this->undo('patch-note', $note->id, $old));
+        return $toast ? back()->with('toast', $toast)->with('undo', $this->undo('patch-note', $note->id, $old)) : back();
     }
 
     public function destroy(Request $request, Note $note): RedirectResponse
@@ -314,7 +336,8 @@ class NoteController extends Controller
             $in === 'journal' => $b->whereNotNull('journal_date')->orderByDesc('journal_date'),
             $in === 'pinned' => $b->where('pinned', true)->latest('updated_at'),
             $in === 'loose' => $b->whereNull('project_id')->whereNull('journal_date')->whereNull('event_date')->orderByDesc('pinned')->latest('updated_at'),
-            (bool) preg_match('/^p(\d+)$/', $in, $m) => $b->where('project_id', (int) $m[1])->orderByDesc('pinned')->latest('updated_at'),
+            (bool) preg_match('/^p(\d+)$/', $in, $m) => $b->inProject((int) $m[1])->orderByDesc('pinned')->latest('updated_at'),
+            (bool) preg_match('/^a(\d+)$/', $in, $m) => $b->where('area_id', (int) $m[1])->orderByDesc('pinned')->latest('updated_at'),
             (bool) preg_match('/^e(\d+)$/', $in, $m) => $b->where('event_id', (int) $m[1])->orderByDesc('event_date'),
             // All notes: everything but the journal, which has its own place.
             default => $b->whereNull('journal_date')->orderByDesc('pinned')->latest('updated_at'),
@@ -331,8 +354,11 @@ class NoteController extends Controller
             'journal' => $count('journal'),
             'loose' => $count('loose'),
             'archived' => $count('archived'),
-            'projects' => $user->projects()->whereHas('notes')->withCount('notes')->orderBy('name')->get()
-                ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'count' => $p->notes_count])->values(),
+            'projects' => $user->projects()->withCount(['notes' => fn ($q) => $q->whereNull('archived_at'), 'sharedNotes' => fn ($q) => $q->whereNull('archived_at')])
+                ->orderBy('name')->get()->filter(fn ($p) => $p->notes_count + $p->shared_notes_count > 0)
+                ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'count' => $p->notes_count + $p->shared_notes_count])->values(),
+            'areas' => $user->areas()->withCount(['notes' => fn ($q) => $q->whereNull('archived_at')])->orderBy('position')->get()
+                ->filter(fn ($a) => $a->notes_count > 0)->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'icon' => $a->icon, 'count' => $a->notes_count])->values(),
             'events' => Event::withTrashed()->where('user_id', $user->id)->whereHas('notes')->withCount('notes')->orderBy('title')->get()
                 ->map(fn ($e) => ['id' => $e->id, 'title' => $e->title, 'calendar' => $e->calendar, 'count' => $e->notes_count])->values(),
         ];
@@ -368,6 +394,8 @@ class NoteController extends Controller
             'pinned' => $n->pinned,
             'archivedAt' => $n->archived_at?->toIso8601ZuluString(),
             'projectId' => $n->project_id,
+            'projectIds' => $n->projectIds(),
+            'areaId' => $n->area_id,
             'journalDate' => $n->journal_date?->toDateString(),
             'event' => $n->event_date ? [
                 'id' => $n->event_id, 'title' => $n->event?->title ?? 'Class', 'calendar' => $n->event?->calendar ?? 'class',

@@ -49,6 +49,33 @@ class NotesPhase12Test extends TestCase
         $this->assertNull($note->fresh()->archived_at);
     }
 
+    public function test_a_note_can_be_in_several_projects_and_an_area(): void
+    {
+        $fyp = $this->user->projects()->create(['name' => 'FYP']);
+        $dm = $this->user->projects()->create(['name' => 'Data Mining']);
+        $uni = $this->user->areas()->create(['name' => 'University']);
+        $note = $this->user->notes()->create(['title' => 'Survey method', 'body_text' => 'x']);
+
+        $this->patch(route('notes.update', $note), ['project_ids' => [$fyp->id, $dm->id]])->assertSessionHas('toast', 'In 2 projects');
+        $this->assertSame([$fyp->id, $dm->id], $note->fresh()->projectIds());
+        $this->assertSame($fyp->id, $note->fresh()->project_id);
+        $this->get(route('notes.index', ['in' => "p{$dm->id}"]))->assertInertia(fn (Assert $p) => $p
+            ->where('notes.0.id', $note->id)
+            ->where('menu.projects', [['id' => $dm->id, 'name' => 'Data Mining', 'count' => 1], ['id' => $fyp->id, 'name' => 'FYP', 'count' => 1]]));
+        $this->get("/projects/{$dm->id}")->assertInertia(fn (Assert $p) => $p->where('notes.0.title', 'Survey method'));
+
+        $this->patch(route('notes.update', $note), ['area_id' => $uni->id])->assertSessionHas('toast', 'Moved to University');
+        $this->get(route('notes.index', ['in' => "a{$uni->id}"]))->assertInertia(fn (Assert $p) => $p
+            ->where('notes.0.id', $note->id)
+            ->where('menu.areas.0.count', 1));
+
+        // Deleting its first project: the next one becomes its first; Undo puts it back.
+        $this->delete(route('projects.destroy', $fyp), ['tasks' => 'inbox']);
+        $this->assertSame([$dm->id], $note->fresh()->projectIds());
+        $this->post(route('projects.restore', $fyp->id), session('undo')['data']);
+        $this->assertEqualsCanonicalizing([$fyp->id, $dm->id], $note->fresh()->projectIds());
+    }
+
     public function test_a_note_holding_only_a_drawing_is_kept(): void
     {
         $note = $this->user->notes()->create(['title' => '', 'body' => null, 'body_text' => '']);

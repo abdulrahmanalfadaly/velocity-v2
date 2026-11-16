@@ -13,6 +13,11 @@ class Area extends Model
 
     protected $fillable = ['name', 'icon', 'position'];
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(Note::class);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

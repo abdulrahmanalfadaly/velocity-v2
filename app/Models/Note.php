@@ -19,7 +19,7 @@ class Note extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['project_id', 'event_id', 'event_date', 'journal_date', 'title', 'body', 'body_text', 'pinned', 'archived_at'];
+    protected $fillable = ['project_id', 'area_id', 'event_id', 'event_date', 'journal_date', 'title', 'body', 'body_text', 'pinned', 'archived_at'];
 
     protected function casts(): array
     {
@@ -35,6 +35,29 @@ class Note extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /** The note's other projects (project_id is its first). */
+    public function extraProjects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'note_project');
+    }
+
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
+    }
+
+    /** Every project the note is in, its first one first. */
+    public function projectIds(): array
+    {
+        return $this->project_id ? array_values(array_unique([(int) $this->project_id, ...$this->extraProjects()->pluck('projects.id')->map(fn ($id) => (int) $id)->all()])) : [];
+    }
+
+    /** Notes in a project: as their first project or one of the others. */
+    public function scopeInProject(Builder $q, int $projectId): void
+    {
+        $q->where(fn (Builder $w) => $w->where('project_id', $projectId)->orWhereHas('extraProjects', fn (Builder $p) => $p->whereKey($projectId)));
     }
 
     public function event(): BelongsTo

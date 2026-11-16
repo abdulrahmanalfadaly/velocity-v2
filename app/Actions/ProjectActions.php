@@ -61,14 +61,26 @@ class ProjectActions
     public function delete(Project $project, User $user, string $mode = 'inbox'): array
     {
         $tasks = $project->tasks()->get();
-        $was = ['mode' => $mode, 'tasks' => $tasks->pluck('id')->all(), 'notes' => $project->notes()->pluck('id')->all(), 'habits' => $project->habits()->pluck('id')->all()];
+        $was = [
+            'mode' => $mode, 'tasks' => $tasks->pluck('id')->all(), 'notes' => $project->notes()->pluck('id')->all(), 'habits' => $project->habits()->pluck('id')->all(),
+            'shared' => $project->sharedNotes()->pluck('notes.id')->all(),
+        ];
         DB::transaction(function () use ($project, $tasks, $mode, $user) {
             if ($mode === 'delete') {
                 $tasks->each(fn (Task $t) => $this->tasks->delete($t, $user));
             } else {
                 $user->tasks()->whereIn('id', $tasks->pluck('id'))->update(['project_id' => null]);
             }
-            $project->notes()->update(['project_id' => null]);
+            // Its notes stay. One that is in other projects too: the next of those becomes its first.
+            foreach ($project->notes()->with('extraProjects')->get() as $note) {
+                $next = $note->extraProjects->first();
+                $note->timestamps = false;
+                $note->update(['project_id' => $next?->id]);
+                if ($next) {
+                    $note->extraProjects()->detach($next->id);
+                }
+            }
+            $project->sharedNotes()->detach();
             $project->habits()->update(['project_id' => null]);
             $project->delete();
         });
@@ -86,7 +98,15 @@ class ProjectActions
             } else {
                 $user->tasks()->whereIn('id', $was['tasks'] ?? [])->whereNull('project_id')->update(['project_id' => $project->id]);
             }
-            $user->notes()->whereIn('id', $was['notes'] ?? [])->whereNull('project_id')->update(['project_id' => $project->id]);
+            foreach ($user->notes()->whereIn('id', $was['notes'] ?? [])->get() as $note) {
+                if ($note->project_id === null) {
+                    $note->timestamps = false;
+                    $note->update(['project_id' => $project->id]);
+                } elseif ((int) $note->project_id !== $project->id) {
+                    $note->extraProjects()->syncWithoutDetaching([$project->id]);
+                }
+            }
+            $project->sharedNotes()->syncWithoutDetaching($user->notes()->whereIn('id', $was['shared'] ?? [])->where('project_id', '!=', $project->id)->pluck('id')->all());
             $user->habits()->whereIn('id', $was['habits'] ?? [])->whereNull('project_id')->update(['project_id' => $project->id]);
         });
     }
@@ -121,6 +141,7 @@ class ProjectActions
         'mode' => ['sometimes', 'in:inbox,delete'],
         'tasks' => ['nullable', 'array'], 'tasks.*' => ['integer'],
         'notes' => ['nullable', 'array'], 'notes.*' => ['integer'],
+        'shared' => ['nullable', 'array'], 'shared.*' => ['integer'],
         'habits' => ['nullable', 'array'], 'habits.*' => ['integer'],
         'projects' => ['nullable', 'array'], 'projects.*' => ['integer'],
     ];

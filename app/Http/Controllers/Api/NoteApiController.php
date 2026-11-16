@@ -34,7 +34,7 @@ class NoteApiController extends ApiController
             ->when($in === 'journal', fn (Builder $b) => $b->whereNotNull('journal_date')->orderByDesc('journal_date'))
             ->when($in === 'pinned', fn (Builder $b) => $b->where('pinned', true))
             ->when($in === 'all', fn (Builder $b) => $b->whereNull('journal_date'))
-            ->when(isset($d['project_id']), fn (Builder $b) => $b->where('project_id', $d['project_id']))
+            ->when(isset($d['project_id']), fn (Builder $b) => $b->inProject((int) $d['project_id']))
             ->when($like, fn (Builder $b) => $b->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like)))
             // Untouched blank notes (opened and left) are not shown, as on the screens.
             ->where(fn ($w) => $w->where('title', '!=', '')->orWhere('body_text', '!=', '')->orWhereNotNull('journal_date'))
