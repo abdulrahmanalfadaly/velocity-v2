@@ -45,6 +45,8 @@ class ApiPresent
             'dueDate' => $p->due_date?->toDateString(),
             'status' => $p->status,
             'goal' => $p->goal ? ['id' => $p->goal->id, 'title' => $p->goal->title] : null,
+            // Every goal it serves, the main one (above) first.
+            'goalIds' => $p->goalIds(),
             'area' => $p->area ? ['id' => $p->area->id, 'name' => $p->area->name] : null,
             'openTasks' => $p->open_tasks_count ?? null,
             'archived' => $p->archived_at !== null,

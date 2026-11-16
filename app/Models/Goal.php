@@ -41,7 +41,8 @@ class Goal extends Model
             return (int) ($this->progress ?? 0);
         }
         if ($this->progress_mode === 'milestones') {
-            $all = Milestone::whereIn('project_id', $this->projects()->select('id'))->get(['done_at']);
+            $ids = $this->projects()->pluck('id')->merge($this->alsoProjects()->pluck('projects.id'));
+            $all = Milestone::whereIn('project_id', $ids)->get(['done_at']);
 
             return $all->isEmpty() ? 0 : (int) round($all->whereNotNull('done_at')->count() / $all->count() * 100);
         }
@@ -60,8 +61,15 @@ class Goal extends Model
         return $this->belongsToMany(Habit::class);
     }
 
+    /** Projects it is the main goal of. */
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class)->orderBy('position');
+    }
+
+    /** Projects that serve it besides their main goal. */
+    public function alsoProjects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'goal_project')->orderBy('projects.position');
     }
 }

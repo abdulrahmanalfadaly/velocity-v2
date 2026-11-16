@@ -4,7 +4,7 @@ import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, goalVar } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 type Status = 'active' | 'planned' | 'on_hold' | 'completed' | 'archived';
 
@@ -14,6 +14,7 @@ interface Props extends VelocityShared {
         name: string;
         status: Status;
         goal: { title: string; color: number } | null;
+        goals: { id: number; title: string; color: number }[];
         area: string | null;
         open: number;
         done: number;
@@ -78,13 +79,13 @@ export default function AllProjects() {
                                 <div className="na-main">
                                     <span className="row-title">{p.name}</span>
                                     <span className="row-sub">
-                                        {p.goal && (
-                                            <>
-                                                <i className="na-dot" aria-hidden="true" />
-                                                {p.goal.title}
+                                        {p.goals.map((g) => (
+                                            <Fragment key={g.id}>
+                                                <i className="na-dot" aria-hidden="true" style={{ ['--goal' as string]: goalVar(g.color) }} />
+                                                {g.title}
                                                 <span className="dotsep" />
-                                            </>
-                                        )}
+                                            </Fragment>
+                                        ))}
                                         {p.area && (
                                             <>
                                                 {p.area}

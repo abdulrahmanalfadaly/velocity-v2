@@ -53,7 +53,8 @@ export interface ProjectValues {
     description: string | null;
     dueDate: string | null;
     areaId: number | null;
-    goalId: number | null;
+    /** Every goal it serves; the first is its main one (its colour). */
+    goalIds: number[];
     archived?: boolean;
     /** How many of its tasks are open (said when deleting it). */
     openCount?: number;
@@ -72,11 +73,12 @@ export function ProjectDialog({ project, areaId, onClose }: { project?: ProjectV
         due_date: project?.dueDate ?? '',
         area: project?.areaId ? String(project.areaId) : areaId ? String(areaId) : areas.length ? '' : NEW_AREA,
         new_area: '',
-        goal_id: project?.goalId ? String(project.goalId) : '',
+        goal_ids: project?.goalIds ?? [],
     });
     const { data, setData, processing } = form;
     // Errors come back under the names sent to the server (area_id), not the form's own (area).
     const errors = form.errors as Record<string, string | undefined>;
+    const goalError = errors.goal_ids ?? Object.entries(errors).find(([k]) => k.startsWith('goal_ids.'))?.[1];
     const submit = (e: FormEvent) => {
         e.preventDefault();
         form.transform((d) => ({
@@ -85,7 +87,7 @@ export function ProjectDialog({ project, areaId, onClose }: { project?: ProjectV
             due_date: d.due_date || null,
             area_id: d.area && d.area !== NEW_AREA ? Number(d.area) : null,
             new_area: d.area === NEW_AREA ? d.new_area : null,
-            goal_id: d.goal_id ? Number(d.goal_id) : null,
+            goal_ids: d.goal_ids,
         }));
         const opts = { preserveScroll: true, onSuccess: onClose };
         if (project?.id) form.patch(route('projects.update', project.id), opts);
@@ -167,19 +169,49 @@ export function ProjectDialog({ project, areaId, onClose }: { project?: ProjectV
                         />
                     )}
                 </div>
-                <div className="vform-row">
-                    <Field id="p-goal" label="Goal" error={errors.goal_id}>
-                        <Select
-                            id="p-goal"
-                            value={String(data.goal_id)}
-                            onChange={(v) => setData('goal_id', v)}
-                            options={[{ value: '', label: 'No goal' }, ...goals.map((g) => ({ value: String(g.id), label: g.title }))]}
-                        />
-                    </Field>
-                    <Field id="p-due" label="Due date" error={errors.due_date}>
-                        <DatePick id="p-due" value={data.due_date} onChange={(v) => setData('due_date', v)} placeholder="No due date" />
-                    </Field>
-                </div>
+                <Field
+                    id="p-goal"
+                    label={data.goal_ids.length > 1 ? 'Goals it serves (the first gives it its colour)' : 'Goals it serves'}
+                    error={goalError}
+                >
+                    <span className="hb-goal-pick" id="p-goal">
+                        {data.goal_ids.map((id) => {
+                            const g = goals.find((x) => x.id === id);
+                            return (
+                                <span key={id} className="note-proj-chip goal-pick-chip" style={{ ['--g' as string]: goalVar(g?.color) }}>
+                                    <i aria-hidden="true" />
+                                    <span>{g?.title ?? 'Goal'}</span>
+                                    <button
+                                        type="button"
+                                        className="note-task-x"
+                                        aria-label={`Take off ${g?.title ?? 'this goal'}`}
+                                        onClick={() =>
+                                            setData(
+                                                'goal_ids',
+                                                data.goal_ids.filter((x) => x !== id),
+                                            )
+                                        }
+                                    >
+                                        <Icon name="x" className="ic-xs" />
+                                    </button>
+                                </span>
+                            );
+                        })}
+                        {goals.some((g) => !data.goal_ids.includes(g.id)) && (
+                            <Select
+                                className="note-project-sel"
+                                value=""
+                                label="Add a goal"
+                                placeholder={data.goal_ids.length ? '+ Goal' : 'No goal'}
+                                onChange={(v) => v && setData('goal_ids', [...data.goal_ids, Number(v)])}
+                                options={goals.filter((g) => !data.goal_ids.includes(g.id)).map((g) => ({ value: String(g.id), label: g.title }))}
+                            />
+                        )}
+                    </span>
+                </Field>
+                <Field id="p-due" label="Due date" error={errors.due_date}>
+                    <DatePick id="p-due" value={data.due_date} onChange={(v) => setData('due_date', v)} placeholder="No due date" />
+                </Field>
                 <Foot
                     processing={processing}
                     saveLabel={project?.id ? 'Save' : 'Create project'}

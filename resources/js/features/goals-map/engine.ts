@@ -21,6 +21,8 @@ export interface MapNote {
 export interface MapProject {
     id: number;
     name: string;
+    /** It serves this goal besides its main one: shown here too, counted once. */
+    also?: boolean;
     done: number;
     total: number;
     tasks: MapTask[];
@@ -248,7 +250,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                   ? 'overdue'
                   : 'open';
     const orderOf = (t: MapTask) => (t.kind === 'ranked' ? t.rank : t.kind === 'done' ? 10000 + t.id : 5000 + t.id);
-    function taskNodes(tasks: MapTask[], hue: number): TaskNode[] {
+    // `pre` keeps node ids apart when a project shows under more than one goal.
+    function taskNodes(tasks: MapTask[], hue: number, pre = ''): TaskNode[] {
         const byParent = new Map<number, MapTask[]>();
         const ids = new Set(tasks.map((t) => t.id));
         tasks.forEach((t) => {
@@ -257,22 +260,22 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             byParent.get(key)!.push(t);
         });
         const build = (t: MapTask): TaskNode => {
-            const steps = (t.steps || []).map((s) => make('step', { id: `s${s.id}`, stepId: s.id, title: s.title, done: s.done, hue }));
+            const steps = (t.steps || []).map((s) => make('step', { id: `${pre}s${s.id}`, stepId: s.id, title: s.title, done: s.done, hue }));
             const kids = (byParent.get(t.id) || []).sort((a, b) => orderOf(a) - orderOf(b)).map(build);
             const n = make(
                 'task',
                 {
-                    id: `t${t.id}`,
+                    id: `${pre}t${t.id}`,
                     title: t.title,
                     task: t,
                     state: stateOf(t),
                     hue,
                     rank: t.kind === 'ranked' ? t.rank : null,
-                    open: t.id === data.nextId,
+                    open: t.id === data.nextId && !pre,
                 },
                 [...steps, ...kids],
             );
-            if (t.id === data.nextId) NEXT = n;
+            if (t.id === data.nextId && !pre) NEXT = n;
             return n;
         };
         return (byParent.get(0) || []).sort((a, b) => orderOf(a) - orderOf(b)).map(build);
@@ -280,16 +283,29 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     const root = make('root', { id: 'root', title: 'You' });
     data.goals.forEach((g) => {
         const projects = g.projects.map((p) => {
-            const kids: MapNode[] = taskNodes(p.tasks, g.color);
+            // A project that serves several goals shows under each; its places besides the first get their own ids.
+            const pre = p.also ? `g${g.id}:` : '';
+            const kids: MapNode[] = taskNodes(p.tasks, g.color, pre);
+            // A note can be in more than one project, so its id says which.
             p.notes.forEach((nt) =>
-                kids.push(make('note', { id: `n${nt.id}`, noteId: nt.id, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id })),
+                kids.push(
+                    make('note', { id: `${pre}p${p.id}n${nt.id}`, noteId: nt.id, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id }),
+                ),
             );
             p.habits.forEach((h) =>
                 kids.push(
-                    make('habit', { id: `h${h.id}`, habitId: h.id, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: p.id }),
+                    make('habit', {
+                        id: `${pre}h${h.id}`,
+                        habitId: h.id,
+                        title: h.name,
+                        streak: h.streak,
+                        today: h.doneToday,
+                        hue: g.color,
+                        pid: p.id,
+                    }),
                 ),
             );
-            return make('project', { id: `p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
+            return make('project', { id: `${pre}p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
         });
         const habits = (g.habits ?? []).map((h) =>
             make('habit', { id: `g${g.id}h${h.id}`, habitId: h.id, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: 0 }),
@@ -308,8 +324,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     function tally(n: MapNode) {
         let done = 0;
         let total = 0;
+        // A project in two goals has its tasks on the map twice: count each task once.
+        const seen = new Set<number>();
         (function walk(m: MapNode) {
-            if (m.type === 'task') {
+            if (m.type === 'task' && !seen.has(m.task.id)) {
+                seen.add(m.task.id);
                 total += 1;
                 if (m.state === 'done') done += 1;
             }
@@ -432,7 +451,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     // "Other projects" (id 0) holds projects with no goal; it is not counted as a goal.
     const goalCount = data.goals.filter((g) => g.id > 0).length;
     const totals = tally(root);
-    const projectCount = data.goals.reduce((s, g) => s + g.projects.length, 0);
+    const projectCount = new Set(data.goals.flatMap((g) => g.projects.map((p) => p.id))).size;
     const initials = data.userName
         .split(' ')
         .map((w) => w[0])

@@ -110,8 +110,11 @@ class GoalController extends Controller
         $todayLocal = $ranking->now()->timezone($user->timezone)->startOfDay();
         $recentDone = $ranking->now()->subDays(21);
 
+        $projectLoads = ['notes', 'sharedNotes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')];
         $goals = $user->goals()->whereNull('archived_at')->with([
-            'projects' => fn ($q) => $q->whereNull('archived_at')->with(['notes', 'sharedNotes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')]),
+            'projects' => fn ($q) => $q->whereNull('archived_at')->with($projectLoads),
+            // Projects that serve it besides their main goal.
+            'alsoProjects' => fn ($q) => $q->whereNull('archived_at')->with($projectLoads),
             // Habits that serve the goal (Habits › a habit's goals).
             'habits' => fn ($q) => $q->whereNull('archived_at')->with(['entries', 'project']),
         ])->get();
@@ -134,12 +137,27 @@ class GoalController extends Controller
             return $tasks->filter(fn (Task $t) => $t->isOpen())->concat($recent)->values();
         };
 
-        $projectNode = function ($p) use ($taskNode, $todayLocal, $shown) {
+        // A project in several goals shows under each. Its first place is under its main goal (or the first
+        // goal it serves, if that one is archived); elsewhere it is marked "also", so the map counts it once.
+        $home = [];
+        foreach ($goals as $g) {
+            foreach ($g->projects as $p) {
+                $home[$p->id] = $g->id;
+            }
+        }
+        foreach ($goals as $g) {
+            foreach ($g->alsoProjects as $p) {
+                $home[$p->id] ??= $g->id;
+            }
+        }
+
+        $projectNode = function ($p, int $goalId = 0) use ($taskNode, $todayLocal, $shown, $home) {
             $tasks = $shown($p->tasks);
 
             return [
                 'id' => $p->id,
                 'name' => $p->name,
+                'also' => $goalId > 0 && ($home[$p->id] ?? $goalId) !== $goalId,
                 'done' => $p->tasks->where('status', Task::DONE)->count(),
                 'total' => $p->tasks->whereIn('status', [...Task::OPEN, Task::DONE])->count(),
                 'tasks' => $tasks->map($taskNode)->values(),
@@ -150,27 +168,33 @@ class GoalController extends Controller
             ];
         };
 
-        // Projects with no goal (or whose goal is archived) get their own branch, so none of their tasks go missing.
+        // Projects with no goal (or whose goals are all archived) get their own branch, so none of their tasks go missing.
         $other = $user->projects()->whereNull('archived_at')
             ->where(fn ($q) => $q->whereNull('goal_id')->orWhereHas('goal', fn ($g) => $g->whereNotNull('archived_at')))
-            ->with(['notes', 'sharedNotes', 'habits.entries', 'habits.project', 'tasks' => fn ($t) => $t->with('steps')])->get();
+            ->whereDoesntHave('extraGoals', fn ($g) => $g->whereNull('archived_at'))
+            ->with($projectLoads)->get();
         // Tasks that belong straight to a goal (no project).
         $direct = $user->tasks()->whereNull('project_id')->whereIn('goal_id', $goals->pluck('id'))->with('steps')->get()->groupBy('goal_id');
-        $branches = $goals->map(fn ($g) => [
-            'id' => $g->id, 'title' => $g->title, 'why' => $g->why, 'target' => $g->target, 'color' => $g->color, 'icon' => $g->icon,
-            'status' => $g->status, 'targetDate' => $g->target_date?->toDateString(), 'progressMode' => $g->progress_mode, 'progress' => $g->progress,
-            // Milestones or by hand: the % the map shows instead of counting tasks.
-            'progressPct' => $g->progressPct(),
-            'projects' => $g->projects->map($projectNode)->values(),
-            'tasks' => $shown($direct->get($g->id, collect()))->map($taskNode)->values(),
-            // Notes linked to the goal (a note's "Link" picker).
-            'notes' => NoteLink::notesFor($user, 'goal', $g->id),
-            // Habits that serve it, unless already shown under one of its projects.
-            'habits' => $g->habits->reject(fn ($h) => $h->project_id && $g->projects->contains('id', $h->project_id))
-                ->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
-        ])->values();
+        $branches = $goals->map(function ($g) use ($projectNode, $shown, $direct, $taskNode, $user, $todayLocal) {
+            // Its projects: those it is the main goal of, and those that serve it besides.
+            $mine = $g->projects->concat($g->alsoProjects)->unique('id')->sortBy('position')->values();
+
+            return [
+                'id' => $g->id, 'title' => $g->title, 'why' => $g->why, 'target' => $g->target, 'color' => $g->color, 'icon' => $g->icon,
+                'status' => $g->status, 'targetDate' => $g->target_date?->toDateString(), 'progressMode' => $g->progress_mode, 'progress' => $g->progress,
+                // Milestones or by hand: the % the map shows instead of counting tasks.
+                'progressPct' => $g->progressPct(),
+                'projects' => $mine->map(fn ($p) => $projectNode($p, $g->id))->values(),
+                'tasks' => $shown($direct->get($g->id, collect()))->map($taskNode)->values(),
+                // Notes linked to the goal (a note's "Link" picker).
+                'notes' => NoteLink::notesFor($user, 'goal', $g->id),
+                // Habits that serve it, unless already shown under one of its projects.
+                'habits' => $g->habits->reject(fn ($h) => $h->project_id && $mine->contains('id', $h->project_id))
+                    ->map(fn ($h) => HabitStats::present($h, $todayLocal))->values(),
+            ];
+        })->values();
         if ($other->isNotEmpty()) {
-            $branches->push(['id' => 0, 'title' => 'Other projects', 'why' => null, 'target' => null, 'color' => 0, 'icon' => 'folder', 'projects' => $other->map($projectNode)->values(), 'notes' => []]);
+            $branches->push(['id' => 0, 'title' => 'Other projects', 'why' => null, 'target' => null, 'color' => 0, 'icon' => 'folder', 'projects' => $other->map(fn ($p) => $projectNode($p))->values(), 'notes' => []]);
         }
 
         return Inertia::render('goals/index', [

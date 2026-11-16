@@ -31,7 +31,7 @@ class ProjectController extends Controller
         foreach ($list->scored as $s) {
             $best[(int) ($list->tasks[(int) $s->task->id]->project_id ?? 0)] ??= $s->rank;
         }
-        $projects = $user->projects()->with(['goal:id,title,color', 'area:id,name'])->withCount([
+        $projects = $user->projects()->with(['goal:id,title,color', 'extraGoals:id,title,color', 'area:id,name'])->withCount([
             'tasks as open_count' => fn ($q) => $q->whereIn('status', Task::OPEN),
             'tasks as done_count' => fn ($q) => $q->where('status', Task::DONE),
         ])->orderBy('name')->get();
@@ -42,6 +42,8 @@ class ProjectController extends Controller
                 'name' => $p->name,
                 'status' => $p->archived_at ? 'archived' : $p->status,
                 'goal' => $p->goal ? ['title' => $p->goal->title, 'color' => $p->goal->color] : null,
+                // Every goal it serves, the main one first.
+                'goals' => self::goals($p),
                 'area' => $p->area?->name,
                 'open' => $p->open_count,
                 'done' => $p->done_count,
@@ -58,6 +60,7 @@ class ProjectController extends Controller
     {
         $user = $request->user();
         $project = $user->projects()->create($this->fields($request) + ['position' => (int) $user->projects()->max('position') + 1]);
+        self::saveGoals($request, $project);
 
         return to_route('projects.show', $project)->with('toast', "Created “{$project->name}”")->with('undo', $this->undo('delete-project', $project->id));
     }
@@ -98,7 +101,12 @@ class ProjectController extends Controller
         if (array_key_exists('due_date', $before)) {
             $before['due_date'] = $project->due_date?->toDateString();
         }
+        if ($request->has('goal_ids')) {
+            unset($before['goal_id']);
+            $before['goal_ids'] = $project->goalIds();
+        }
         $project->update($data);
+        self::saveGoals($request, $project);
 
         return back()->with('toast', 'Project saved')->with('undo', $this->undo('patch-project', $project->id, $before));
     }
@@ -129,9 +137,16 @@ class ProjectController extends Controller
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'due_date' => ['sometimes', 'nullable', 'date'],
             'goal_id' => ['sometimes', 'nullable', 'integer', Rule::exists('goals', 'id')->where('user_id', $user->id)],
+            // Every goal it serves, the main one first (the dialog sends these instead of goal_id).
+            'goal_ids' => ['sometimes', 'array', 'max:10'],
+            'goal_ids.*' => ['integer', 'distinct', Rule::exists('goals', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
             'area_id' => ['sometimes', 'nullable', 'integer', Rule::exists('areas', 'id')->where('user_id', $user->id)],
             'new_area' => ['sometimes', 'nullable', 'string', 'max:80'],
-        ], [], ['new_area' => 'area name', 'goal_id' => 'goal', 'area_id' => 'area']);
+        ], [], ['new_area' => 'area name', 'goal_id' => 'goal', 'goal_ids' => 'goals', 'goal_ids.*' => 'goal', 'area_id' => 'area']);
+        if (array_key_exists('goal_ids', $data)) {
+            $data['goal_id'] = $data['goal_ids'][0] ?? null;
+            unset($data['goal_ids']);
+        }
         // "New area…" in the form: make it and put the project in it.
         if (filled($data['new_area'] ?? null)) {
             $data['area_id'] = $user->areas()->firstOrCreate(['name' => trim($data['new_area'])], ['position' => (int) $user->areas()->max('position') + 1])->id;
@@ -141,11 +156,33 @@ class ProjectController extends Controller
         return $data;
     }
 
+    /** After saving: the goals it serves besides its main one (from "goal_ids"); its main goal is never one of those too. */
+    public static function saveGoals(Request $request, Project $project): void
+    {
+        if ($request->has('goal_ids')) {
+            $project->extraGoals()->sync(array_map('intval', array_slice(array_values((array) $request->input('goal_ids')), 1)));
+        } elseif ($project->goal_id) {
+            $project->extraGoals()->detach($project->goal_id);
+        }
+        $project->unsetRelation('extraGoals');
+    }
+
+    /**
+     * Every goal it serves, the main one first.
+     *
+     * @return list<array{id: int, title: string, color: int}>
+     */
+    public static function goals(Project $project): array
+    {
+        return collect([$project->goal])->concat($project->extraGoals)->filter()->unique('id')
+            ->map(fn ($g) => ['id' => $g->id, 'title' => $g->title, 'color' => $g->color])->values()->all();
+    }
+
     public function show(Request $request, Project $project, RankingService $ranking): Response
     {
         $user = $request->user();
         $this->own($project, $user);
-        $project->load(['goal', 'area', 'milestones', 'habits.entries', 'habits.project', 'people']);
+        $project->load(['goal', 'extraGoals', 'area', 'milestones', 'habits.entries', 'habits.project', 'people']);
 
         $list = $ranking->rank($user);
         $open = $list->toArray(fn (Task $t) => $t->project_id === $project->id);
@@ -171,6 +208,7 @@ class ProjectController extends Controller
                 'area' => $project->area?->name,
                 'areaId' => $project->area_id,
                 'goal' => $project->goal ? ['id' => $project->goal->id, 'title' => $project->goal->title, 'color' => $project->goal->color] : null,
+                'goals' => self::goals($project),
                 'archived' => $project->archived_at !== null,
                 'status' => $project->status,
                 'completedAt' => $project->completed_at?->toIso8601ZuluString(),

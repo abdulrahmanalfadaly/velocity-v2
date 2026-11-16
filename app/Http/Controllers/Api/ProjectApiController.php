@@ -18,7 +18,7 @@ class ProjectApiController extends ApiController
     /** Projects in use; ?archived=1 for the archived ones too. */
     public function index(Request $request): JsonResponse
     {
-        $projects = $request->user()->projects()->with(['goal', 'area'])
+        $projects = $request->user()->projects()->with(['goal', 'extraGoals', 'area'])
             ->withCount(['tasks as open_tasks_count' => fn ($q) => $q->whereIn('status', Task::OPEN)])
             ->when(! $request->boolean('archived'), fn ($q) => $q->whereNull('archived_at'))
             ->orderBy('position')->get();
@@ -31,7 +31,7 @@ class ProjectApiController extends ApiController
     {
         $user = $request->user();
         $this->own($project, $user);
-        $project->load(['goal', 'area', 'milestones'])->loadCount(['tasks as open_tasks_count' => fn ($q) => $q->whereIn('status', Task::OPEN)]);
+        $project->load(['goal', 'extraGoals', 'area', 'milestones'])->loadCount(['tasks as open_tasks_count' => fn ($q) => $q->whereIn('status', Task::OPEN)]);
         $out = ApiPresent::project($project) + [
             'milestones' => $project->milestones->map(fn (Milestone $m) => [
                 'id' => $m->id, 'title' => $m->title, 'dueDate' => $m->due_date?->toDateString(), 'done' => $m->done_at !== null,
@@ -51,16 +51,18 @@ class ProjectApiController extends ApiController
     {
         $user = $request->user();
         $project = $user->projects()->create(ProjectController::fields($request) + ['position' => (int) $user->projects()->max('position') + 1]);
+        ProjectController::saveGoals($request, $project);
 
-        return $this->ok(ApiPresent::project($project->load(['goal', 'area'])), 201);
+        return $this->ok(ApiPresent::project($project->load(['goal', 'extraGoals', 'area'])), 201);
     }
 
     public function update(Request $request, Project $project): JsonResponse
     {
         $this->own($project, $request->user());
         $project->update(ProjectController::fields($request, partial: true));
+        ProjectController::saveGoals($request, $project);
 
-        return $this->ok(ApiPresent::project($project->fresh(['goal', 'area'])));
+        return $this->ok(ApiPresent::project($project->fresh(['goal', 'extraGoals', 'area'])));
     }
 
     /** {"done": true}, or a new title / due_date. */

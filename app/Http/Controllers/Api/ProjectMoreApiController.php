@@ -136,7 +136,7 @@ class ProjectMoreApiController extends ApiController
 
     private function present(Project $project): array
     {
-        $project = $project->fresh(['goal', 'area']);
+        $project = $project->fresh(['goal', 'extraGoals', 'area']);
 
         return ApiPresent::project($project) + ['status' => $project->status, 'completedAt' => $project->completed_at?->toIso8601ZuluString()];
     }

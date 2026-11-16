@@ -42,6 +42,8 @@ interface Props extends VelocityShared {
         area: string | null;
         areaId: number | null;
         goal: { id: number; title: string; color: number } | null;
+        /** Every goal it serves, the main one first. */
+        goals: { id: number; title: string; color: number }[];
         archived: boolean;
         status: 'planned' | 'active' | 'on_hold' | 'completed';
         completedAt: string | null;
@@ -175,12 +177,18 @@ export default function ProjectShow() {
                     <WorldArt seed={`${project.id}${project.name}`} />
                     <div className="world-inner">
                         <div className="world-top">
-                            {project.goal && (
-                                <Link className="goal-chip" href={`/goals?focus=g${project.goal.id}`} title="See this goal in the Goals map">
+                            {project.goals.map((g) => (
+                                <Link
+                                    key={g.id}
+                                    className="goal-chip"
+                                    href={`/goals?focus=g${g.id}`}
+                                    title="See this goal in the Goals map"
+                                    style={{ ['--g' as string]: goalVar(g.color) }}
+                                >
                                     <i />
-                                    {project.goal.title}
+                                    {g.title}
                                 </Link>
-                            )}
+                            ))}
                             {project.area && <span className="world-area">{project.area}</span>}
                             <span className="world-gap" />
                             {project.status !== 'completed' && (
@@ -823,7 +831,7 @@ export default function ProjectShow() {
                         description: project.description,
                         dueDate: project.dueDate,
                         areaId: project.areaId,
-                        goalId: project.goal?.id ?? null,
+                        goalIds: project.goals.map((g) => g.id),
                         archived: project.archived,
                         openCount: project.openCount,
                     }}

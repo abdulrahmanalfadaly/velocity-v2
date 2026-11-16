@@ -112,16 +112,25 @@ class ProjectActions
     }
 
     /**
-     * Deletes a goal (only marked deleted): its projects and tasks stay, without a goal. Returns what Undo needs.
+     * Deletes a goal (only marked deleted): its projects and tasks stay, without it. A project that
+     * serves other goals too gets the next of those as its main goal. Returns what Undo needs.
      *
-     * @return array{projects: list<int>, tasks: list<int>}
+     * @return array{projects: list<int>, tasks: list<int>, promoted: list<int>}
      */
     public function deleteGoal(Goal $goal, User $user): array
     {
-        $was = ['projects' => $goal->projects()->pluck('id')->all(), 'tasks' => $user->tasks()->where('goal_id', $goal->id)->pluck('id')->all()];
-        DB::transaction(function () use ($goal, $user) {
-            $user->projects()->where('goal_id', $goal->id)->update(['goal_id' => null]);
+        $was = ['projects' => $goal->projects()->pluck('id')->all(), 'tasks' => $user->tasks()->where('goal_id', $goal->id)->pluck('id')->all(), 'promoted' => []];
+        DB::transaction(function () use ($goal, $user, &$was) {
+            foreach ($user->projects()->where('goal_id', $goal->id)->with('extraGoals')->get() as $project) {
+                $next = $project->extraGoals->first();
+                Project::whereKey($project->id)->update(['goal_id' => $next?->id]);
+                if ($next) {
+                    $project->extraGoals()->detach($next->id);
+                    $was['promoted'][] = $project->id;
+                }
+            }
             $user->tasks()->where('goal_id', $goal->id)->update(['goal_id' => null]);
+            // Where it was one of a project's other goals, the link stays: hidden while the goal is deleted, back with Undo.
             $goal->delete();
         });
 
@@ -133,6 +142,12 @@ class ProjectActions
     {
         $goal->restore();
         $user->projects()->whereIn('id', $was['projects'] ?? [])->whereNull('goal_id')->update(['goal_id' => $goal->id]);
+        // Projects whose next goal stood in: it is their main goal again, and that one goes back next to it.
+        foreach ($user->projects()->whereIn('id', $was['promoted'] ?? [])->whereNotNull('goal_id')->where('goal_id', '!=', $goal->id)->get() as $project) {
+            $project->extraGoals()->syncWithoutDetaching([$project->goal_id]);
+            $project->extraGoals()->detach($goal->id);
+            Project::whereKey($project->id)->update(['goal_id' => $goal->id]);
+        }
         $user->tasks()->whereIn('id', $was['tasks'] ?? [])->whereNull('project_id')->whereNull('goal_id')->update(['goal_id' => $goal->id]);
     }
 
@@ -144,5 +159,6 @@ class ProjectActions
         'shared' => ['nullable', 'array'], 'shared.*' => ['integer'],
         'habits' => ['nullable', 'array'], 'habits.*' => ['integer'],
         'projects' => ['nullable', 'array'], 'projects.*' => ['integer'],
+        'promoted' => ['nullable', 'array'], 'promoted.*' => ['integer'],
     ];
 }

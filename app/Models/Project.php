@@ -34,9 +34,26 @@ class Project extends Model
         return $this->belongsTo(Area::class);
     }
 
+    /** Its main goal: the one that gives it its colour. */
     public function goal(): BelongsTo
     {
         return $this->belongsTo(Goal::class);
+    }
+
+    /** The other goals it serves, besides its main one. */
+    public function extraGoals(): BelongsToMany
+    {
+        return $this->belongsToMany(Goal::class, 'goal_project')->orderBy('goals.position');
+    }
+
+    /**
+     * Every goal it serves, the main one first.
+     *
+     * @return list<int>
+     */
+    public function goalIds(): array
+    {
+        return array_values(array_unique(array_filter([$this->goal_id, ...$this->extraGoals->pluck('id')->all()])));
     }
 
     public function tasks(): HasMany
