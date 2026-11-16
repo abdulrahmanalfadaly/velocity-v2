@@ -38,6 +38,7 @@ class RankingService
         return Task::query()
             ->where('user_id', $user->id)
             ->whereIn('status', [Task::TODO, Task::DOING])
+            ->whereNull('captured_at') // captured only: waits in the Inbox's "To sort" until "Rank it"
             ->where(fn (Builder $q) => $q->whereNull('available_from')->orWhere('available_from', '<=', $now))
             ->whereDoesntHave('dependencies', fn (Builder $q) => $q->whereNotIn('status', [Task::DONE, Task::CANCELLED]))
             // A planned or on-hold project's tasks wait (personal mode; FYP mode stays as the report has it).
@@ -82,6 +83,7 @@ class RankingService
         return Task::query()
             ->where('user_id', $user->id)
             ->whereIn('status', Task::OPEN)
+            ->whereNull('captured_at')
             ->when($projectId, fn (Builder $q) => $q->where('project_id', $projectId))
             ->with(['project.goal', 'goal', 'dependencies' => fn ($q) => $q->whereNotIn('status', [Task::DONE, Task::CANCELLED])])
             ->orderBy('created_at')

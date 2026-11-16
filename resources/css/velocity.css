@@ -1755,6 +1755,11 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .sr-filters .layout-seg { flex-wrap: wrap; }
 .sr-filters .count { margin-left: 4px; color: var(--text-3); font-weight: 600; font-variant-numeric: tabular-nums; }
 .sr-archived { margin-left: auto; }
+/* Captured only: To sort at the top of the Inbox, and a note in the task panel. */
+.p-captured { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px dashed var(--line-strong); border-radius: 10px;
+    font-size: 13px; color: var(--text-2); }
+.p-captured .btn { margin-left: auto; }
+.section-fold.to-sort { margin-bottom: 14px; }
 .mg-item.is-cancelled { opacity: .6; }
 .mg-item.is-cancelled .mg-t { text-decoration: line-through; }
 .pblock.is-ghost.is-event { background: var(--surface-3); color: var(--text-2); box-shadow: 0 0 0 2px var(--text-3), var(--sh-lg); }

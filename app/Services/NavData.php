@@ -28,7 +28,8 @@ class NavData
             [$today->utc(), $today->addDay()->utc(), $today->addDays(8)->utc(), $now->utc()],
         )->first();
         $ranked = (clone $eligible)->count();
-        $notReady = Task::where('user_id', $user->id)->whereIn('status', Task::OPEN)->count() - $ranked;
+        $captured = Task::where('user_id', $user->id)->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->count();
+        $notReady = Task::where('user_id', $user->id)->whereIn('status', Task::OPEN)->count() - $ranked - $captured;
 
         // Completed projects leave the menu (All projects lists them).
         $projects = $user->projects()->whereNull('archived_at')->where('status', '!=', 'completed')->with('goal:id,color')->orderBy('position')->orderBy('id')->get();
@@ -45,6 +46,7 @@ class NavData
             'counts' => [
                 'upNext' => $ranked,
                 'inbox' => (int) ($openByProject[''] ?? $openByProject[null] ?? 0),
+                'captured' => $captured,
                 'waiting' => max(0, $notReady),
                 'goals' => $goals->count(),
                 'views' => collect((array) $views)->map(fn ($n) => (int) $n)->all(),

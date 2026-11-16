@@ -108,12 +108,13 @@ export default function Home() {
                                 </>
                             )}{' '}
                             <span className="dotsep" /> {props.dueSoon} due in the next two days
-                            {(props.nav?.counts.inbox ?? 0) > 0 && (
+                            {(props.nav?.counts.inbox ?? 0) + (props.nav?.counts.captured ?? 0) > 0 && (
                                 <>
                                     {' '}
                                     <span className="dotsep" />{' '}
                                     <Link className="page-sub-link" href="/tasks/inbox">
                                         Inbox {props.nav?.counts.inbox}
+                                        {props.nav?.counts.captured ? ` · ${props.nav.counts.captured} to sort` : ''}
                                     </Link>
                                 </>
                             )}

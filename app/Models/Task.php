@@ -39,7 +39,7 @@ class Task extends Model
         'project_id', 'goal_id', 'parent_id', 'title', 'notes', 'importance', 'urgency', 'due_at', 'est_hours', 'energy',
         'status', 'waiting_for', 'available_from', 'completed_at', 'score_at_completion',
         'repeat_unit', 'repeat_every', 'repeat_days', 'repeat_until', 'repeat_anchor', 'repeat_day', 'repeated_from_id',
-        'follow_up_on', 'waiting_since', 'cancelled_at', 'cancel_reason', 'archived_at', 'unarchived_at',
+        'follow_up_on', 'waiting_since', 'cancelled_at', 'cancel_reason', 'archived_at', 'unarchived_at', 'captured_at',
     ];
 
     protected function casts(): array
@@ -51,6 +51,7 @@ class Task extends Model
             'score_at_completion' => 'float',
             'due_at' => 'datetime',
             'available_from' => 'datetime',
+            'captured_at' => 'datetime',
             'completed_at' => 'datetime',
             'repeat_every' => 'integer',
             'repeat_day' => 'integer',

@@ -524,7 +524,7 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                 </button>
             </div>
             <nav className="nav" aria-label="Tasks">
-                {item('inbox', 'inbox', 'Inbox', '/tasks/inbox', nav.counts.inbox)}
+                {item('inbox', 'inbox', 'Inbox', '/tasks/inbox', nav.counts.inbox + (nav.counts.captured ?? 0))}
                 {item('upnext', 'rank', 'Up next', '/tasks', nav.counts.upNext)}
                 {item('waiting', 'hourglass', 'Not ready yet', '/tasks/waiting', nav.counts.waiting)}
                 {item('next', 'arrowR', 'Next actions', '/tasks/next')}

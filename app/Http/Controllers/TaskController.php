@@ -78,6 +78,9 @@ class TaskController extends Controller
                 ->with('project.goal')->latest('completed_at')->get()->map(fn ($t) => TaskPresenter::base($t)),
             'selected' => fn () => $this->detail($request),
             'projects' => $user->projects()->whereNull('archived_at')->get(['id', 'name']),
+            // Captured only, waiting to be sorted (the Inbox's "To sort"), newest first.
+            'captured' => $user->tasks()->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->with('project.goal')->latest('captured_at')->get()
+                ->map(fn ($t) => TaskPresenter::base($t)),
         ]);
     }
 
@@ -222,12 +225,37 @@ class TaskController extends Controller
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)],
             'plain' => ['nullable', 'array', 'max:40'],
             'plain.*' => ['string', 'max:80'],
+            'capture' => ['nullable', 'boolean'],
         ]);
-        $task = $this->actions->quickAdd($user, $data['text'], $data['importance'] ?? null, $data['urgency'] ?? null, $data['project_id'] ?? null, $data['plain'] ?? []);
+        $capture = (bool) ($data['capture'] ?? false);
+        $task = $this->actions->quickAdd($user, $data['text'], $data['importance'] ?? null, $data['urgency'] ?? null, $data['project_id'] ?? null, $data['plain'] ?? [], $capture);
+        if ($capture) {
+            return back()->with('toast', "Captured “{$task->title}” · in the Inbox to sort")->with('undo', $this->undo('delete-task', $task->id));
+        }
         $rank = $this->ranking->rank($user)->rankOf($task->id);
         $later = ! $rank && $task->available_from && $task->available_from > $this->ranking->now() ? ' · starts '.$task->available_from->timezone($user->timezone)->format('D j M') : '';
 
         return back()->with('toast', "Added “{$task->title}”".($rank ? " · #{$rank}" : $later))->with('undo', $this->undo('delete-task', $task->id));
+    }
+
+    /** "Rank it": a captured task joins the ranking (its place comes from the formula, like any task). */
+    public function rankIt(Request $request, Task $task): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($task, $user);
+        $task->update(['captured_at' => null]);
+        $rank = $this->ranking->rank($user)->rankOf($task->id);
+
+        return back()->with('toast', "“{$task->title}” is ranked".($rank ? " · #{$rank}" : ''))->with('undo', $this->undo('capture-task', $task->id));
+    }
+
+    /** Undo of "Rank it": back to the Inbox's "To sort". */
+    public function capture(Request $request, Task $task): RedirectResponse
+    {
+        $this->own($task, $request->user());
+        $task->update(['captured_at' => $this->ranking->now()]);
+
+        return back()->with('toast', "“{$task->title}” is back in To sort");
     }
 
     /** Where a task will land, before it is saved: from quick-add words or from the FYP form's fields. */

@@ -188,6 +188,18 @@ export function TaskPanel({
                         }}
                     />
                 </div>
+                {!finished && task.capturedAt && (
+                    <div className="p-captured" role="status">
+                        <Icon name="inbox" className="ic-sm" />
+                        <span>Captured · not ranked yet</span>
+                        <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => router.post(route('tasks.rank', task.id), {}, { preserveScroll: true, preserveState: true })}
+                        >
+                            Rank it
+                        </button>
+                    </div>
+                )}
                 {!finished && (
                     <div className="seg" role="radiogroup" aria-label="Status">
                         {(['todo', 'doing', 'waiting'] as const).map((s) => (

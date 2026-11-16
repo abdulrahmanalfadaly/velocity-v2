@@ -65,7 +65,7 @@ class TaskActions
      *
      * @param  list<string>  $plain
      */
-    public function quickAdd(User $user, string $text, ?int $importance = null, ?int $urgency = null, ?int $projectId = null, array $plain = []): Task
+    public function quickAdd(User $user, string $text, ?int $importance = null, ?int $urgency = null, ?int $projectId = null, array $plain = [], bool $capture = false): Task
     {
         $parsed = $this->parse($user, $text, $plain);
         if ($parsed['title'] === '') {
@@ -86,6 +86,7 @@ class TaskActions
             'repeat_anchor' => $parsed['repeat'] ? $parsed['due']?->utc() : null,
             'available_from' => $parsed['start']?->utc(),
             'energy' => $parsed['energy'] ?? null,
+            'captured_at' => $capture ? $this->ranking->now() : null,
         ]);
         if ($parsed['remind']) {
             Reminders::add($task, $parsed['remind']['kind'] === 'at' ? ['kind' => 'at', 'at' => $parsed['remind']['at']->utc()] : $parsed['remind'], $this->ranking->now());

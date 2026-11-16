@@ -16,6 +16,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     complete: { method: 'post', route: 'tasks.complete' },
     restore: { method: 'post', route: 'tasks.restore' },
     'delete-task': { method: 'delete', route: 'tasks.destroy' },
+    'capture-task': { method: 'post', route: 'tasks.capture' },
     'revert-task': { method: 'post', route: 'tasks.revert' },
     unpromote: { method: 'post', route: 'tasks.unpromote' },
     'bulk-undo': { method: 'post', route: 'tasks.bulk-undo' },

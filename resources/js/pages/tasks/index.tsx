@@ -23,6 +23,8 @@ interface Props extends VelocityShared {
     doneToday: BaseTask[];
     selected: TaskDetail | null;
     projects: { id: number; name: string }[];
+    /** Captured only: the Inbox's To sort, out of the ranking until "Rank it". */
+    captured?: BaseTask[];
 }
 
 const VIEWS: Record<View, { title: string; href: string }> = {
@@ -347,6 +349,55 @@ export default function TasksIndex() {
                     </>
                 ) : (
                     <>
+                        {inInbox && (props.captured ?? []).length > 0 && (
+                            <details className="section-fold to-sort" open>
+                                <summary>
+                                    <Icon name="chevR" className="chev" />
+                                    To sort <span className="hint">· {props.captured!.length} · not ranked yet</span>
+                                </summary>
+                                {props.captured!.map((c) => (
+                                    <div
+                                        className={`fold-row is-link${props.selected?.id === c.id ? ' is-selected' : ''}`}
+                                        key={c.id}
+                                        tabIndex={0}
+                                        onClick={() => open(props.selected?.id === c.id ? null : c.id)}
+                                        onKeyDown={(e) =>
+                                            (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), open(c.id))
+                                        }
+                                    >
+                                        <span className="att-ic">
+                                            <Icon name="inbox" />
+                                        </span>
+                                        <div>
+                                            <div className="row-title">{c.title}</div>
+                                            <div className="row-sub">
+                                                <span>
+                                                    Captured{' '}
+                                                    {c.capturedAt
+                                                        ? clock.date(c.capturedAt, { weekday: 'short', day: 'numeric', month: 'short' })
+                                                        : ''}
+                                                </span>
+                                                {c.project && (
+                                                    <>
+                                                        <span className="dotsep" />
+                                                        <span>{c.project.name}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.post(route('tasks.rank', c.id), {}, { preserveScroll: true, preserveState: true });
+                                            }}
+                                        >
+                                            Rank it
+                                        </button>
+                                    </div>
+                                ))}
+                            </details>
+                        )}
                         <div className="toolbar">
                             <form
                                 className="add-row"

@@ -116,6 +116,12 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
     const [plain, setPlain] = useState<string[]>([]);
     const [impPicked, setImpPicked] = useState(false);
     const [again, setAgain] = useState(false);
+    // "Capture only": into the Inbox's To sort, out of the ranking until "Rank it" (remembered on this computer).
+    const [capture, setCaptureState] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('velocity.capture') === '1');
+    const setCapture = (on: boolean) => {
+        setCaptureState(on);
+        localStorage.setItem('velocity.capture', on ? '1' : '0');
+    };
     const [noteText, setNoteText] = useState('');
     const [evParsed, setEvParsed] = useState<{ text: string; parse: EventParse } | null>(null);
     const touched = useRef<Set<'date' | 'time' | 'calendar' | 'weekly'>>(new Set());
@@ -244,6 +250,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                 plain,
                 ...(impPicked ? { importance } : {}),
                 project_id: data?.parsed.project?.id ?? projectId ?? null,
+                ...(capture ? { capture: true } : {}),
             });
         } else if (mode === 'note') {
             post('notes.store', { title: text.trim() || null, text: noteText, project_id: projectId ?? null, stay: true });
@@ -534,7 +541,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                             Urgency <Dots n={urgency} c="U" onPick={setUrgency} />
                         </span>
                     </div>
-                    {data?.preview && (
+                    {data?.preview && !capture && (
                         <div className="qa-preview">
                             <span>
                                 Lands at{' '}
@@ -551,6 +558,12 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                     <input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} />
                     Add another
                 </label>
+                {mode === 'task' && (
+                    <label className="auth-check" title="It waits in the Inbox’s To sort, out of the ranking, until you rank it">
+                        <input type="checkbox" checked={capture} onChange={(e) => setCapture(e.target.checked)} />
+                        Capture only
+                    </label>
+                )}
                 <span className="qa-foot-right">
                     {mode === 'note' && (
                         <button
@@ -568,7 +581,15 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                         </button>
                     )}
                     <button className="btn btn-primary" onClick={submit} disabled={empty || saving}>
-                        {mode === 'task' ? 'Add task' : mode === 'event' ? 'Add event' : mode === 'note' ? 'Add note' : 'Add person'}
+                        {mode === 'task'
+                            ? capture
+                                ? 'Capture'
+                                : 'Add task'
+                            : mode === 'event'
+                              ? 'Add event'
+                              : mode === 'note'
+                                ? 'Add note'
+                                : 'Add person'}
                         <kbd>{mode === 'note' ? 'Ctrl Enter' : 'Enter'}</kbd>
                     </button>
                 </span>

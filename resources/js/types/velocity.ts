@@ -38,6 +38,8 @@ export interface BaseTask {
     estHours: number;
     /** The energy it needs (a filter only, never in the score). */
     energy?: 'low' | 'normal' | 'high' | null;
+    /** Captured only: waits in the Inbox's To sort, out of the ranking, until "Rank it". */
+    capturedAt?: string | null;
     waitingFor: string | null;
     availableFrom: string | null;
     completedAt: string | null;
@@ -207,6 +209,8 @@ export interface NavData {
     counts: {
         upNext: number;
         inbox: number;
+        /** Captured only, waiting in the Inbox's To sort. */
+        captured?: number;
         waiting: number;
         goals: number;
         /** Ranked tasks in each view of the list. */
