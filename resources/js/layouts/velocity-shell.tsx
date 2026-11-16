@@ -1,6 +1,6 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserMenuContent } from '@/components/user-menu-content';
-import { FocusDone, FocusTimer } from '@/components/velocity/focus';
+import { FocusDone, FocusHabit, FocusTimer } from '@/components/velocity/focus';
 import { ProjectDialog } from '@/components/velocity/forms';
 import { Pop } from '@/components/velocity/habit-parts';
 import { Icon, Logo } from '@/components/velocity/icon';
@@ -281,6 +281,7 @@ export default function VelocityShell({ title, section, active, children, panel,
 
                 <Reminders clock={Clock.from(props.clock)} onOpen={openTask} />
                 <FocusDone />
+                <FocusHabit />
                 <FocusTimer variant="float" />
                 <Toast toast={toast} onDone={() => setToast(null)} />
             </div>

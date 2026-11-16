@@ -36,11 +36,21 @@ class FocusController extends Controller
         return FocusActions::running($user);
     }
 
-    /** The fields of "start focus": an optional task, a timer (minutes, or none = no limit) or a Pomodoro, and what you'll do. */
+    /**
+     * The fields of "start focus": what it is on (a task, or a project, goal, habit or note;
+     * none = nothing in particular), a timer (minutes, or none = no limit) or a Pomodoro,
+     * and what you'll do.
+     */
     public static function startRules(User $user): array
     {
+        $own = fn (string $table) => ['nullable', 'integer', Rule::exists($table, 'id')->where('user_id', $user->id)->whereNull('deleted_at')];
+
         return [
-            'task_id' => ['nullable', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
+            'task_id' => $own('tasks'),
+            'project_id' => $own('projects'),
+            'goal_id' => $own('goals'),
+            'habit_id' => $own('habits'),
+            'note_id' => $own('notes'),
             'minutes' => ['nullable', 'integer', 'between:1,600'],
             'mode' => ['nullable', Rule::in(['timer', 'pomodoro'])],
             'intention' => ['nullable', 'string', 'max:240'],
@@ -57,17 +67,20 @@ class FocusController extends Controller
             $data['minutes'] = $settings['length'];
         }
         $intention = trim($data['intention'] ?? '') ?: null;
+        // One thing at a time: a task first, else the first of project, goal, habit, note.
+        $subject = collect(FocusSession::SUBJECTS)->map(fn ($column) => $data[$column] ?? null)->filter()->take(1)
+            ->mapWithKeys(fn ($id, $kind) => [FocusSession::SUBJECTS[$kind] => $id])->all();
 
-        return $actions->start($user, $task, $data['minutes'] ?? null, $data['mode'] ?? 'timer', $intention);
+        return $actions->start($user, $task, $data['minutes'] ?? null, $data['mode'] ?? 'timer', $intention, null, $subject);
     }
 
     public function start(Request $request): RedirectResponse
     {
         $user = $request->user();
         $session = self::begin($this->actions, $user, $request->validate(self::startRules($user)));
-        $task = $session->task;
+        $subject = $session->subject();
 
-        return back()->with('toast', $task ? "Focus on “{$task->title}”" : 'Focus started')->with('undo', $this->undo('focus-cancel', $session->id));
+        return back()->with('toast', $subject ? "Focus on “{$subject['title']}”" : 'Focus started')->with('undo', $this->undo('focus-cancel', $session->id));
     }
 
     public function pause(Request $request, FocusSession $session): RedirectResponse
@@ -103,6 +116,9 @@ class FocusController extends Controller
         }
         $task = $session->task;
         $back = back()->with('undo', $this->undo('focus-resume', $session->id));
+        if ($session->habit && in_array($session->habit->kind ?? 'do', ['do', 'minutes'], true)) {
+            $back->with('focusHabit', self::habitOffer($session, $seconds));
+        }
         if (! $task || ! $task->isOpen()) {
             return $back->with('toast', 'Focused '.self::duration($seconds));
         }
@@ -116,6 +132,28 @@ class FocusController extends Controller
             'estHours' => $task->est_hours,
             'hoursLeft' => max(0.25, round(($task->est_hours - $seconds / 3600) * 4) / 4),
         ]);
+    }
+
+    /**
+     * After focus on a habit: what checking it off today would set. A minutes habit adds
+     * the minutes focused ("Add 25 min to Read?"); any other adds one ("Mark Read done?").
+     */
+    public static function habitOffer(FocusSession $session, int $seconds): array
+    {
+        $habit = $session->habit;
+        $today = $session->ended_at->timezone($session->user->timezone)->toDateString();
+        $entry = $habit->entries()->whereDate('day', $today)->first();
+        $count = $entry && ! $entry->skipped ? $entry->count : 0;
+        $minutes = max(1, (int) round($seconds / 60));
+        $isMinutes = $habit->kind === 'minutes';
+
+        return [
+            'habitId' => $habit->id,
+            'name' => $habit->name,
+            'minutes' => $isMinutes ? $minutes : null,
+            'count' => $isMinutes ? $count + $minutes : $count + 1,
+            'doneAlready' => ! $isMinutes && $habit->achieved($count),
+        ];
     }
 
     /** Undo of Stop: carry on, as if it hadn't been stopped (the moments in between count as a pause). */

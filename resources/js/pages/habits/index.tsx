@@ -1,4 +1,5 @@
 import { Field, TextField } from '@/components/velocity/field';
+import { StartFocus } from '@/components/velocity/focus';
 import { Modal } from '@/components/velocity/forms';
 import {
     DayEditor,
@@ -464,6 +465,7 @@ function HabitPanel({
                     <span>{h.project?.name ?? 'Habits'}</span>
                 </div>
                 <div className="panel-tools">
+                    {!h.archived && !less && <StartFocus on={{ kind: 'habit', id: h.id }} className="btn btn-ghost btn-sm" compact />}
                     {!h.archived && (
                         <button
                             className="icon-btn"

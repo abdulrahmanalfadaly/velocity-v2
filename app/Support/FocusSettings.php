@@ -18,6 +18,7 @@ class FocusSettings
         'autoBreak' => true,  // a break starts by itself when a round ends
         'autoNext' => false,  // the next round starts by itself when a break ends (while Velocity is open)
         'sound' => true,      // a soft sound when time is up
+        'timeUp' => 'keep',   // a timer whose time is up: keeps counting, or stops
     ];
 
     public static function of(User $user): array
@@ -37,6 +38,7 @@ class FocusSettings
             'autoBreak' => ['required', 'boolean'],
             'autoNext' => ['required', 'boolean'],
             'sound' => ['required', 'boolean'],
+            'timeUp' => ['sometimes', Rule::in(['keep', 'stop'])],
         ];
     }
 }

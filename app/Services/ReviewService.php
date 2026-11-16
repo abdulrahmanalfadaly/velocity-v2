@@ -154,6 +154,7 @@ class ReviewService
                 'id' => $s->id,
                 'taskId' => $s->task_id,
                 'task' => $s->task?->title,
+                'subject' => $s->subject(),
                 'startedAt' => $s->started_at->toIso8601ZuluString(),
                 'endedAt' => $s->ended_at->toIso8601ZuluString(),
                 'minutes' => (int) round($s->seconds / 60),
@@ -274,16 +275,17 @@ class ReviewService
     {
         return FocusSession::where('user_id', $user->id)->whereNotNull('ended_at')
             ->where('started_at', '>=', $from->utc())->where('started_at', '<', $to->utc())
-            ->with(['task' => fn ($t) => $t->withTrashed()->select('id', 'title', 'project_id'), 'task.project:id,name,goal_id', 'task.project.goal:id,color'])
+            ->with(['task' => fn ($t) => $t->withTrashed()->select('id', 'title', 'project_id'), 'task.project:id,name,goal_id', 'task.project.goal:id,color',
+                'project' => fn ($p) => $p->withTrashed()->select('id', 'name', 'goal_id'), 'project.goal:id,color'])
             ->get();
     }
 
-    /** Where focused time went, by project, biggest first. */
+    /** Where focused time went, by project (focus on the project itself, or on one of its tasks), biggest first. */
     private function byProject(Collection $sessions): Collection
     {
-        return $sessions->groupBy(fn ($s) => $s->task?->project_id ?? 0)
+        return $sessions->groupBy(fn ($s) => $s->project_id ?? $s->task?->project_id ?? 0)
             ->map(function ($group, $id) {
-                $project = $group->first()->task?->project;
+                $project = $group->first()->project ?? $group->first()->task?->project;
 
                 return [
                     'id' => $id ?: null,

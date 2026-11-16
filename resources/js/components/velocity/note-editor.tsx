@@ -9,6 +9,7 @@ import { Placeholder } from '@tiptap/extensions';
 import { type Editor, EditorContent, type JSONContent, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { type DragEvent, type KeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { StartFocus } from './focus';
 import { Icon } from './icon';
 import { Picker } from './pick';
 import { Select } from './select';
@@ -303,6 +304,7 @@ export function NoteEditor({
                         statusText
                     )}
                 </span>
+                <StartFocus on={{ kind: 'note', id: note.id }} className="btn btn-ghost btn-sm" compact />
                 <button
                     className={`icon-btn${note.pinned ? ' is-on' : ''}`}
                     aria-pressed={note.pinned}

@@ -177,8 +177,9 @@ class ProjectController extends Controller
             ],
             'stats' => [
                 'done' => $doneCount, 'total' => $total, 'pct' => $total ? (int) round($doneCount / $total * 100) : 0, 'bestRank' => $open[0]['rank'] ?? null,
-                // Focused on this project's tasks since Monday, in the user's own week.
-                'focusedWeek' => (int) FocusSession::whereNotNull('ended_at')->whereIn('task_id', $project->tasks()->withTrashed()->select('id'))
+                // Focused on this project or its tasks since Monday, in the user's own week.
+                'focusedWeek' => (int) FocusSession::whereNotNull('ended_at')
+                    ->where(fn ($q) => $q->where('project_id', $project->id)->orWhereIn('task_id', $project->tasks()->withTrashed()->select('id')))
                     ->where('started_at', '>=', $todayLocal->startOfWeek()->utc())->sum('seconds'),
             ],
             'milestones' => $project->milestones->map(fn ($m) => [

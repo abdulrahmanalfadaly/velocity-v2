@@ -19,16 +19,20 @@ class FocusActions
     /** Shorter than this is a false start: not kept. */
     public const MIN_SECONDS = 60;
 
+    /** A timer that stops at its end is stopped by the open window then; this long after, the server stops it. */
+    private const GRACE_SECONDS = 120;
+
     /** A Pomodoro left alone this long after its break (or round) ended is over. */
     private const STALE_SECONDS = 2 * 3600;
 
     public function __construct(private readonly RankingService $ranking) {}
 
     /**
-     * Starts focus on a task (or on nothing). A session already running is finished
-     * first, and a Pomodoro break is left; the task becomes Doing.
+     * Starts focus on a task, on something else ($subject: ['project_id' => 3], a goal,
+     * a habit or a note) or on nothing. A session already running is finished first,
+     * and a Pomodoro break is left; a task becomes Doing.
      */
-    public function start(User $user, ?Task $task, ?int $minutes, string $mode = 'timer', ?string $intention = null, ?int $round = null): FocusSession
+    public function start(User $user, ?Task $task, ?int $minutes, string $mode = 'timer', ?string $intention = null, ?int $round = null, array $subject = []): FocusSession
     {
         if ($running = self::running($user)) {
             $this->finish($running);
@@ -37,6 +41,7 @@ class FocusActions
         $pomodoro = $mode === 'pomodoro';
         $session = $user->focusSessions()->create([
             'task_id' => $task?->id,
+            ...($task ? [] : array_intersect_key($subject, array_flip(FocusSession::SUBJECTS))),
             'mode' => $pomodoro ? 'pomodoro' : 'timer',
             'round' => $pomodoro ? ($round ?? 1) : null,
             'intention' => $intention,
@@ -62,7 +67,9 @@ class FocusActions
             return $seconds;
         }
         $end = $session->paused_at ?? $now;
-        if ($session->mode === 'pomodoro' && $session->planned_minutes && $seconds > $session->planned_minutes * 60) {
+        // A Pomodoro round, or a timer set to stop when its time is up, never counts past its end.
+        $stops = $session->mode === 'pomodoro' || FocusSettings::of($session->user)['timeUp'] === 'stop';
+        if ($stops && $session->planned_minutes && $seconds > $session->planned_minutes * 60) {
             $seconds = $session->planned_minutes * 60;
             $end = $session->started_at->addSeconds($seconds + $session->paused_seconds);
         }
@@ -99,12 +106,12 @@ class FocusActions
         ]);
     }
 
-    /** The next round of a Pomodoro, on the same task (if it's still open) with the same intention. */
+    /** The next round of a Pomodoro, on the same task (if it's still open) or the same project, goal, habit or note, with the same intention. */
     public function nextRound(User $user, FocusSession $last): FocusSession
     {
         $task = $last->task && $last->task->isOpen() ? $last->task : null;
 
-        return $this->start($user, $task, null, 'pomodoro', $last->intention, ($last->round ?? 0) + 1);
+        return $this->start($user, $task, null, 'pomodoro', $last->intention, ($last->round ?? 0) + 1, $last->subjectIds());
     }
 
     /**
@@ -116,8 +123,14 @@ class FocusActions
     {
         $now = $this->ranking->now();
         $settings = FocusSettings::of($user);
-        $extra = ['sound' => $settings['sound'], 'every' => $settings['every']];
+        $extra = ['sound' => $settings['sound'], 'every' => $settings['every'], 'timeUp' => $settings['timeUp']];
         $running = self::running($user);
+        // A timer set to stop when its time is up, left past its end while Velocity was closed: stopped at its end.
+        if ($running && $running->mode !== 'pomodoro' && $settings['timeUp'] === 'stop' && ! $running->paused_at && $running->planned_minutes
+            && $running->elapsed($now) >= $running->planned_minutes * 60 + self::GRACE_SECONDS) {
+            $this->finish($running);
+            $running = null;
+        }
         if ($running && $running->mode === 'pomodoro' && ! $running->paused_at && $running->planned_minutes
             && $running->elapsed($now) >= $running->planned_minutes * 60) {
             $this->endRound($running, $settings);

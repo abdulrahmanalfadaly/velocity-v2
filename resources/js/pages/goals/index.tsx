@@ -38,6 +38,7 @@ export default function GoalsMap() {
                 onPromote: (id) => router.post(route('steps.promote', id), {}, opts),
                 onToggleMenu: () => setMenu((m) => !m),
                 onNewGoal: () => setDialog('new'),
+                onFocusGoal: (id) => router.post(route('focus.start'), { goal_id: id }, opts),
                 onEditGoal: (id) => {
                     const g = goals.current.find((x) => x.id === id);
                     if (g)

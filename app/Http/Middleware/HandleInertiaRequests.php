@@ -52,6 +52,7 @@ class HandleInertiaRequests extends Middleware
                 'toast' => $request->session()->get('toast'),
                 'undo' => $request->session()->get('undo'),
                 'focusDone' => $request->session()->get('focusDone'),
+                'focusHabit' => $request->session()->get('focusHabit'),
             ],
         ];
     }

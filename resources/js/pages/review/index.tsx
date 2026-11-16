@@ -93,6 +93,7 @@ interface FocusReport {
     sessions: {
         id: number;
         taskId: number | null;
+        subject?: { kind: string; title: string; href: string } | null;
         task: string | null;
         startedAt: string;
         endedAt: string;
@@ -834,9 +835,7 @@ function FocusHistory({ f, clock }: { f: FocusReport; clock: Clock }) {
                                     </span>
                                 </div>
                                 <div className="fh-main">
-                                    <div className="row-title">
-                                        {s.taskId && s.task ? <Link href={`/tasks?task=${s.taskId}`}>{s.task}</Link> : (s.task ?? 'Focus')}
-                                    </div>
+                                    <div className="row-title">{s.subject ? <Link href={s.subject.href}>{s.subject.title}</Link> : 'Focus'}</div>
                                     <div className="row-sub">
                                         {hm(s.minutes)}
                                         {s.mode === 'pomodoro' ? ` · Pomodoro round ${s.round ?? 1}` : ''}

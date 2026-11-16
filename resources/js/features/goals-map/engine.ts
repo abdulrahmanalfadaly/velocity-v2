@@ -149,6 +149,7 @@ const P: Record<string, string> = {
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
     list: '<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
     branch: '<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="12" r="2.2"/><path d="M6 8.2v7.6M8 6.8c5 .4 7.5 1.8 8.3 3.6M8 17.2c5-.4 7.5-1.8 8.3-3.6"/>',
+    play: '<path d="M7 4.5v15l12-7.5z"/>',
     arrowUpRight: '<path d="M7 17 17 7M8.5 7H17v8.5"/>',
 };
 const ic = (name: string, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.info}</svg>`;
@@ -179,6 +180,8 @@ export interface MapContext {
     onToggleMenu: () => void;
     onNewGoal: () => void;
     onEditGoal: (goalId: number) => void;
+    /** "Focus" in a goal's panel: start focus on the goal. */
+    onFocusGoal: (goalId: number) => void;
 }
 
 export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext): () => void {
@@ -991,7 +994,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                               .join('')}</div>`
                         : ''
                 }
-            </div>${pfoot(`<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom to this goal</button>${n.goal.id > 0 ? `<button class="btn btn-secondary btn-lg" data-gm-editgoal="${n.goal.id}">${ic('settings')}Edit goal</button>` : ''}`)}`;
+            </div>${pfoot(`<button class="btn btn-secondary btn-lg" data-gm-focus="${n.id}">${ic('target')}Zoom to this goal</button>${n.goal.id > 0 ? `<button class="btn btn-secondary btn-lg" data-gm-focusgoal="${n.goal.id}">${ic('play')}Focus</button><button class="btn btn-secondary btn-lg" data-gm-editgoal="${n.goal.id}">${ic('settings')}Edit goal</button>` : ''}`)}`;
         } else if (n.type === 'project' || n.type === 'inbox') {
             const t = tally(n);
             const open = n.children.filter(isRanked).sort((a, b) => a.rank - b.rank);
@@ -1298,6 +1301,8 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         if (t.closest('[data-gm-close]')) return select(null);
         if (t.closest('[data-gm-side]')) return ctx.onToggleMenu();
         if (t.closest('[data-gm-newgoal]')) return ctx.onNewGoal();
+        const focusGoal = t.closest<HTMLElement>('[data-gm-focusgoal]');
+        if (focusGoal) return ctx.onFocusGoal(Number(focusGoal.dataset.gmFocusgoal));
         const editGoal = t.closest<HTMLElement>('[data-gm-editgoal]');
         if (editGoal) return ctx.onEditGoal(Number(editGoal.dataset.gmEditgoal));
         const goal = t.closest<HTMLElement>('[data-gm-goal]');

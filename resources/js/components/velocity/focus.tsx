@@ -1,5 +1,5 @@
 import { fmtHours } from '@/lib/velocity';
-import type { FocusRunning, VelocityShared } from '@/types/velocity';
+import type { FocusRunning, FocusSubject, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from './forms';
@@ -84,9 +84,11 @@ export function FocusTimer({ variant }: { variant: 'chip' | 'float' }) {
         if (f.sound) chime();
         if (notifyState() === 'on') {
             const what = moment.endsWith('break') ? 'Break’s over' : pomodoro ? `Round ${f.round ?? 1} done` : 'Focus time is up';
-            new Notification(what, { body: f.taskTitle ?? 'Your focus session', tag: `velocity-focus-${moment}` });
+            new Notification(what, { body: f.subject?.title ?? 'Your focus session', tag: `velocity-focus-${moment}` });
         }
-        if (pomodoro || phase === 'break') router.reload({ only: ['focusSession'] });
+        // Settings → Focus: a timer can stop by itself when its time is up.
+        if (moment.endsWith('over') && !pomodoro && f.timeUp === 'stop') router.post(route('focus.stop', f.id), {}, keep);
+        else if (pomodoro || phase === 'break') router.reload({ only: ['focusSession'] });
     }, [moment, f, variant, pomodoro, phase]);
 
     if (!f) return null;
@@ -97,14 +99,11 @@ export function FocusTimer({ variant }: { variant: 'chip' | 'float' }) {
             <Icon name={icon} />
         </button>
     );
-    const taskLine = f.taskTitle ? (
-        f.taskId ? (
-            <Link className="focus-task" href={`/tasks?task=${f.taskId}`} preserveScroll title={f.intention ?? f.taskTitle}>
-                {f.taskTitle}
-            </Link>
-        ) : (
-            <div className="focus-task">{f.taskTitle}</div>
-        )
+    const taskLine = f.subject ? (
+        <Link className="focus-task" href={f.subject.href} preserveScroll title={f.intention ?? f.subject.title}>
+            {f.subject.kind !== 'task' && <Icon name={SUBJECT_ICON[f.subject.kind]} className="ic-xs" />}
+            {f.subject.title}
+        </Link>
     ) : f.intention ? (
         <div className="focus-task">{f.intention}</div>
     ) : null;
@@ -149,20 +148,30 @@ export function FocusTimer({ variant }: { variant: 'chip' | 'float' }) {
     );
 }
 
-/** "Start focus" for a task: the way Settings → Focus says, or another way from the little menu next to it. */
+const SUBJECT_ICON: Record<FocusSubject['kind'], string> = { task: 'tasks', project: 'folder', goal: 'target', habit: 'habits', note: 'notes' };
+
+/**
+ * "Start focus" on a task, or on a project, goal, habit or note (`on`): the way
+ * Settings → Focus says, or another way from the little menu next to it.
+ */
 export function StartFocus({
     taskId,
+    on,
     className = 'btn btn-primary btn-lg',
     compact = false,
 }: {
-    taskId: number;
+    taskId?: number;
+    on?: { kind: 'project' | 'goal' | 'habit' | 'note'; id: number };
     className?: string;
     compact?: boolean;
 }) {
     const { props } = usePage<VelocityShared>();
     const [choosing, setChoosing] = useState(false);
     const f = props.focusSession;
-    const onThis = f?.taskId === taskId && f.phase === 'focus';
+    const kind = on?.kind ?? 'task';
+    const id = on?.id ?? taskId ?? 0;
+    const payload = { [`${kind}_id`]: id };
+    const onThis = f?.subject?.kind === kind && f.subject.id === id && f.phase === 'focus';
     if (onThis) {
         return (
             <button className={className.replace('btn-primary', 'btn-secondary')} onClick={() => router.post(route('focus.stop', f!.id), {}, keep)}>
@@ -173,7 +182,7 @@ export function StartFocus({
     }
     return (
         <span className="start-focus">
-            <button className={className} onClick={() => router.post(route('focus.start'), { task_id: taskId }, keep)}>
+            <button className={className} onClick={() => router.post(route('focus.start'), payload, keep)}>
                 <Icon name="play" />
                 {compact ? 'Focus' : 'Start focus'}
             </button>
@@ -186,7 +195,7 @@ export function StartFocus({
             >
                 <Icon name="chevD" className="ic-xs" />
             </button>
-            {choosing && <FocusChoice taskId={taskId} onClose={() => setChoosing(false)} />}
+            {choosing && <FocusChoice payload={payload} onClose={() => setChoosing(false)} />}
         </span>
     );
 }
@@ -201,7 +210,7 @@ const LENGTHS: [string, string][] = [
 ];
 
 /** How to focus this time: a length or a Pomodoro, and what you'll do (optional). */
-function FocusChoice({ taskId, onClose }: { taskId: number; onClose: () => void }) {
+function FocusChoice({ payload, onClose }: { payload: Record<string, number>; onClose: () => void }) {
     const [pick, setPick] = useState('50');
     const [custom, setCustom] = useState('30');
     const [intention, setIntention] = useState('');
@@ -211,7 +220,7 @@ function FocusChoice({ taskId, onClose }: { taskId: number; onClose: () => void 
         router.post(
             route('focus.start'),
             {
-                task_id: taskId,
+                ...payload,
                 intention: intention.trim() || null,
                 ...(pick === 'pomodoro' ? { mode: 'pomodoro' } : { mode: 'timer', minutes: pick === 'open' ? null : minutes }),
             },
@@ -280,6 +289,47 @@ function FocusChoice({ taskId, onClose }: { taskId: number; onClose: () => void 
                 </div>
             </form>
         </Modal>
+    );
+}
+
+/** After focus on a habit: "Add 25 min to Read today?" (a minutes habit) or "Mark Read done today?". */
+export function FocusHabit() {
+    const { props } = usePage<VelocityShared>();
+    const offer = props.flash?.focusHabit ?? null;
+    const [shown, setShown] = useState(offer);
+    useEffect(() => {
+        if (offer) setShown(offer.doneAlready ? null : offer);
+    }, [offer]);
+    if (!shown) return null;
+    const close = () => setShown(null);
+    return (
+        <div className="reminders" role="region" aria-label="Focus on a habit finished">
+            <div className="reminder" role="alert">
+                <span className="reminder-ic">
+                    <Icon name="habits" />
+                </span>
+                <div className="reminder-main">
+                    <b>{shown.minutes ? `Add ${shown.minutes} min to “${shown.name}” today?` : `Mark “${shown.name}” done today?`}</b>
+                    <div className="reminder-actions">
+                        <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => {
+                                router.post(route('habits.check', shown.habitId), { count: shown.count }, keep);
+                                close();
+                            }}
+                        >
+                            {shown.minutes ? 'Add' : 'Mark done'}
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={close}>
+                            Not now
+                        </button>
+                    </div>
+                </div>
+                <button className="icon-btn reminder-close" aria-label="Close" onClick={close}>
+                    <Icon name="x" />
+                </button>
+            </div>
+        </div>
     );
 }
 

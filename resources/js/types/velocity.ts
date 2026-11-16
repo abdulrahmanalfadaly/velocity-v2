@@ -226,6 +226,8 @@ export interface VelocityShared {
         undo: { action: string; id: number; data?: Record<string, unknown> | null } | null;
         /** After stopping focus on a task: asks whether to update its hours left. */
         focusDone?: { sessionId: number; taskId: number; title: string; seconds: number; estHours: number; hoursLeft: number } | null;
+        /** After focus on a habit: what ticking it off today would set. */
+        focusHabit?: { habitId: number; name: string; minutes: number | null; count: number; doneAlready: boolean } | null;
     };
     /** The focus session that is running, if any (personal mode only). */
     focusSession?: FocusRunning | null;
@@ -250,4 +252,15 @@ export interface FocusRunning {
     phase: 'focus' | 'roundDone' | 'break' | 'breakOver';
     sound: boolean;
     every: number;
+    /** What the session is on: a task, project, goal, habit or note (null: nothing in particular). */
+    subject?: FocusSubject | null;
+    /** A timer whose time is up: keeps counting, or stops. */
+    timeUp?: 'keep' | 'stop';
+}
+
+export interface FocusSubject {
+    kind: 'task' | 'project' | 'goal' | 'habit' | 'note';
+    id: number;
+    title: string;
+    href: string;
 }

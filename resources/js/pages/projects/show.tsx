@@ -210,6 +210,9 @@ export default function ProjectShow() {
                                     </button>
                                 </>
                             )}
+                            {project.status !== 'completed' && !project.archived && (
+                                <StartFocus on={{ kind: 'project', id: project.id }} className="btn btn-ghost btn-sm" compact />
+                            )}
                             <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
                                 <Icon name="settings" className="ic-sm" />
                                 Edit project

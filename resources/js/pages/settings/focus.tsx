@@ -13,6 +13,7 @@ interface FocusSettings {
     autoBreak: boolean;
     autoNext: boolean;
     sound: boolean;
+    timeUp: 'keep' | 'stop';
 }
 
 /** Settings → Focus: how "Start focus" starts, the Pomodoro lengths, what starts by itself, sound. */
@@ -78,6 +79,29 @@ export default function FocusSettingsPage() {
                             ))}
                         </div>
                         {minutes('length', 'Timer length', 240)}
+                        <div className="field">
+                            <div className="field-label">
+                                <span id="fs-timeup">When a timer's time is up</span>
+                            </div>
+                            <div className="seg ev-seg" role="radiogroup" aria-labelledby="fs-timeup">
+                                {(
+                                    [
+                                        ['keep', 'Keep counting'],
+                                        ['stop', 'Stop'],
+                                    ] as const
+                                ).map(([v, label]) => (
+                                    <button
+                                        key={v}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={s.timeUp === v}
+                                        onClick={() => s.timeUp !== v && save({ ...s, timeUp: v })}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         {toggle('sound', 'Sound when time is up')}
                     </div>
                 </SettingsCard>
