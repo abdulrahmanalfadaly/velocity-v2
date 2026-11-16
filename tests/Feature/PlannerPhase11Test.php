@@ -89,6 +89,32 @@ class PlannerPhase11Test extends TestCase
         $this->get('/planner?date=2026-11-12&view=day')->assertInertia(fn (Assert $p) => $p->has('blocks', 0));
     }
 
+    public function test_a_locked_block_moves_only_anyway_and_a_block_can_change_its_task(): void
+    {
+        $essay = $this->task('Essay');
+        $slides = $this->task('Slides');
+        $this->post(route('blocks.store'), ['task_id' => $essay->id, 'date' => '2026-11-12', 'start' => '09:00', 'minutes' => 60]);
+        $block = PlannerBlock::sole();
+
+        $this->patch(route('blocks.lock', $block), ['locked' => true])->assertSessionHas('toast', 'Locked “Essay”');
+        $this->patch(route('blocks.update', $block), ['date' => '2026-11-12', 'start' => '11:00'])->assertSessionHasErrors('anyway');
+        $this->assertSame(['Essay: Thu 09:00–10:00'], $this->booked());
+        $this->patch(route('blocks.update', $block), ['date' => '2026-11-12', 'start' => '11:00', 'anyway' => true])->assertSessionHasNoErrors();
+        $this->assertSame(['Essay: Thu 11:00–12:00'], $this->booked());
+        $this->assertTrue($block->fresh()->locked);
+        // Undo puts it back, lock and all.
+        $this->patch(route('blocks.update', $block), session('undo')['data'])->assertSessionHasNoErrors();
+        $this->assertSame(['Essay: Thu 09:00–10:00'], $this->booked());
+
+        $this->patch(route('blocks.task', $block), ['task_id' => $slides->id])->assertSessionHas('toast', 'Thu 9:00 am is now for “Slides”');
+        $this->assertSame(['Slides: Thu 09:00–10:00'], $this->booked());
+        $this->patch(route('blocks.task', $block), session('undo')['data']);
+        $this->assertSame($essay->id, $block->fresh()->task_id);
+
+        $gym = $this->user->plannerBlocks()->create(['kind' => 'reserved', 'label' => 'Gym', 'starts_at' => '2026-11-12 10:00:00', 'ends_at' => '2026-11-12 11:00:00']);
+        $this->patch(route('blocks.task', $gym), ['task_id' => $slides->id])->assertSessionHasErrors('task_id');
+    }
+
     public function test_the_month_view_shows_whole_weeks_from_monday(): void
     {
         // November 2026 starts on a Sunday: six weeks, from Monday 26 October to Sunday 6 December.

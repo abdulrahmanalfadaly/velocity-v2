@@ -86,13 +86,14 @@ class PlannerBlockController extends Controller
         return back()->with('toast', "{$verb} “{$block->title()}”".$this->overlaps($user, $block))->with('undo', $this->undo('remove-block', $block->id));
     }
 
-    /** Moved (or resized) by the user: it stays where they put it. */
+    /** Moved (or resized) by the user: it stays where they put it. A locked block moves only with "anyway". */
     public function update(Request $request, PlannerBlock $block): RedirectResponse
     {
         $user = $request->user();
         $this->own($block, $user);
+        self::checkLock($request, $block);
         $local = $block->starts_at->timezone($user->timezone);
-        $before = ['date' => $local->toDateString(), 'start' => $local->format('H:i'), 'minutes' => $block->minutes(), 'pinned' => $block->pinned];
+        $before = ['date' => $local->toDateString(), 'start' => $local->format('H:i'), 'minutes' => $block->minutes(), 'pinned' => $block->pinned, 'anyway' => true];
         $pinned = $request->validate(['pinned' => ['nullable', 'boolean']])['pinned'] ?? true;
         $block->update([...$this->times($request, $user, $block->minutes()), 'pinned' => $pinned]);
         $local = $block->starts_at->timezone($user->timezone);
@@ -104,6 +105,40 @@ class PlannerBlockController extends Controller
         $verb = $resized ? 'Resized' : ($block->minutes() !== $before['minutes'] ? 'Changed' : 'Moved');
 
         return back()->with('toast', "{$verb} “{$block->title()}”".$this->overlaps($user, $block))->with('undo', $this->undo('patch-block', $block->id, $before));
+    }
+
+    /** A locked block stays put unless the move says "anyway" (the Planner asks first). */
+    public static function checkLock(Request $request, PlannerBlock $block): void
+    {
+        if ($block->locked && ! $request->boolean('anyway')) {
+            throw ValidationException::withMessages(['anyway' => "“{$block->title()}” is locked."]);
+        }
+    }
+
+    /** Lock or unlock: a locked block asks before it is moved or resized. */
+    public function lock(Request $request, PlannerBlock $block): RedirectResponse
+    {
+        $this->own($block, $request->user());
+        $locked = $request->validate(['locked' => ['required', 'boolean']])['locked'];
+        $block->update(['locked' => $locked]);
+
+        return back()->with('toast', ($locked ? 'Locked' : 'Unlocked')." “{$block->title()}”")->with('undo', $this->undo('lock-block', $block->id, ['locked' => ! $locked]));
+    }
+
+    /** "Change task": the same time, for another open task. */
+    public function retask(Request $request, PlannerBlock $block): RedirectResponse
+    {
+        $user = $request->user();
+        $this->own($block, $user);
+        if ($block->kind !== 'task') {
+            throw ValidationException::withMessages(['task_id' => 'Only time booked for a task can change its task.']);
+        }
+        $task = $user->tasks()->whereIn('status', Task::OPEN)->findOrFail($request->validate(['task_id' => ['required', 'integer']])['task_id']);
+        $before = $block->task_id;
+        $block->update(['task_id' => $task->id]);
+
+        return back()->with('toast', "{$block->starts_at->timezone($user->timezone)->format('D g:i a')} is now for “{$task->title}”")
+            ->with('undo', $this->undo('retask-block', $block->id, ['task_id' => $before]));
     }
 
     public function destroy(Request $request, PlannerBlock $block): RedirectResponse

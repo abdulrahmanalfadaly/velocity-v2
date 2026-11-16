@@ -73,6 +73,9 @@ class PlannerController extends Controller
             'followUps' => $user->tasks()->open()->whereDate('follow_up_on', '>=', $first->toDateString())->whereDate('follow_up_on', '<=', $first->addDays($count - 1)->toDateString())
                 ->get(['id', 'title', 'follow_up_on'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'date' => $t->follow_up_on->toDateString()])->values(),
             'unbooked' => $month ? [] : $this->builder->unbooked($user, $days->all(), $list),
+            // "Change task" on a block: the ranked tasks, top first.
+            'taskChoices' => $month ? [] : array_map(fn ($s) => ['id' => (int) $s->task->id, 'title' => $list->tasks[(int) $s->task->id]->title, 'rank' => $s->rank],
+                array_slice($list->scored, 0, 150)),
             'free' => $month ? [] : $this->builder->free($user, $days->all()),
             'hours' => PlanBuilder::hours($user),
             'dayLimit' => $user->weights()->hours_per_day,

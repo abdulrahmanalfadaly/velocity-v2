@@ -63,7 +63,7 @@ class PlannerExtrasTest extends TestCase
         $this->patch(route('blocks.update', $block), ['date' => '2026-11-12', 'start' => '13:00'])->assertSessionHas('toast', 'Moved “Chapter 4”');
         $this->patch(route('blocks.update', $block), ['date' => '2026-11-12', 'start' => '13:00', 'minutes' => 90])
             ->assertSessionHas('toast', 'Resized “Chapter 4”')
-            ->assertSessionHas('undo.data', ['date' => '2026-11-12', 'start' => '13:00', 'minutes' => 60, 'pinned' => true]);
+            ->assertSessionHas('undo.data', ['date' => '2026-11-12', 'start' => '13:00', 'minutes' => 60, 'pinned' => true, 'anyway' => true]);
         $this->assertSame('Thu 13:00–14:30', $this->local($block));
 
         // Exact times from the block's menu: a new start and length.

@@ -1,4 +1,5 @@
 import { CALENDARS, type CalendarKey, EventDialog, type EventForm } from '@/components/velocity/event-dialog';
+import { Modal } from '@/components/velocity/forms';
 import { DayEditor } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { MonthGrid } from '@/components/velocity/planner-month';
@@ -54,6 +55,7 @@ interface Props extends VelocityShared {
     personDates: { key: string; date: string; title: string; kind: 'birthday' | 'anniversary' | 'other'; personId: number }[];
     followUps: { id: number; title: string; date: string }[];
     free: { date: string; slots: { start: string; end: string }[]; minutes: number }[];
+    taskChoices: { id: number; title: string; rank: number }[];
 }
 
 /** A habit with a set time, on a day it is due. */
@@ -369,11 +371,19 @@ export default function Planner() {
         window.addEventListener('pointercancel', end);
     };
 
-    const drop = (d: Drag) => {
+    // A locked block asks before it moves or changes length.
+    const [lockedDrop, setLockedDrop] = useState<Drag | null>(null);
+    const drop = (d: Drag, anyway = false) => {
+        const isLocked = d.blockId !== undefined && props.blocks.some((b) => b.id === d.blockId && b.locked);
+        const changes = d.kind === 'resize' ? d.minutes !== d.length : !!d.to && !(d.from && d.from.date === d.to.date && d.from.min === d.to.min);
+        if (isLocked && !anyway && changes) {
+            setLockedDrop(d);
+            return;
+        }
         if (d.kind === 'resize') {
             if (!d.blockId || !d.from || d.minutes === d.length) return;
             setPending({ ...mine, sizes: { ...mine.sizes, [d.blockId]: d.minutes } });
-            router.patch(route('blocks.update', d.blockId), { date: d.from.date, start: hhmm(d.from.min), minutes: d.minutes }, keep);
+            router.patch(route('blocks.update', d.blockId), { date: d.from.date, start: hhmm(d.from.min), minutes: d.minutes, anyway }, keep);
             return;
         }
         const to = d.to;
@@ -381,7 +391,7 @@ export default function Planner() {
         const data = { date: to.date, start: hhmm(to.min) };
         if (d.kind === 'move' && d.blockId) {
             setPending({ ...mine, moves: { ...mine.moves, [d.blockId]: to } });
-            router.patch(route('blocks.update', d.blockId), data, keep);
+            router.patch(route('blocks.update', d.blockId), { ...data, anyway }, keep);
         } else {
             const bl: PlanBlock = {
                 id: -Date.now(),
@@ -630,8 +640,13 @@ export default function Planner() {
                                                             )}
                                                             {bl.rank && <span className="pblock-rank">#{bl.rank}</span>}
                                                             {bl.title}
-                                                            {bl.pinned && bl.kind === 'task' && (
-                                                                <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />
+                                                            {bl.locked ? (
+                                                                <Icon name="lock" className="ic-xs pblock-pin" label="Locked" />
+                                                            ) : (
+                                                                bl.pinned &&
+                                                                bl.kind === 'task' && (
+                                                                    <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />
+                                                                )
                                                             )}
                                                         </span>
                                                         <span className="pblock-sub">
@@ -789,8 +804,34 @@ export default function Planner() {
                     date={menu.s.date}
                     startMin={menu.s.min}
                     endMin={menu.e.min}
+                    choices={props.taskChoices}
                     onClose={() => setMenu(null)}
                 />
+            )}
+            {lockedDrop && (
+                <Modal title={`“${lockedDrop.title}” is locked`} onClose={() => setLockedDrop(null)}>
+                    <div className="vform">
+                        <p className="muted">{lockedDrop.kind === 'resize' ? 'Change its length anyway?' : 'Move it anyway?'}</p>
+                        <div className="vform-foot">
+                            <span />
+                            <span className="vform-foot-right">
+                                <button type="button" className="btn btn-secondary" onClick={() => setLockedDrop(null)}>
+                                    Keep it
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    onClick={() => {
+                                        drop(lockedDrop, true);
+                                        setLockedDrop(null);
+                                    }}
+                                >
+                                    {lockedDrop.kind === 'resize' ? 'Change anyway' : 'Move anyway'}
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </VelocityShell>
     );

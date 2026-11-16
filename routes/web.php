@@ -179,6 +179,8 @@ Route::middleware(['auth'])->group(function () {
         Route::put('planner/hours', [PlannerBlockController::class, 'hours'])->name('planner.hours');
         Route::post('planner/blocks', [PlannerBlockController::class, 'store'])->name('blocks.store');
         Route::patch('planner/blocks/{block}', [PlannerBlockController::class, 'update'])->name('blocks.update');
+        Route::patch('planner/blocks/{block}/lock', [PlannerBlockController::class, 'lock'])->name('blocks.lock');
+        Route::patch('planner/blocks/{block}/task', [PlannerBlockController::class, 'retask'])->name('blocks.task');
         Route::delete('planner/blocks/{block}', [PlannerBlockController::class, 'destroy'])->name('blocks.destroy');
         Route::post('planner/blocks/{id}/restore', [PlannerBlockController::class, 'restore'])->whereNumber('id')->name('blocks.restore');
         Route::post('events', [EventController::class, 'store'])->name('events.store');

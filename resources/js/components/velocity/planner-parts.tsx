@@ -228,6 +228,7 @@ export function BlockMenu({
     date,
     startMin,
     endMin,
+    choices = [],
     onClose,
 }: {
     block: PlanBlock;
@@ -238,15 +239,17 @@ export function BlockMenu({
     date: string;
     startMin: number;
     endMin: number;
+    /** Ranked open tasks, for "Change task". */
+    choices?: { id: number; title: string; rank: number }[];
     onClose: () => void;
 }) {
     const hm = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const mins = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
-    // Exact times: a new start keeps the end; a new end changes the length.
+    // Exact times: a new start keeps the end; a new end changes the length. Typed here, a locked block moves too.
     const setTimes = (s: number, e: number) => {
         const length = e > s ? e - s : e + 1440 - s;
         if (length < 5 || length > 720) return;
-        router.patch(route('blocks.update', block.id), { date, start: hm(s), minutes: length }, keep);
+        router.patch(route('blocks.update', block.id), { date, start: hm(s), minutes: length, anyway: true }, keep);
         onClose();
     };
     const { props } = usePage<VelocityShared>();
@@ -274,7 +277,7 @@ export function BlockMenu({
             role="menu"
             aria-label={block.title}
             ref={box}
-            style={{ left: Math.max(8, Math.min(x, window.innerWidth - 268)), top: Math.max(8, Math.min(y, window.innerHeight - 210)) }}
+            style={{ left: Math.max(8, Math.min(x, window.innerWidth - 268)), top: Math.max(8, Math.min(y, window.innerHeight - 300)) }}
         >
             <div className="bmenu-head">
                 <b>{block.title}</b>
@@ -329,6 +332,36 @@ export function BlockMenu({
                     Open project
                 </Link>
             )}
+            {block.kind === 'task' && choices.length > 1 && (
+                <Select
+                    value=""
+                    className="bmenu-item"
+                    label="Change task"
+                    search
+                    options={choices.filter((c) => c.id !== block.taskId).map((c) => ({ value: String(c.id), label: `#${c.rank} ${c.title}` }))}
+                    trigger={
+                        <>
+                            <Icon name="tasks" />
+                            Change task
+                        </>
+                    }
+                    onChange={(v) => {
+                        router.patch(route('blocks.task', block.id), { task_id: Number(v) }, keep);
+                        onClose();
+                    }}
+                />
+            )}
+            <button
+                role="menuitem"
+                className="bmenu-item"
+                onClick={() => {
+                    router.patch(route('blocks.lock', block.id), { locked: !block.locked }, keep);
+                    onClose();
+                }}
+            >
+                <Icon name="lock" />
+                {block.locked ? 'Unlock' : 'Lock'}
+            </button>
             <button
                 role="menuitem"
                 className="bmenu-item"
