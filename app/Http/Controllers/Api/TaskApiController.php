@@ -37,31 +37,34 @@ class TaskApiController extends ApiController
             'view' => ['nullable', Rule::in(['upnext', 'inbox', 'captured', 'waiting', 'done', 'cancelled', 'archived'])],
             'project_id' => ['nullable', 'integer'],
             'q' => ['nullable', 'string', 'max:100'],
-            'limit' => ['nullable', 'integer', 'between:1,200'],
         ]);
         $view = $q['view'] ?? 'upnext';
-        $limit = $q['limit'] ?? 50;
         $list = $this->ranking->rank($user);
         $keep = fn (Task $t) => (! isset($q['project_id']) || (int) $t->project_id === (int) $q['project_id'])
             && (! isset($q['q']) || mb_stripos($t->title, $q['q']) !== false);
+        // The finished, cancelled, captured and archived lists are read a page at a time from the database.
+        $like = isset($q['q']) ? '%'.addcslashes($q['q'], '%_\\').'%' : null;
+        $query = fn ($b) => $b->with('project.goal')
+            ->when(isset($q['project_id']), fn ($b) => $b->where('project_id', (int) $q['project_id']))
+            ->when($like, fn ($b) => $b->where('title', 'like', $like))->orderByDesc('id');
 
         $rows = match ($view) {
             'upnext', 'inbox' => collect($list->scored)->map(fn ($s) => $list->tasks[(int) $s->task->id])
-                ->filter(fn (Task $t) => $keep($t) && ($view === 'upnext' || $t->project_id === null))
-                ->map(fn (Task $t) => ApiPresent::task($t, $list)),
-            'waiting' => $this->ranking->notReady($user)->filter(fn ($r) => $keep($r['task']))
-                ->map(fn ($r) => ApiPresent::task($r['task']) + ['kind' => $r['kind'], 'why' => $r['why']]),
-            'cancelled' => $user->tasks()->where('status', Task::CANCELLED)->whereNull('archived_at')->with('project.goal')->latest('cancelled_at')->limit(500)->get()
-                ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
-            'captured' => $user->tasks()->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->with('project.goal')->latest('captured_at')->get()
-                ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
-            'archived' => $user->tasks()->whereNotNull('archived_at')->with('project.goal')->latest('archived_at')->limit(500)->get()
-                ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
-            default => $user->tasks()->where('status', Task::DONE)->with('project.goal')->latest('completed_at')->limit(500)->get()
-                ->filter($keep)->map(fn (Task $t) => ApiPresent::task($t)),
+                ->filter(fn (Task $t) => $keep($t) && ($view === 'upnext' || $t->project_id === null)),
+            'waiting' => $this->ranking->notReady($user)->filter(fn ($r) => $keep($r['task'])),
+            'cancelled' => $query($user->tasks()->where('status', Task::CANCELLED)->whereNull('archived_at')->latest('cancelled_at')),
+            'captured' => $query($user->tasks()->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->latest('captured_at')),
+            'archived' => $query($user->tasks()->whereNotNull('archived_at')->latest('archived_at')),
+            default => $query($user->tasks()->where('status', Task::DONE)->latest('completed_at')),
         };
+        [$page, $meta] = $this->page($request, $rows);
+        $page = $page->map(fn ($t) => match ($view) {
+            'upnext', 'inbox' => ApiPresent::task($t, $list),
+            'waiting' => ApiPresent::task($t['task']) + ['kind' => $t['kind'], 'why' => $t['why']],
+            default => ApiPresent::task($t),
+        });
 
-        return $this->ok($rows->take($limit)->values(), meta: ['view' => $view, 'count' => $rows->count(), 'ranked' => count($list)]);
+        return $this->ok($page, meta: ['view' => $view, 'ranked' => count($list)] + $meta);
     }
 
     public function show(Request $request, Task $task): JsonResponse

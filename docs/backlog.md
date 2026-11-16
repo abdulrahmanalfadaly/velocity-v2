@@ -36,7 +36,7 @@ list only covers what's missing or partly there.
 - [x] ★7 Repeat on several weekdays (Mon + Thu), an end date, skip one, move one without moving the rest. **Partly**
 - [x] Templates with dates like "day 3 after start". **Add**
 - [x] Bulk edit more fields, and bulk reopen. **Partly** (done, move, due date, delete exist)
-- [ ] This-or-That (pick between two tasks). **Add**, without changing the order
+- [x] This-or-That (pick between two tasks). **Add**, without changing the order (Phase 13: Up next → select → "This or that")
 - [x] Board and Timeline on project pages; Timeline by week, month or quarter. **Add** (Up next and Inbox have them)
 - [x] ★9 Smart views like "Due today" or "Quick wins" in the side menu. **Partly** (Up next has Due this week, 1 hour or less, Overdue and No project as filters that reset when you leave); filters only, still in formula order
 - [ ] Other sorts, drag to reorder, pin a "Next action". **Your call** (breaks "one order"); Phase 10: no other sorts, All tasks keeps the formula's order
@@ -54,7 +54,7 @@ list only covers what's missing or partly there.
 - [x] ★10 An "All projects" page. **Add**
 - [x] Delete a project or goal that still has things in it, with Undo. **Add**
 - [x] ★10 Goal dates, status, and progress by milestones or by hand. **Add** (the Goals map already shows progress from tasks)
-- [ ] Several goals for one project or habit. **Add** (habits: done in Phase 12; projects still one goal)
+- [x] Several goals for one project or habit. **Add** (habits: Phase 12; projects: Phase 13, the first is the main one)
 - [x] ★10 Areas: rename, remove, collapse, a menu on each. **Add**
 
 ## Planner
@@ -95,9 +95,9 @@ list only covers what's missing or partly there.
 ## Review
 
 - [x] ★11 A day view. **Add**
-- [ ] A custom date range. **Your call** (dropped on purpose in Phase 7)
+- [x] A custom date range. **Your call** (dropped on purpose in Phase 7; added in Phase 13 as Review → Pick dates)
 - [x] ★11 More numbers: tasks created, cancelled, reopened, postponed; project, goal and milestone results; planner moves; focus by hour and weekday; events; click a number to see the items. **Add**
-- [ ] A capacity view. **Your call** (dropped on purpose in Phase 7)
+- [ ] A capacity view. **Your call** (dropped on purpose in Phase 7; left out again in Phase 13: the Planner's free-time panel covers it)
 - [x] ★11 Compare with the previous period (a switch). **Add**
 
 ## Notes
@@ -147,17 +147,17 @@ them after seeing this list.
 - [x] ★12 More example Mark scripts (GPT had 16, v2 has 1). **Add**
 - [x] A request id on every reply. **Add** (small)
 - [ ] Version checks and "ask again" retries. **Skip**
-- [ ] Page-by-page lists with a "next" marker. **Low**
+- [x] Page-by-page lists with a "next" marker. **Low** (Phase 13: tasks, notes, people)
 - [x] ★12 GitHub through the API (search, create issue, refresh, set a project's repo). **Add**
-- [ ] A GitHub "Refresh" button, and a guard against posting the same issue twice. **Add**
+- [x] A GitHub "Refresh" button, and a guard against posting the same issue twice. **Add** (Phase 13)
 - [ ] Signing in with a GitHub App. **Can't** easily (needs a registered app and a public web address)
 
 ## Settings and general
 
 - [x] Task, Focus and Planner settings pages. **Add** (Focus and Planner come with ★4 and ★5)
-- [ ] Wallpapers. **Add**
-- [ ] A "skip to content" link and accessibility checks. **Add**
-- [ ] Export and import your data (neither version has it). **Add** (bonus)
+- [x] Wallpapers. **Add** (Phase 13: Settings → Appearance)
+- [x] A "skip to content" link and accessibility checks. **Add** (Phase 13)
+- [x] Export and import your data (neither version has it). **Add** (bonus; Phase 13: Settings → Data)
 - [ ] Email confirmation and real password-reset emails. **Can't** without a mail server (Gmail's could do it later)
 - [ ] Reminders while the app is closed. **Can't** without hosting
 - [ ] Using the app from anywhere. **Can't** without hosting

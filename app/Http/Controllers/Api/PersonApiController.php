@@ -30,8 +30,9 @@ class PersonApiController extends ApiController
         if ($view === 'attention') {
             $rows = $rows->filter(fn ($r) => $r['attention']);
         }
+        [$page, $meta] = $this->page($request, $rows->values());
 
-        return $this->ok($rows->values(), meta: ['view' => $view]);
+        return $this->ok($page, meta: ['view' => $view] + $meta);
     }
 
     public function show(Request $request, Person $person): JsonResponse

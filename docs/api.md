@@ -51,6 +51,10 @@ with its name ("via Mark") in a task's history.
   screens' forms.
 - Every answer has an `X-Request-Id` header: the one you sent (letters, digits
   and dashes, 8–64 long), or a new one, for matching Mark's log to an answer.
+- Long lists come a page at a time (`GET /tasks`, `/notes`, `/people`): `limit`
+  (1–200, 50 to start with), then `cursor` set to the last answer's `meta.next`
+  until that is `null`. `meta.count` is how many there are in all. A made-up
+  cursor answers `422`.
 
 ## A task
 
@@ -85,7 +89,7 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 
 | | |
 |---|---|
-| `GET /tasks?view=upnext` | the ranking. `view`: `upnext` (default), `inbox` (ranked, no project), `captured` (captured only, waiting to be sorted, not ranked), `waiting` (with `kind` and `why`), `done`, `cancelled`, `archived` (as on All tasks). Also `project_id`, `q`, `limit` (≤ 200). Each task has `energy` (`low` / `normal` / `high` / `null`: a filter only, never in the score) and `capturedAt`. |
+| `GET /tasks?view=upnext` | the ranking. `view`: `upnext` (default), `inbox` (ranked, no project), `captured` (captured only, waiting to be sorted, not ranked), `waiting` (with `kind` and `why`), `done`, `cancelled`, `archived` (as on All tasks). Also `project_id`, `q`, and `limit` / `cursor` (page by page, in rank order for the ranked views). Each task has `energy` (`low` / `normal` / `high` / `null`: a filter only, never in the score) and `capturedAt`. |
 | `GET /tasks/{id}` | one task, with what it starts after, what waits on it (`blocks`), its `subtasks`, notes, people, minutes focused, `activity` (its history in words) and `history` |
 | `POST /tasks` | `{"text": "Ethics essay outline fri 3h #fyp"}` like quick add (also `from mon`, `remind 9am` / `remind 1h before`, `!` / `!!`, `~low` / `~normal` / `~high` for the energy it needs; optional `importance`, `urgency`, `project_id`, and `"capture": true` to keep it out of the ranking until `POST /tasks/{id}/rank`), or fields: `title`, `importance`, `urgency`, `due_at`, `est_hours`, `notes`, `project_id`, `depends_on` … |
 | `POST /tasks/preview` | where a task would land, without saving: `{"text": …}` or `importance`, `urgency`, `due_at`, `est_hours` → `rank`, `of`, `score` |
@@ -113,14 +117,16 @@ weighted criteria (they add up to the score). A task that isn't in the ranking
 
 `GET /projects` (`?archived=1` for all) · `GET /projects/{id}` (milestones, and
 its open tasks in rank order if the key reads tasks) · `POST /projects`
-`{"name", "description"?, "due_date"?, "goal_id"?, "area_id"?}` ·
+`{"name", "description"?, "due_date"?, "goal_ids"?, "area_id"?}` ·
 `PATCH /projects/{id}` · `PATCH /milestones/{id}` `{"done": true}` ·
+a project can serve several goals: `goal_ids` lists them, the first is its main one (its colour, `goal`);
+answers have `goalIds` (the old `goal_id` still sets just the main one) ·
 `GET /goals` · `POST /goals` `{"title", "why"?, "target"?, "target_date"?, "status"?, "progress_mode"?: "tasks"/"milestones"/"manual", "progress"?}` · `PATCH /goals/{id}` ·
 `POST /projects/{id}/status` `{"status": "planned"/"active"/"on_hold"}` (planned and on-hold tasks wait) ·
 `POST /projects/{id}/complete` `{"open": "cancel"/"keep"}` · `POST /projects/{id}/reopen` ·
 `GET /projects/{id}/tasks` (`ranked` in the one ranking's order, `notReady`) ·
 `DELETE /projects/{id}` `{"tasks": "inbox"/"delete"}` (its notes and habits stay, out of it; `meta.undo` is what
-`POST /projects/{id}/restore` takes back) · `DELETE /goals/{id}` (its projects and tasks stay, without it) ·
+`POST /projects/{id}/restore` takes back) · `DELETE /goals/{id}` (its projects and tasks stay, without it; a project that serves another goal too gets that as its main one) ·
 `POST /goals/{id}/restore` (send `meta.undo`) ·
 `GET /areas` · `POST /areas` `{"name", "icon"?}` · `PATCH /areas/{id}`
 
@@ -146,7 +152,7 @@ full document the editor uses.
 
 | | |
 |---|---|
-| `GET /notes?in=all` | `in`: `all` (not the journal), `journal`, `pinned`, `archived` (archived notes show only here); `q`, `project_id` (its first project or one of the others), `area_id`, `limit`. Each note has `projectIds`, `areaId`, `archivedAt` |
+| `GET /notes?in=all` | `in`: `all` (not the journal), `journal`, `pinned`, `archived` (archived notes show only here); `q`, `project_id` (its first project or one of the others), `area_id`, `limit` / `cursor` (page by page, last changed first). Each note has `projectIds`, `areaId`, `archivedAt` |
 | `GET /notes/{id}` | with `text`, `doc`, linked tasks and people |
 | `POST /notes` | `{"title", "text", "project_id"?, "task_id"?}` |
 | `PATCH /notes/{id}` | `title`, `text` (replaces), `append` (adds lines at the end), `pinned`, `project_id` (moves it), `project_ids` (all its projects, its own first), `area_id`, `archived` (an archived note is read-only: `422` until `{"archived": false}`) |
@@ -170,7 +176,7 @@ done; not ahead of today) · `POST /habits/{id}/skip` `{"date"?}` ·
 ### People (`people`)
 
 `GET /people?view=all` (`attention`: catch-up due or a date within a week;
-`dates`: dates in the next 60 days) · `GET /people/{id}` (with `memories`) · `POST /people`
+`dates`: dates in the next 60 days; `all` and `attention` come page by page with `limit` / `cursor`) · `GET /people/{id}` (with `memories`) · `POST /people`
 `{"name", "nickname"?, "relationship"?, "organisation"?, "location"?, "catch_up_days"?, "contacts"?: [{"kind": "email"/"phone"/"link"/"username"/"other", "label"?, "value": "…"}]}` ·
 `POST /people/{id}/catch-ups` `{"kind": "message"/"call"/"met"/"other", "on"?, "at"?: "18:30", "note"?, "counts"?: false}` (one that doesn't count leaves the catch-up clock alone) ·
 `PATCH /people/{id}` `{"name"?, "nickname"?, "relationship"?, "organisation"?, "location"?, "catch_up_days"?}` · `POST /people/{id}/archive` (`{"undo": true}` brings them back) ·
@@ -186,7 +192,7 @@ GitHub must be connected in Settings → Integrations (a fine-grained token).
 | `POST /tasks/{id}/github` | `{"url": "https://github.com/owner/name/issues/42"}` (or `/pull/42`) |
 | `DELETE /tasks/{id}/github/{linkId}` | unlink (nothing changes on GitHub) |
 | `GET /tasks/{id}/github/search?q=` | issues and pull requests in the project's repository (or `repo=owner/name`) |
-| `POST /tasks/{id}/github/issue` | a new issue for the task, linked: `{"title", "body"?, "repo"?}` (the project's repository by default) |
+| `POST /tasks/{id}/github/issue` | a new issue for the task, linked: `{"title", "body"?, "repo"?}` (the project's repository by default). If the task already has an issue with that title in that repository, nothing is posted: that issue comes back with `200` (a new one is `201`). |
 | `POST /tasks/{id}/github/refresh` | read the task's links again from GitHub now |
 | `GET /projects/{id}/github` · `PUT /projects/{id}/github` | the project's repository; set it `{"repo": "owner/name"}` (checked with GitHub) or `null` |
 
@@ -196,7 +202,8 @@ can't be reached).
 
 ### Review (`review`)
 
-`GET /review?period=week&date=` (`period`: day / week / month; the numbers,
+`GET /review?period=week&date=` (`period`: day / week / month, or `range` with
+`from` and `to` (YYYY-MM-DD, up to a year), compared with the same number of days before; the numbers,
 compared with the same days before, and `activity`: tasks added, cancelled,
 reopened, postponed, projects completed, goals achieved, milestones reached,
 blocks moved, each with its items; `events`: minutes by calendar, as on the

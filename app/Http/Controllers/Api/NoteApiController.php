@@ -27,7 +27,6 @@ class NoteApiController extends ApiController
             'q' => ['nullable', 'string', 'max:100'],
             'project_id' => ['nullable', 'integer'],
             'area_id' => ['nullable', 'integer'],
-            'limit' => ['nullable', 'integer', 'between:1,200'],
         ]);
         $in = $d['in'] ?? 'all';
         $like = isset($d['q']) ? '%'.addcslashes($d['q'], '%_\\').'%' : null;
@@ -42,9 +41,10 @@ class NoteApiController extends ApiController
             ->when($like, fn (Builder $b) => $b->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like)))
             // Untouched blank notes (opened and left) are not shown, as on the screens.
             ->where(fn ($w) => $w->where('title', '!=', '')->orWhere('body_text', '!=', '')->orWhereNotNull('journal_date'))
-            ->latest('updated_at')->limit($d['limit'] ?? 50)->get();
+            ->latest('updated_at')->orderByDesc('id');
+        [$page, $meta] = $this->page($request, $notes);
 
-        return $this->ok($notes->map(fn (Note $n) => ApiPresent::note($n))->values());
+        return $this->ok($page->map(fn (Note $n) => ApiPresent::note($n)), meta: $meta);
     }
 
     public function show(Request $request, Note $note): JsonResponse

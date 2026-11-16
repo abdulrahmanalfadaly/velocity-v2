@@ -87,6 +87,7 @@ organised. Left for the very end, after the backlog (user, 16 Nov).
 | 10 | The GPT list, batch 2: finishing tasks and projects | done |
 | 11 | The GPT list, batch 3: Planner, Focus, Home, Search and Capture | done |
 | 12 | The GPT list, batch 4: Notes, Habits and People | done |
+| 13 | The GPT list, last batch: the rest of `docs/backlog.md` | done |
 
 ## Phase 0 / 1 checklist
 
@@ -680,6 +681,37 @@ editor (decision 9), not a mode.
 - [x] Interactions: a time, change one, "Doesn't count"
 - [x] Memories, and "Follow up" (a waiting task with a follow-up day)
 - [x] The API for all of it (`docs/api.md`)
+
+## Phase 13 checklist
+
+The rest of `docs/backlog.md`, approved on 16 Nov as suggested: Review gets
+your own dates; a capacity view stays out (the Planner's free-time panel
+covers it, and Review is about what happened).
+
+- [x] A project can serve several goals (`goal_project`; `goal_id` stays
+      its main one and its colour): under each goal on the Goals map,
+      counted once in the totals; goal chips; deleting the main goal moves
+      the next one up, and Undo puts it back
+- [x] This or That on Up next: select 2 or more, pick between two at a time
+      until one is left (rank numbers only, the order never changes), then
+      Start focus, Doing or Open
+- [x] GitHub: Refresh on a task's links and a project's issues; an issue
+      with the same title in the same repository isn't posted twice (a lock
+      per task for two at once)
+- [x] Review → Pick dates: any stretch up to a year, compared with the same
+      number of days before; a bar a week for long stretches
+- [x] Wallpapers (Settings → Appearance): none, five gradients with a light
+      and a dark look, four photos, or your own picture; on the account;
+      not in FYP mode
+- [x] "Skip to content", and an accessibility pass: a script over every main
+      screen and dialog (names, labels, picture text, ids, references),
+      contrast of 4.5:1 or more for text, focus back to the opener when a
+      popover or dialog closes
+- [x] Export and import (Settings → Data): one .zip with every table and
+      file; import only into an empty account, with new ids and the links
+      inside notes pointed at them (`App\Services\AccountTransfer`)
+- [x] The API: lists page by page (`limit`, `cursor`, `meta.next`) for
+      tasks, notes and people; projects' `goal_ids`; Review's `range`
 
 ## Run it
 
