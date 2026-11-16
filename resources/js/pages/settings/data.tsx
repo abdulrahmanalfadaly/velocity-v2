@@ -43,7 +43,7 @@ export default function Data() {
                         <p className="settings-note">One .zip with everything and its files. API keys and the GitHub connection aren’t in it.</p>
                         <div>
                             <a className="btn btn-primary" href={route('data.export')} download>
-                                <Icon name="arrowR" className="ic-sm" />
+                                <Icon name="download" className="ic-sm" />
                                 Download everything
                             </a>
                         </div>
@@ -73,7 +73,7 @@ export default function Data() {
                                 {error && <p className="field-error">{error}</p>}
                             </>
                         ) : (
-                            <p className="settings-note">Only into a new, empty account, so nothing is doubled.</p>
+                            <p className="settings-note">Only into a new, empty account.</p>
                         )}
                     </div>
                 </SettingsCard>

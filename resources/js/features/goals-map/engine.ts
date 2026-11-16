@@ -159,6 +159,8 @@ const P: Record<string, string> = {
 const ic = (name: string, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.info}</svg>`;
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
+/** 1 → "1 note", 2 → "2 notes" */
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const progressRing = (pct: number, size = 44, stroke = 5) => {
     const r = (size - stroke) / 2;
     const c = 2 * Math.PI * r;
@@ -573,7 +575,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 const t = tally(n);
                 const notes = count(n, 'note');
                 const habits = count(n, 'habit');
-                return `<span class="pdot">${ic('folder')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-bar"><i style="--p:${t.pct}%"></i><span>${t.done}/${t.total}</span></div></div><div class="mn-badges">${notes ? `<span title="${notes} notes">${ic('notes')}${notes}</span>` : ''}${habits ? `<span title="${habits} habits">${ic('habits')}${habits}</span>` : ''}</div>${knob(n)}`;
+                return `<span class="pdot">${ic('folder')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-bar"><i style="--p:${t.pct}%"></i><span>${t.done}/${t.total}</span></div></div><div class="mn-badges">${notes ? `<span title="${plural(notes, 'note')}">${ic('notes')}${notes}</span>` : ''}${habits ? `<span title="${plural(habits, 'habit')}">${ic('habits')}${habits}</span>` : ''}</div>${knob(n)}`;
             }
             case 'task': {
                 const t = n.task;
@@ -1024,7 +1026,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             const open = n.children.filter(isRanked).sort((a, b) => a.rank - b.rank);
             const next = open[0];
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
-                <div class="gp-head"><span class="pdot pdot-lg">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${n.type === 'inbox' ? 'No project' : `${t.done} of ${t.total} tasks done · ${count(n, 'note')} notes · ${count(n, 'habit')} habits`}</p></div></div>
+                <div class="gp-head"><span class="pdot pdot-lg">${ic(n.type === 'inbox' ? 'inbox' : 'folder')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">${n.type === 'inbox' ? 'No project' : `${t.done} of ${t.total} tasks done · ${plural(count(n, 'note'), 'note')} · ${plural(count(n, 'habit'), 'habit')}`}</p></div></div>
                 ${next ? `<div class="why gp-next"><div class="why-label">Next · #${next.rank}</div><p class="gp-next-title">${esc(next.title)}</p></div>` : '<p class="card-empty">Nothing open here.</p>'}
                 <h3 class="p-section-title gp-h">Open tasks</h3>
                 <div class="gp-tasks">${open.map((x) => `<button class="gp-task" data-gm-goto="${x.id}"><span class="rank-badge">${x.rank}</span><span>${esc(x.title)}</span><b>${fmt1(x.task.score)}</b></button>`).join('') || '<p class="card-empty">None.</p>'}</div>

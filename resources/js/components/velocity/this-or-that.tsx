@@ -140,7 +140,7 @@ export function ThisOrThat({
                             </button>
                         </div>
                         <div className="tot-foot">
-                            <span className="tot-left">Your list keeps its order.</span>
+                            <span />
                             <button
                                 type="button"
                                 className="btn btn-ghost btn-sm"

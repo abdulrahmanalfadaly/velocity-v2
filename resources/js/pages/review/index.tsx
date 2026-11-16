@@ -257,8 +257,12 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
         localStorage.setItem('velocity.reviewCompare', compareOn ? 'off' : 'on');
         setCompareOn(!compareOn);
     };
+    // A stretch across New Year shows both years.
+    const oneYear = r.start.slice(0, 4) === r.last.slice(0, 4);
     const heading = range
-        ? `${day(r.start, clock, { day: 'numeric', month: 'short' })} – ${day(r.last, clock, { day: 'numeric', month: 'short' })}`
+        ? oneYear
+            ? `${day(r.start, clock, { day: 'numeric', month: 'short' })} – ${day(r.last, clock, { day: 'numeric', month: 'short' })}`
+            : `${day(r.start, clock, { day: 'numeric', month: 'short', year: 'numeric' })} – ${day(r.last, clock, { day: 'numeric', month: 'short', year: 'numeric' })}`
         : r.kind === 'month'
           ? day(r.start, clock, { month: 'long', year: 'numeric' })
           : r.kind === 'day'
@@ -305,7 +309,8 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                     <p className="page-sub">
                         {range ? (
                             <>
-                                {day(r.last, clock, { year: 'numeric' })} · {r.length} {r.length === 1 ? 'day' : 'days'}
+                                {oneYear && `${day(r.last, clock, { year: 'numeric' })} · `}
+                                {r.length} {r.length === 1 ? 'day' : 'days'}
                             </>
                         ) : r.kind === 'day' ? (
                             day(r.start, clock, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })

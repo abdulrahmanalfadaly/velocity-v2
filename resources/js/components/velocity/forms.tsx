@@ -171,11 +171,7 @@ export function ProjectDialog({ project, areaId, onClose }: { project?: ProjectV
                         />
                     )}
                 </div>
-                <Field
-                    id="p-goal"
-                    label={data.goal_ids.length > 1 ? 'Goals it serves (the first gives it its colour)' : 'Goals it serves'}
-                    error={goalError}
-                >
+                <Field id="p-goal" label="Goals it serves" error={goalError}>
                     <span className="hb-goal-pick" id="p-goal">
                         {data.goal_ids.map((id) => {
                             const g = goals.find((x) => x.id === id);
