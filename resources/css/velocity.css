@@ -1726,6 +1726,15 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
     font: inherit; font-size: 13.5px; font-weight: 550; color: var(--text); text-align: left; cursor: pointer; text-decoration: none; }
 .bmenu-item:hover, .bmenu-item:focus-visible { background: var(--hover); outline: none; }
 .bmenu-item .ic { color: var(--text-3); }
+.bmenu-grow { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* A booked task that can't be worked on now: greyed with a dashed edge, and why. */
+.bmenu-warn { display: flex; align-items: flex-start; gap: 7px; margin: 2px 4px 6px; padding: 7px 9px; border: 1px dashed var(--line-strong); border-radius: 8px;
+    font-size: 12.5px; line-height: 1.35; color: var(--text-2); }
+.bmenu-warn .ic { flex: none; margin-top: 1px; color: var(--text-2); }
+.pblock.is-blocked { background: var(--surface-2); color: var(--text-2); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.pblock.is-blocked .pblock-title, .pblock.is-blocked .pblock-rank, .pblock.is-blocked .pblock-sub { color: var(--text-2); }
+.mg-item.is-block.is-blocked { background: var(--surface-2); border: 1px dashed var(--line-strong); }
+.mg-item.is-block.is-blocked .mg-t, .mg-item.is-block.is-blocked .mg-time, .mg-item.is-block.is-blocked .mg-rank { color: var(--text-2); }
 
 .ub-list { display: flex; flex-direction: column; gap: 1px; margin: 0 0 10px; padding: 0; list-style: none; }
 .ub-item { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 6px 4px 6px 8px; border-radius: 10px;

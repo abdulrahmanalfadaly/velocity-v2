@@ -115,6 +115,27 @@ class PlannerPhase11Test extends TestCase
         $this->patch(route('blocks.task', $gym), ['task_id' => $slides->id])->assertSessionHasErrors('task_id');
     }
 
+    public function test_a_booked_task_that_cant_be_worked_on_says_why(): void
+    {
+        $email = $this->task('Email Dr. Lim');
+        $survey = $this->task('Pilot the survey');
+        $survey->dependencies()->attach($email->id);
+        $ready = $this->task('Ready task');
+        foreach ([[$survey, '09:00'], [$ready, '11:00']] as [$t, $at]) {
+            $this->post(route('blocks.store'), ['task_id' => $t->id, 'date' => '2026-11-12', 'start' => $at, 'minutes' => 60]);
+        }
+
+        $this->get('/planner?date=2026-11-12&view=day')->assertInertia(fn (Assert $p) => $p
+            ->where('blocks.0.title', 'Pilot the survey')
+            ->where('blocks.0.blocked', ['kind' => 'blocked', 'why' => 'Starts after “Email Dr. Lim”'])
+            ->where('blocks.1.blocked', null));
+
+        $ready->update(['status' => Task::WAITING, 'waiting_for' => 'Dr. Lim']);
+        $this->get('/planner?date=2026-11-12&view=day')->assertInertia(fn (Assert $p) => $p
+            ->where('blocks.1.blocked.kind', 'waiting')
+            ->where('blocks.1.blocked.why', 'Waiting for Dr. Lim'));
+    }
+
     public function test_the_month_view_shows_whole_weeks_from_monday(): void
     {
         // November 2026 starts on a Sunday: six weeks, from Monday 26 October to Sunday 6 December.

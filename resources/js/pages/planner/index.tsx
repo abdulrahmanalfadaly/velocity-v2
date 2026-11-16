@@ -625,13 +625,15 @@ export default function Planner() {
                                                 return (
                                                     <button
                                                         key={p.it.key}
-                                                        className={`pblock is-${bl.kind}${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}`}
+                                                        className={`pblock is-${bl.kind}${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}${bl.blocked ? ' is-blocked' : ''}`}
                                                         style={style}
                                                         onPointerDown={(ev) => bl.id > 0 && grabBlock(ev, bl, s)}
                                                         onClick={(ev) => openBlock(ev, bl, s, e)}
                                                         onContextMenu={(ev) => ev.preventDefault()}
-                                                        title={clashes.has(bl.id) ? `${bl.title} · overlaps something` : bl.title}
-                                                        aria-label={`${bl.title}, ${when}${clashes.has(bl.id) ? ', overlaps something' : ''}`}
+                                                        title={[bl.title, bl.blocked?.why, clashes.has(bl.id) ? 'overlaps something' : '']
+                                                            .filter(Boolean)
+                                                            .join(' · ')}
+                                                        aria-label={`${bl.title}, ${when}${bl.blocked ? `, ${bl.blocked.why}` : ''}${clashes.has(bl.id) ? ', overlaps something' : ''}`}
                                                         aria-haspopup="menu"
                                                     >
                                                         <span className="pblock-title">
@@ -650,8 +652,10 @@ export default function Planner() {
                                                             )}
                                                         </span>
                                                         <span className="pblock-sub">
-                                                            {clashes.has(bl.id) && <Icon name="alert" className="ic-xs pblock-clash" />}
-                                                            {when}
+                                                            {(clashes.has(bl.id) || bl.blocked) && (
+                                                                <Icon name="alert" className="ic-xs pblock-clash" />
+                                                            )}
+                                                            {bl.blocked && !short ? bl.blocked.why : when}
                                                         </span>
                                                         {bl.kind === 'project' && !short && (
                                                             <span className="pblock-next">
@@ -805,6 +809,7 @@ export default function Planner() {
                     startMin={menu.s.min}
                     endMin={menu.e.min}
                     choices={props.taskChoices}
+                    nextUp={props.unbooked.find((u) => u.taskId !== menu.bl.taskId && u.rank !== null) ?? null}
                     onClose={() => setMenu(null)}
                 />
             )}

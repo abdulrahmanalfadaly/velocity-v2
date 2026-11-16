@@ -12,6 +12,7 @@ use App\Services\RankedList;
 use App\Services\RankingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -56,6 +57,13 @@ class PlannerController extends Controller
                 ->map(fn ($at) => CarbonImmutable::instance($at)->timezone($tz)->toDateString()))
             ->unique()->values();
 
+        $blocks = $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])
+            ->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get();
+        // Booked tasks that left the ranking: why each can't be worked on now (looked up only when there are some).
+        $notReady = $blocks->contains(fn (PlannerBlock $b) => $b->task_id && ! $list->rankOf($b->task_id))
+            ? $this->ranking->notReady($user)->keyBy(fn ($r) => $r['task']->id)
+            : collect();
+
         return Inertia::render('planner/index', [
             'view' => $view,
             'date' => $anchor->toDateString(),
@@ -63,9 +71,7 @@ class PlannerController extends Controller
             'days' => $days,
             'events' => $occ($first, $first->addDays($count))->sortBy(fn ($o) => $o['start']->getTimestamp())->values()
                 ->map(fn ($o) => $this->present($o['event'], $o, $tz)),
-            'blocks' => $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])
-                ->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get()
-                ->map(fn (PlannerBlock $b) => self::block($b, $list)),
+            'blocks' => $blocks->map(fn (PlannerBlock $b) => self::block($b, $list, $notReady)),
             // The month shows no habit times, free time or booking list: too much for small day boxes.
             'habitTimes' => $month ? [] : HabitTimes::between($user, $first, $first->addDays($count))->reject(fn ($o) => $o['skipped'])
                 ->map(fn ($o) => HabitTimes::present($o))->values(),
@@ -86,10 +92,16 @@ class PlannerController extends Controller
         ]);
     }
 
-    /** A block as the grid and Home show it. A project's block names its top task by the formula ("Next: …"). */
-    public static function block(PlannerBlock $b, RankedList $list): array
+    /**
+     * A block as the grid and Home show it. A project's block names its top task by the formula ("Next: …").
+     * With $notReady (not-ready tasks by id), a task's block says why its task can't be worked on now:
+     * waiting, waiting on another task, its project on hold, or booked before the task can start.
+     */
+    public static function block(PlannerBlock $b, RankedList $list, ?Collection $notReady = null): array
     {
         $next = $b->kind === 'project' ? $list->first(fn (Task $t) => (int) $t->project_id === (int) $b->project_id) : null;
+        $why = $b->task_id ? $notReady?->get($b->task_id) : null;
+        $blocked = $why && ($why['kind'] !== 'later' || $b->starts_at < $why['task']->available_from) ? ['kind' => $why['kind'], 'why' => $why['why']] : null;
 
         return [
             'id' => $b->id,
@@ -108,6 +120,7 @@ class PlannerController extends Controller
             'rank' => $b->task_id ? $list->rankOf($b->task_id) : null,
             'dueAt' => $b->task?->due_at?->toIso8601ZuluString(),
             'next' => $next ? ['id' => $next->id, 'title' => $next->title, 'rank' => $list->rankOf($next->id)] : null,
+            'blocked' => $blocked,
         ];
     }
 

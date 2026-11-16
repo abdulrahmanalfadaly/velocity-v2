@@ -26,6 +26,8 @@ export interface PlanBlock {
     dueAt: string | null;
     /** A project's block: its top task by the formula. */
     next: { id: number; title: string; rank: number | null } | null;
+    /** A task's block whose task can't be worked on now: why ("Waiting for Dr. Lim"). */
+    blocked?: { kind: 'waiting' | 'blocked' | 'held' | 'later'; why: string } | null;
 }
 
 /** What a click on an empty spot of the Planner adds. */
@@ -229,8 +231,11 @@ export function BlockMenu({
     startMin,
     endMin,
     choices = [],
+    nextUp = null,
     onClose,
 }: {
+    /** The first task still to book, by rank: what a blocked block's time can go to. */
+    nextUp?: { taskId: number; title: string; rank: number | null } | null;
     block: PlanBlock;
     x: number;
     y: number;
@@ -288,6 +293,30 @@ export function BlockMenu({
                     </span>
                 )}
             </div>
+            {block.blocked && (
+                <>
+                    <p className="bmenu-warn">
+                        <Icon name="alert" className="ic-sm" />
+                        {block.blocked.why}
+                    </p>
+                    {nextUp && (
+                        <button
+                            role="menuitem"
+                            className="bmenu-item"
+                            onClick={() => {
+                                router.patch(route('blocks.task', block.id), { task_id: nextUp.taskId }, keep);
+                                onClose();
+                            }}
+                        >
+                            <Icon name="arrowR" />
+                            <span className="bmenu-grow">
+                                Use for {nextUp.rank ? `#${nextUp.rank} ` : ''}
+                                {nextUp.title}
+                            </span>
+                        </button>
+                    )}
+                </>
+            )}
             <div className="bmenu-times">
                 <DatePick
                     mode="time"
