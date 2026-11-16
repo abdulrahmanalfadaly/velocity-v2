@@ -40,7 +40,7 @@ class PlannerApiController extends ApiController
 
         $events = $user->events()->get()->flatMap(fn (Event $e) => array_map(fn ($o) => $this->event($e, $o), $e->occurrences($first->utc(), $end->utc(), $user->timezone)))
             ->sortBy('start')->values();
-        $blocks = $user->plannerBlocks()->active()->with('task:id,title,due_at')->where('ends_at', '>', $first->utc())->where('starts_at', '<', $end->utc())
+        $blocks = $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])->where('ends_at', '>', $first->utc())->where('starts_at', '<', $end->utc())
             ->orderBy('starts_at')->get()->map(fn (PlannerBlock $b) => PlannerController::block($b, $list))->values();
 
         return $this->ok([

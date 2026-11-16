@@ -52,7 +52,7 @@ class HomeController extends Controller
         $habits = $user->habits()->whereNull('archived_at')->with(['entries' => fn ($q) => $q->where('day', '>=', $today->subDays(400)->toDateString()), 'project'])->get()
             ->map(fn ($h) => HabitStats::present($h, $today));
         $groups = $habits->pluck('group', 'id');
-        $blocks = $user->plannerBlocks()->active()->with('task:id,title,due_at')->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get();
+        $blocks = $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get();
 
         return Inertia::render('home', [
             'top' => array_slice($all, 0, 3),
@@ -60,10 +60,10 @@ class HomeController extends Controller
             'overdue' => count(array_filter($all, fn ($t) => $t['days'] !== null && $t['days'] <= 0)),
             'dueSoon' => count(array_filter($all, fn ($t) => $t['dueAt'] && $t['days'] > 0 && $t['days'] <= 2)),
             'plan' => [
-                'items' => $events->concat($blocks->map(fn (PlannerBlock $b) => ['kind' => 'block', 'key' => "b{$b->id}"] + PlannerController::block($b, $list)))
+                'items' => $events->concat($blocks->map(fn (PlannerBlock $b) => ['kind' => 'block', 'key' => "b{$b->id}", 'blockKind' => $b->kind] + PlannerController::block($b, $list)))
                     ->concat(HabitTimes::between($user, $today, $today->addDay())->reject(fn ($o) => $o['skipped'])->map(fn ($o) => ['kind' => 'habit'] + HabitTimes::present($o)))
                     ->sortBy(fn ($i) => ($i['kind'] === 'event' && $i['allDay'] ? '0' : '1').$i['start'])->values(),
-                'booked' => $blocks->sum(fn (PlannerBlock $b) => $b->minutes()),
+                'booked' => $blocks->filter(fn (PlannerBlock $b) => $b->isWork())->sum(fn (PlannerBlock $b) => $b->minutes()),
                 'limit' => $user->weights()->hours_per_day,
             ],
             // Deadlines in the next seven days, in time order.

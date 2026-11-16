@@ -247,7 +247,7 @@ class ReviewService
             'onTime' => $withDue->count() ? (int) round($withDue->filter(fn ($t) => $t->completed_at <= $t->due_at)->count() / $withDue->count() * 100) : null,
             'avgScore' => $done->whereNotNull('score_at_completion')->avg('score_at_completion'),
             'focus' => (int) round($this->sessions($user, $from, $to)->sum('seconds') / 60),
-            'booked' => (int) round(PlannerBlock::where('user_id', $user->id)->where('starts_at', '>=', $from->utc())->where('starts_at', '<', $to->utc())->get()
+            'booked' => (int) round(PlannerBlock::where('user_id', $user->id)->where('kind', '!=', 'reserved')->where('starts_at', '>=', $from->utc())->where('starts_at', '<', $to->utc())->get()
                 ->sum(fn ($b) => $b->minutes())),
             'habitDays' => ['done' => $habits->sum('done'), 'of' => $habits->sum('of')],
             'catchUps' => $catchUps->count(),

@@ -51,7 +51,7 @@ type PlanItem =
           start: string;
           end: string;
       }
-    | ({ kind: 'block'; key: string } & PlanBlock)
+    | ({ kind: 'block'; key: string; blockKind: PlanBlock['kind'] } & Omit<PlanBlock, 'kind'>)
     | { kind: 'habit'; key: string; id: number; title: string; start: string; end: string; done: boolean; count: number; target: number };
 
 export default function Home() {
@@ -227,7 +227,7 @@ function TodayPlan({ plan, clock, hasTasks }: { plan: Props['plan']; clock: Cloc
         return (
             <li
                 key={i.key}
-                className={`tl-item${i.kind === 'block' ? ' is-task' : ''}${current ? ' is-now' : ''}${past || (i.kind === 'habit' && i.done) ? ' is-past' : ''}`}
+                className={`tl-item${i.kind === 'block' && i.blockKind !== 'reserved' ? ' is-task' : ''}${current ? ' is-now' : ''}${past || (i.kind === 'habit' && i.done) ? ' is-past' : ''}`}
             >
                 <span className="tl-time">{timed ? clock.time(i.start) : 'All day'}</span>
                 <span className="tl-rail">
@@ -244,12 +244,14 @@ function TodayPlan({ plan, clock, hasTasks }: { plan: Props['plan']; clock: Cloc
                             </>
                         ) : i.kind === 'block' ? (
                             <>
+                                {i.blockKind !== 'task' && <Icon name={i.blockKind === 'project' ? 'folder' : 'ban'} className="ic-xs" />}
                                 {i.rank && (
                                     <>
                                         <Icon name="rank" className="ic-xs" />#{i.rank} ·{' '}
                                     </>
                                 )}
                                 {fmtHours(minutes / 60)}
+                                {i.next && ` · Next: ${i.next.title}`}
                             </>
                         ) : (
                             <>

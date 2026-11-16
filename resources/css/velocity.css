@@ -1646,6 +1646,18 @@ button.nav-item { width: 100%; border: 0; background: none; font: inherit; text-
 .pblock.is-short .pblock-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pblock-rank { flex: none; margin-right: 4px; font-size: 11px; font-weight: 750; color: var(--violet-ink); font-variant-numeric: tabular-nums; }
 .pblock-pin { margin-left: 4px; color: var(--violet-ink); vertical-align: -1px; }
+.pblock-kind { margin-right: 4px; color: var(--violet-ink); vertical-align: -1px; }
+.pblock.is-project { box-shadow: inset 3px 0 0 var(--violet); }
+.pblock.is-project:hover { box-shadow: inset 3px 0 0 var(--violet), inset 0 0 0 1px var(--violet); }
+.pblock-next { color: var(--text-2); font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* Reserved time: taken but not work, so grey with stripes. */
+.pblock.is-reserved { background: repeating-linear-gradient(135deg, var(--surface-3) 0 6px, var(--surface-2) 6px 12px); color: var(--text-2); }
+.pblock.is-reserved:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.pblock.is-reserved .pblock-sub, .pblock.is-reserved .pblock-kind { color: var(--text-3); }
+.mg-item.is-block.is-reserved { background: var(--surface-3); color: var(--text-2); }
+.mg-item.is-block.is-reserved .mg-time { color: var(--text-3); }
+.bmenu-next { font-size: 12px; color: var(--text-2); }
+.kind-seg { margin-bottom: 2px; }
 .pblock-sub { color: var(--violet-ink); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .pblock.is-short { flex-direction: row; align-items: center; gap: 6px; }
 .pblock.is-short .pblock-sub { flex: none; }

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\PlannerBlock;
+use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -23,6 +25,68 @@ class PlannerPhase11Test extends TestCase
         config(['velocity.fixed_now' => '2026-11-11 10:00', 'velocity.study_log' => false]);
         $this->user = User::factory()->create(['timezone' => self::TZ]);
         $this->actingAs($this->user);
+    }
+
+    private function task(string $title, array $attrs = []): Task
+    {
+        return $this->user->tasks()->create($attrs + ['title' => $title, 'importance' => 3, 'urgency' => 3, 'est_hours' => 1]);
+    }
+
+    /** Booked blocks as "title: local day start–end", in time order. */
+    private function booked(): array
+    {
+        return PlannerBlock::orderBy('starts_at')->get()->map(fn (PlannerBlock $b) => sprintf(
+            '%s: %s–%s',
+            $b->title(),
+            $b->starts_at->timezone(self::TZ)->format('D H:i'),
+            $b->ends_at->timezone(self::TZ)->format('H:i'),
+        ))->all();
+    }
+
+    public function test_reserved_time_is_planned_around_and_is_not_work(): void
+    {
+        $this->post(route('blocks.store'), ['kind' => 'reserved', 'label' => '  Keep free ', 'date' => '2026-11-11', 'start' => '10:00', 'minutes' => 240])
+            ->assertSessionHas('toast', 'Reserved “Keep free”');
+        $this->task('Essay');
+
+        // Four reserved hours don't use up the four-hour day: the essay still fits, after the reserved time and its gap.
+        $this->post(route('planner.plan'), ['date' => '2026-11-11', 'span' => 'day'])->assertSessionHasNoErrors();
+        $this->assertSame(['Keep free: Wed 10:00–14:00', 'Essay: Wed 14:10–15:10'], $this->booked());
+
+        $this->get('/planner?date=2026-11-11&view=day')->assertInertia(fn (Assert $p) => $p
+            ->where('blocks.0.kind', 'reserved')
+            ->where('blocks.0.title', 'Keep free')
+            ->where('blocks.0.taskId', null)
+            ->where('blocks.0.rank', null));
+        $this->get('/home')->assertInertia(fn (Assert $p) => $p->where('plan.booked', 60));
+
+        $this->post(route('blocks.store'), ['kind' => 'reserved', 'label' => '', 'date' => '2026-11-11', 'start' => '18:00', 'minutes' => 30])
+            ->assertSessionHasErrors('label');
+    }
+
+    public function test_project_time_names_the_projects_top_task_and_goes_when_the_project_is_archived(): void
+    {
+        $fyp = $this->user->projects()->create(['name' => 'FYP']);
+        $this->task('Ethics form', ['project_id' => $fyp->id, 'importance' => 2]);
+        $this->task('Literature review', ['project_id' => $fyp->id, 'importance' => 5]);
+        $this->task('Groceries', ['importance' => 5, 'urgency' => 5]);
+
+        $this->post(route('blocks.store'), ['kind' => 'project', 'project_id' => $fyp->id, 'date' => '2026-11-12', 'start' => '14:00', 'minutes' => 180])
+            ->assertSessionHas('toast', 'Booked “FYP”');
+        $this->get('/planner?date=2026-11-12&view=day')->assertInertia(fn (Assert $p) => $p
+            ->where('blocks.0.kind', 'project')
+            ->where('blocks.0.title', 'FYP')
+            ->where('blocks.0.projectId', $fyp->id)
+            ->where('blocks.0.next.title', 'Literature review')
+            ->where('blocks.0.next.rank', 2));
+
+        // Someone else's project can't be booked.
+        $other = User::factory()->create()->projects()->create(['name' => 'Theirs']);
+        $this->post(route('blocks.store'), ['kind' => 'project', 'project_id' => $other->id, 'date' => '2026-11-12', 'start' => '09:00', 'minutes' => 60])
+            ->assertSessionHasErrors('project_id');
+
+        $fyp->update(['archived_at' => now()]);
+        $this->get('/planner?date=2026-11-12&view=day')->assertInertia(fn (Assert $p) => $p->has('blocks', 0));
     }
 
     public function test_the_month_view_shows_whole_weeks_from_monday(): void

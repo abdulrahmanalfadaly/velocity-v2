@@ -1,5 +1,5 @@
 import { router, useForm } from '@inertiajs/react';
-import { type FormEvent } from 'react';
+import { type FormEvent, type ReactNode } from 'react';
 import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
@@ -34,8 +34,11 @@ export function EventDialog({
     eventId,
     occurrenceDate,
     day,
+    top,
     onClose,
 }: {
+    /** Shown first in the form (the Planner's Event / Project time / Reserved switch). */
+    top?: ReactNode;
     initial: EventForm;
     eventId?: number;
     /** The week the user clicked on, for "Remove this week". */
@@ -80,6 +83,7 @@ export function EventDialog({
     return (
         <Modal title={eventId ? 'Edit event' : 'New event'} onClose={onClose}>
             <form className="vform" onSubmit={submit}>
+                {top}
                 {eventId && day && (
                     <button type="button" className="ev-notes" onClick={() => router.post(route('notes.event'), { event_id: eventId, date: day })}>
                         <Icon name="notes" />

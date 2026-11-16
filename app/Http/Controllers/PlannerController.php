@@ -63,7 +63,7 @@ class PlannerController extends Controller
             'days' => $days,
             'events' => $occ($first, $first->addDays($count))->sortBy(fn ($o) => $o['start']->getTimestamp())->values()
                 ->map(fn ($o) => $this->present($o['event'], $o, $tz)),
-            'blocks' => $user->plannerBlocks()->active()->with('task:id,title,due_at')
+            'blocks' => $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])
                 ->where('ends_at', '>', $from)->where('starts_at', '<', $to)->orderBy('starts_at')->get()
                 ->map(fn (PlannerBlock $b) => self::block($b, $list)),
             // The month shows no habit times, free time or booking list: too much for small day boxes.
@@ -83,18 +83,28 @@ class PlannerController extends Controller
         ]);
     }
 
-    /** A block as the grid and Home show it. */
+    /** A block as the grid and Home show it. A project's block names its top task by the formula ("Next: …"). */
     public static function block(PlannerBlock $b, RankedList $list): array
     {
+        $next = $b->kind === 'project' ? $list->first(fn (Task $t) => (int) $t->project_id === (int) $b->project_id) : null;
+
         return [
             'id' => $b->id,
+            'kind' => $b->kind,
             'taskId' => $b->task_id,
-            'title' => $b->task->title,
+            'projectId' => $b->project_id,
+            'title' => match ($b->kind) {
+                'task' => $b->task->title,
+                'project' => $b->project->name ?? $b->title(),
+                default => $b->title(),
+            },
             'start' => $b->starts_at->toIso8601ZuluString(),
             'end' => $b->ends_at->toIso8601ZuluString(),
             'pinned' => $b->pinned,
-            'rank' => $list->rankOf($b->task_id),
-            'dueAt' => $b->task->due_at?->toIso8601ZuluString(),
+            'locked' => $b->locked,
+            'rank' => $b->task_id ? $list->rankOf($b->task_id) : null,
+            'dueAt' => $b->task?->due_at?->toIso8601ZuluString(),
+            'next' => $next ? ['id' => $next->id, 'title' => $next->title, 'rank' => $list->rankOf($next->id)] : null,
         ];
     }
 

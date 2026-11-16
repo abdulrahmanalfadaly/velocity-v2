@@ -91,7 +91,8 @@ export function MonthGrid<E extends MonthEvent>({
             key: `b${bl.id}`,
             sort: s.min,
             node: (
-                <button className="mg-item is-block" onClick={() => onDay(s.date)} title={bl.title}>
+                <button className={`mg-item is-block is-${bl.kind}`} onClick={() => onDay(s.date)} title={bl.title}>
+                    {bl.kind !== 'task' && <Icon name={bl.kind === 'project' ? 'folder' : 'ban'} className="ic-xs" />}
                     <span className="mg-time">{short(s.min)}</span>
                     {bl.rank && <span className="mg-rank">#{bl.rank}</span>}
                     <span className="mg-t">{bl.title}</span>

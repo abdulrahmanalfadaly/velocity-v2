@@ -65,14 +65,25 @@ class PlannerBlockController extends Controller
         return back()->with('toast', 'Plan undone');
     }
 
-    /** A task dropped on the grid: booked there, and pinned (planning again leaves it alone). */
+    /**
+     * A task dropped on the grid, time for a whole project, or reserved time ("Gym"):
+     * booked there, and pinned (planning again leaves it alone and books around it).
+     */
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
-        $task = $user->tasks()->whereIn('status', Task::OPEN)->findOrFail($request->validate(['task_id' => ['required', 'integer']])['task_id']);
-        $block = $user->plannerBlocks()->create(['task_id' => $task->id, ...$this->times($request, $user), 'pinned' => true]);
+        $kind = $request->validate(['kind' => ['nullable', Rule::in(PlannerBlock::KINDS)]])['kind'] ?? 'task';
+        $what = match ($kind) {
+            'task' => ['task_id' => $user->tasks()->whereIn('status', Task::OPEN)->findOrFail($request->validate(['task_id' => ['required', 'integer']])['task_id'])->id],
+            'project' => $request->validate([
+                'project_id' => ['required', 'integer', Rule::exists('projects', 'id')->where('user_id', $user->id)->whereNull('archived_at')->whereNull('deleted_at')],
+            ], [], ['project_id' => 'project']),
+            'reserved' => ['label' => trim($request->validate(['label' => ['required', 'string', 'max:80']], [], ['label' => 'name'])['label'])],
+        };
+        $block = $user->plannerBlocks()->create(['kind' => $kind, ...$what, ...$this->times($request, $user), 'pinned' => true]);
+        $verb = $kind === 'reserved' ? 'Reserved' : 'Booked';
 
-        return back()->with('toast', "Booked “{$task->title}”".$this->overlaps($user, $block))->with('undo', $this->undo('remove-block', $block->id));
+        return back()->with('toast', "{$verb} “{$block->title()}”".$this->overlaps($user, $block))->with('undo', $this->undo('remove-block', $block->id));
     }
 
     /** Moved (or resized) by the user: it stays where they put it. */

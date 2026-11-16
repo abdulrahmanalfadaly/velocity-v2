@@ -1,24 +1,150 @@
 import { fmtHours } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
+import { Field, TextField } from './field';
 import { Modal } from './forms';
 import { Icon } from './icon';
+import { Select, type SelectOption } from './select';
 
 /** Working hours, Monday first: { start, end } or null for a day off. */
 export type Hours = ({ start: string; end: string } | null)[];
 
-/** Time booked on the Planner for a task. */
+/** Time booked on the Planner: for a task, for a whole project, or reserved ("Gym"). */
 export interface PlanBlock {
     id: number;
-    taskId: number;
+    kind: 'task' | 'project' | 'reserved';
+    taskId: number | null;
+    projectId: number | null;
     title: string;
     start: string;
     end: string;
     pinned: boolean;
+    locked: boolean;
     rank: number | null;
     dueAt: string | null;
+    /** A project's block: its top task by the formula. */
+    next: { id: number; title: string; rank: number | null } | null;
+}
+
+/** What a click on an empty spot of the Planner adds. */
+export type NewKind = 'event' | 'project' | 'reserved';
+const NEW_KINDS: [NewKind, string, string][] = [
+    ['event', 'Event', 'calendar'],
+    ['project', 'Project time', 'folder'],
+    ['reserved', 'Reserved', 'ban'],
+];
+
+export function KindSeg({ value, onChange }: { value: NewKind; onChange: (k: NewKind) => void }) {
+    return (
+        <div className="seg ev-seg kind-seg" role="radiogroup" aria-label="What to add">
+            {NEW_KINDS.map(([k, label, icon]) => (
+                <button key={k} type="button" role="radio" aria-checked={value === k} onClick={() => onChange(k)}>
+                    <Icon name={icon} className="ic-sm" />
+                    {label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+/** New time for a whole project, or reserved time with a name ("Gym", "Keep free"): planning books around it. */
+export function TimeDialog({
+    kind,
+    date,
+    start,
+    end,
+    top,
+    onClose,
+}: {
+    kind: 'project' | 'reserved';
+    date: string;
+    start: string;
+    end: string;
+    top: ReactNode;
+    onClose: () => void;
+}) {
+    const { props } = usePage<VelocityShared>();
+    const options: SelectOption[] = [
+        ...(props.nav?.loose ?? []).map((p) => ({ value: String(p.id), label: p.name })),
+        ...(props.nav?.areas ?? []).flatMap((a) => a.projects.map((p) => ({ value: String(p.id), label: p.name, group: a.name }))),
+    ];
+    const [project, setProject] = useState('');
+    const [label, setLabel] = useState('');
+    const [day, setDay] = useState(date);
+    const [from, setFrom] = useState(start);
+    const [to, setTo] = useState(end);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [busy, setBusy] = useState(false);
+    const submit = (e: FormEvent) => {
+        e.preventDefault();
+        const mins = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+        const minutes = mins(to) - mins(from);
+        if (minutes < 5) {
+            setErrors({ end: 'The end has to be after the start.' });
+            return;
+        }
+        router.post(
+            route('blocks.store'),
+            {
+                kind,
+                project_id: kind === 'project' ? Number(project) || null : null,
+                label: kind === 'reserved' ? label : null,
+                date: day,
+                start: from,
+                minutes,
+            },
+            { ...keep, onStart: () => setBusy(true), onFinish: () => setBusy(false), onSuccess: onClose, onError: setErrors },
+        );
+    };
+    return (
+        <Modal title={kind === 'project' ? 'New project time' : 'Reserve time'} onClose={onClose}>
+            <form className="vform" onSubmit={submit}>
+                {top}
+                {kind === 'project' ? (
+                    <Field id="tb-project" label="Project" error={errors.project_id}>
+                        <Select id="tb-project" value={project} options={options} onChange={setProject} placeholder="Choose a project" />
+                    </Field>
+                ) : (
+                    <TextField
+                        id="tb-label"
+                        label="Name"
+                        value={label}
+                        onValue={setLabel}
+                        error={errors.label}
+                        required
+                        maxLength={80}
+                        placeholder="Gym"
+                    />
+                )}
+                <div className="vform-row">
+                    <Field id="tb-date" label="Date" error={errors.date}>
+                        <DatePick id="tb-date" value={day} onChange={(v) => v && setDay(v)} clearable={false} placeholder="Pick a day" />
+                    </Field>
+                    <div className="vform-row ev-times">
+                        <Field id="tb-start" label="From" error={errors.start}>
+                            <DatePick id="tb-start" mode="time" value={from} onChange={(v) => v && setFrom(v)} clearable={false} />
+                        </Field>
+                        <Field id="tb-end" label="To" error={errors.end ?? errors.minutes}>
+                            <DatePick id="tb-end" mode="time" value={to} onChange={(v) => v && setTo(v)} clearable={false} />
+                        </Field>
+                    </div>
+                </div>
+                <div className="vform-foot">
+                    <span />
+                    <span className="vform-foot-right">
+                        <button type="button" className="btn btn-secondary" onClick={onClose}>
+                            Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={busy}>
+                            Add
+                        </button>
+                    </span>
+                </div>
+            </form>
+        </Modal>
+    );
 }
 
 const keep = { preserveScroll: true, preserveState: true };
@@ -92,7 +218,7 @@ export function HoursDialog({ hours, onClose }: { hours: Hours; onClose: () => v
     );
 }
 
-/** What can be done with a block: focus on it now, open its task, or take it off the plan. */
+/** What can be done with a block: exact times, focus on it now, open its task or project, or take it off the plan. */
 export function BlockMenu({
     block,
     x,
@@ -139,7 +265,9 @@ export function BlockMenu({
             document.removeEventListener('keydown', onKey);
         };
     }, [onClose]);
-    const focusing = props.focusSession?.taskId === block.taskId;
+    // A project's block focuses on its top task; reserved time has nothing to focus on.
+    const focusId = block.kind === 'task' ? block.taskId : block.kind === 'project' ? (block.next?.id ?? null) : null;
+    const focusing = focusId !== null && props.focusSession?.taskId === focusId;
     return (
         <div
             className="bmenu"
@@ -151,6 +279,11 @@ export function BlockMenu({
             <div className="bmenu-head">
                 <b>{block.title}</b>
                 <span>{when}</span>
+                {block.kind === 'project' && (
+                    <span className="bmenu-next">
+                        {block.next ? `Next: ${block.next.rank ? `#${block.next.rank} ` : ''}${block.next.title}` : 'No open tasks'}
+                    </span>
+                )}
             </div>
             <div className="bmenu-times">
                 <DatePick
@@ -171,12 +304,12 @@ export function BlockMenu({
                     onChange={(v) => v && setTimes(startMin, mins(v))}
                 />
             </div>
-            {!focusing && (
+            {focusId !== null && !focusing && (
                 <button
                     role="menuitem"
                     className="bmenu-item"
                     onClick={() => {
-                        router.post(route('focus.start'), { task_id: block.taskId, minutes: Math.min(minutes, 600) }, keep);
+                        router.post(route('focus.start'), { task_id: focusId, minutes: Math.min(minutes, 600) }, keep);
                         onClose();
                     }}
                 >
@@ -184,10 +317,18 @@ export function BlockMenu({
                     Focus for {fmtHours(minutes / 60)}
                 </button>
             )}
-            <Link role="menuitem" className="bmenu-item" href={`/tasks?task=${block.taskId}`}>
-                <Icon name="arrowUpRight" />
-                Open task
-            </Link>
+            {block.kind === 'task' && (
+                <Link role="menuitem" className="bmenu-item" href={`/tasks?task=${block.taskId}`}>
+                    <Icon name="arrowUpRight" />
+                    Open task
+                </Link>
+            )}
+            {block.kind === 'project' && (
+                <Link role="menuitem" className="bmenu-item" href={`/projects/${block.projectId}`}>
+                    <Icon name="folder" />
+                    Open project
+                </Link>
+            )}
             <button
                 role="menuitem"
                 className="bmenu-item"

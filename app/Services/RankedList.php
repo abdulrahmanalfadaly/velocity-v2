@@ -76,6 +76,23 @@ class RankedList implements \Countable
         ];
     }
 
+    /**
+     * The highest-ranked task that passes $filter (the formula's pick), or null.
+     *
+     * @param  callable(Task): bool  $filter
+     */
+    public function first(callable $filter): ?Task
+    {
+        foreach ($this->scored as $s) {
+            $task = $this->tasks[(int) $s->task->id];
+            if ($filter($task)) {
+                return $task;
+            }
+        }
+
+        return null;
+    }
+
     /** @param  null|callable(Task): bool  $filter */
     public function toArray(?callable $filter = null): array
     {

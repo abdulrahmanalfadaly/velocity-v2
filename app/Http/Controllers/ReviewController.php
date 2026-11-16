@@ -92,7 +92,7 @@ class ReviewController extends Controller
                 ->filter(fn ($h) => $h['missed'] > 0)->sortByDesc('missed')->values(),
             'catchUps' => PeopleInfo::catchUpsDue($user, $today),
             'dates' => PeopleInfo::upcoming($user, $today, 14),
-            'booked' => (int) round(PlannerBlock::where('user_id', $user->id)->where('starts_at', '>=', $next->utc())->where('starts_at', '<', $next->addWeek()->utc())->get()->sum(fn ($b) => $b->minutes())),
+            'booked' => (int) round(PlannerBlock::where('user_id', $user->id)->where('kind', '!=', 'reserved')->where('starts_at', '>=', $next->utc())->where('starts_at', '<', $next->addWeek()->utc())->get()->sum(fn ($b) => $b->minutes())),
         ];
     }
 }

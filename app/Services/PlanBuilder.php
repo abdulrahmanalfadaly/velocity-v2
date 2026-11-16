@@ -61,7 +61,7 @@ class PlanBuilder
         $blocks = $user->plannerBlocks()->active()->get();
         $bookedAhead = $this->bookedAhead($blocks, $now);
         $perDay = [];
-        foreach ($blocks as $b) {
+        foreach ($blocks->filter(fn ($b) => $b->isWork()) as $b) {
             $d = $b->starts_at->timezone($tz)->toDateString();
             $perDay[$d] = ($perDay[$d] ?? 0) + $b->minutes();
         }
@@ -151,7 +151,7 @@ class PlanBuilder
     /** Minutes booked per task in blocks that are not over yet. */
     private function bookedAhead(Collection $blocks, CarbonImmutable $now): Collection
     {
-        return $blocks->filter(fn ($b) => $b->ends_at > $now)->groupBy('task_id')->map(fn ($g) => $g->sum(fn ($b) => $b->minutes()));
+        return $blocks->filter(fn ($b) => $b->task_id && $b->ends_at > $now)->groupBy('task_id')->map(fn ($g) => $g->sum(fn ($b) => $b->minutes()));
     }
 
     /** The first stretch in a day where a block fits: [index, start, minutes] or null. */

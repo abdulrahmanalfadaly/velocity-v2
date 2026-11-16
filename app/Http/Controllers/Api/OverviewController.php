@@ -73,12 +73,12 @@ class OverviewController extends ApiController
                 'id' => $e->id, 'title' => $e->title, 'calendar' => $e->calendar, 'location' => $e->location, 'allDay' => $e->all_day,
                 'start' => $o['start']->toIso8601ZuluString(), 'end' => $o['end']->toIso8601ZuluString(),
             ], $e->occurrences($today->utc(), $tomorrow->utc(), $user->timezone)))->sortBy('start')->values();
-            $blocks = $user->plannerBlocks()->active()->with('task:id,title,due_at')->where('ends_at', '>', $today->utc())->where('starts_at', '<', $tomorrow->utc())
+            $blocks = $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])->where('ends_at', '>', $today->utc())->where('starts_at', '<', $tomorrow->utc())
                 ->orderBy('starts_at')->get();
             $plan = [
                 'events' => $events,
                 'booked' => $blocks->map(fn (PlannerBlock $b) => PlannerController::block($b, $list))->values(),
-                'bookedMinutes' => $blocks->sum(fn (PlannerBlock $b) => $b->minutes()),
+                'bookedMinutes' => $blocks->filter(fn (PlannerBlock $b) => $b->isWork())->sum(fn (PlannerBlock $b) => $b->minutes()),
             ];
         }
 

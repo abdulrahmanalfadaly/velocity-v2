@@ -2,7 +2,7 @@ import { CALENDARS, type CalendarKey, EventDialog, type EventForm } from '@/comp
 import { DayEditor } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { MonthGrid } from '@/components/velocity/planner-month';
-import { BlockMenu, type Hours, HoursDialog, type PlanBlock } from '@/components/velocity/planner-parts';
+import { BlockMenu, type Hours, HoursDialog, KindSeg, type NewKind, type PlanBlock, TimeDialog } from '@/components/velocity/planner-parts';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, fmtHours, round1 } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
@@ -185,6 +185,11 @@ export default function Planner() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
     const [dialog, setDialog] = useState<null | { initial: EventForm; id?: number; occurrence?: string; day?: string }>(null);
+    const [newKind, setNewKind] = useState<NewKind>('event');
+    const closeDialog = () => {
+        setDialog(null);
+        setNewKind('event');
+    };
     const [hoursOpen, setHoursOpen] = useState(false);
     const [habitSlot, setHabitSlot] = useState<null | { hb: PlanHabit; x: number; y: number }>(null);
     const [menu, setMenu] = useState<null | { bl: PlanBlock; x: number; y: number; s: Spot; e: Spot }>(null);
@@ -282,7 +287,7 @@ export default function Planner() {
     const load = useMemo(() => {
         const out: Record<string, number> = {};
         items.forEach((it) => {
-            if (it.kind === 'block') out[it.s.date] = (out[it.s.date] ?? 0) + between(it.s, it.e);
+            if (it.kind === 'block' && it.bl.kind !== 'reserved') out[it.s.date] = (out[it.s.date] ?? 0) + between(it.s, it.e);
         });
         return out;
     }, [items]);
@@ -378,7 +383,20 @@ export default function Planner() {
             setPending({ ...mine, moves: { ...mine.moves, [d.blockId]: to } });
             router.patch(route('blocks.update', d.blockId), data, keep);
         } else {
-            const bl: PlanBlock = { id: -Date.now(), taskId: d.taskId, title: d.title, start: '', end: '', pinned: true, rank: d.rank, dueAt: null };
+            const bl: PlanBlock = {
+                id: -Date.now(),
+                kind: 'task',
+                taskId: d.taskId,
+                projectId: null,
+                title: d.title,
+                start: '',
+                end: '',
+                pinned: true,
+                locked: false,
+                rank: d.rank,
+                dueAt: null,
+                next: null,
+            };
             setPending({ ...mine, added: [...mine.added, { key: `new${bl.id}`, kind: 'block', bl, s: to, e: later(to, d.minutes) }] });
             router.post(route('blocks.store'), { ...data, task_id: d.taskId, minutes: d.minutes }, keep);
         }
@@ -387,12 +405,22 @@ export default function Planner() {
     const grabBlock = (e: ReactPointerEvent<HTMLElement>, bl: PlanBlock, s: Spot) => {
         const top = e.currentTarget.getBoundingClientRect().top;
         const grab = Math.round(((e.clientY - top) / HOUR) * 60);
-        begin(e, { kind: 'move', blockId: bl.id, taskId: bl.taskId, title: bl.title, rank: bl.rank, minutes: lengthOf(bl), grab, from: s });
+        begin(e, { kind: 'move', blockId: bl.id, taskId: bl.taskId ?? 0, title: bl.title, rank: bl.rank, minutes: lengthOf(bl), grab, from: s });
     };
     const grabResize = (e: ReactPointerEvent<HTMLElement>, bl: PlanBlock, s: Spot) => {
         e.stopPropagation();
         const length = lengthOf(bl);
-        begin(e, { kind: 'resize', blockId: bl.id, taskId: bl.taskId, title: bl.title, rank: bl.rank, minutes: length, length, grab: 0, from: s });
+        begin(e, {
+            kind: 'resize',
+            blockId: bl.id,
+            taskId: bl.taskId ?? 0,
+            title: bl.title,
+            rank: bl.rank,
+            minutes: length,
+            length,
+            grab: 0,
+            from: s,
+        });
     };
     const grabUnbooked = (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => {
         if ((e.target as HTMLElement).closest('button')) return;
@@ -587,7 +615,7 @@ export default function Planner() {
                                                 return (
                                                     <button
                                                         key={p.it.key}
-                                                        className={`pblock${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}`}
+                                                        className={`pblock is-${bl.kind}${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}`}
                                                         style={style}
                                                         onPointerDown={(ev) => bl.id > 0 && grabBlock(ev, bl, s)}
                                                         onClick={(ev) => openBlock(ev, bl, s, e)}
@@ -597,14 +625,24 @@ export default function Planner() {
                                                         aria-haspopup="menu"
                                                     >
                                                         <span className="pblock-title">
+                                                            {bl.kind !== 'task' && (
+                                                                <Icon name={bl.kind === 'project' ? 'folder' : 'ban'} className="ic-xs pblock-kind" />
+                                                            )}
                                                             {bl.rank && <span className="pblock-rank">#{bl.rank}</span>}
                                                             {bl.title}
-                                                            {bl.pinned && <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />}
+                                                            {bl.pinned && bl.kind === 'task' && (
+                                                                <Icon name="pin" className="ic-xs pblock-pin" label="Placed by you" />
+                                                            )}
                                                         </span>
                                                         <span className="pblock-sub">
                                                             {clashes.has(bl.id) && <Icon name="alert" className="ic-xs pblock-clash" />}
                                                             {when}
                                                         </span>
+                                                        {bl.kind === 'project' && !short && (
+                                                            <span className="pblock-next">
+                                                                {bl.next ? `Next: ${bl.next.title}` : 'No open tasks'}
+                                                            </span>
+                                                        )}
                                                         {bl.id > 0 && (
                                                             <span
                                                                 className="pblock-resize"
@@ -705,15 +743,26 @@ export default function Planner() {
                     </div>
                 )}
             </div>
-            {dialog && (
-                <EventDialog
-                    initial={dialog.initial}
-                    eventId={dialog.id}
-                    occurrenceDate={dialog.occurrence}
-                    day={dialog.day}
-                    onClose={() => setDialog(null)}
-                />
-            )}
+            {dialog &&
+                (dialog.id || newKind === 'event' ? (
+                    <EventDialog
+                        initial={dialog.initial}
+                        eventId={dialog.id}
+                        occurrenceDate={dialog.occurrence}
+                        day={dialog.day}
+                        top={dialog.id ? undefined : <KindSeg value="event" onChange={setNewKind} />}
+                        onClose={closeDialog}
+                    />
+                ) : (
+                    <TimeDialog
+                        kind={newKind}
+                        date={dialog.initial.date}
+                        start={dialog.initial.start_time ?? '09:00'}
+                        end={dialog.initial.end_time ?? '10:00'}
+                        top={<KindSeg value={newKind} onChange={setNewKind} />}
+                        onClose={closeDialog}
+                    />
+                ))}
             {hoursOpen && <HoursDialog hours={props.hours} onClose={() => setHoursOpen(false)} />}
             {habitSlot && (
                 <DayEditor
