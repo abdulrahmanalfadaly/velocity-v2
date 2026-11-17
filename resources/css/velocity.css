@@ -1498,8 +1498,9 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* List / Board / Timeline switch. */
 .layout-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-3); }
-.layout-seg button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-2); }
-.layout-seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }
+.layout-seg button, .layout-seg a { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.layout-seg a:hover, .layout-seg button:hover { color: var(--text); }
+.layout-seg button[aria-checked="true"], .layout-seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }
 .page-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* Board and timeline: columns of cards. Cards keep the formula's order inside each column. */
@@ -2617,6 +2618,10 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .view-tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--violet); }
 .view-tabs .n { font-size: 12px; font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) {
+    /* The title on its own line, the switch and Weights in a row under it. */
+    .tasks-head { flex-wrap: wrap; row-gap: 10px; }
+    .tasks-head .h1 { white-space: nowrap; }
+    .tasks-head .page-actions { width: 100%; flex-wrap: nowrap; }
     .view-tabs { margin: 0 -16px 14px; padding: 0 8px; }
     .view-tabs a { padding: 0 10px; }
 }
@@ -2644,3 +2649,8 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .nav-group.drop-above { box-shadow: inset 0 2px 0 var(--violet); }
 .nav-group.drop-below { box-shadow: inset 0 -2px 0 var(--violet); }
 .side-foot .icon-btn.is-active { color: var(--violet-ink); background: var(--surface); box-shadow: var(--sh-xs), inset 0 0 0 1px var(--line); }
+
+/* "← Tasks": back to the Tasks page from Projects and the Goals map. */
+.back-link { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px -2px; padding: 2px 4px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--text-3); }
+.back-link:hover { color: var(--text); background: var(--hover); }
+.gm-back { gap: 6px; padding: 0 10px 0 8px; margin-left: -6px; color: var(--text-2); }

@@ -720,7 +720,7 @@ The user's rule (18 Nov): a side menu holds only areas and projects; every
 other view stays, moved onto its page as tabs and chips, or into Settings.
 
 - [x] Tasks menu: each area with its projects, and a bar fixed at the
-      bottom with "New area", the Goals map and New project (no title row).
+      bottom with "New area" and New project (no title row).
       An area's name opens its projects; the arrow folds it; areas move by
       dragging their name, or Move up / down in their menu (with Undo)
 - [x] Tasks page tabs: Up next · Not ready · Next actions · All
@@ -728,8 +728,9 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
 - [x] Inbox is a chip on Up next (tasks with no project, with "To sort"
       above them); `/tasks/inbox` sends you there. The old "Views" were
       already chips; "Low energy" now stays after a reload too
-- [x] Projects page: area chips (`/projects?area=3`, `?area=none`) and a
-      List / Map switch; the Goals map has a "Projects" button back
+- [x] Map and Projects sit next to Timeline in the Tasks switch (on every
+      tab); the Projects page (area chips: `/projects?area=3`, `?area=none`)
+      and the Goals map each have a "← Tasks" button back
 - [x] Weights in Settings → Tasks (the page `/weights` sends you there; FYP
       mode keeps its own Weights page); the Weights pop-up on Up next stays,
       with "More settings"

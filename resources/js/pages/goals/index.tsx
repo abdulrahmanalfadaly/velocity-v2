@@ -37,7 +37,7 @@ export default function GoalsMap() {
                 onDone: (id) => router.post(route('tasks.complete', id), {}, opts),
                 onPromote: (id) => router.post(route('steps.promote', id), {}, opts),
                 onToggleMenu: () => setMenu((m) => !m),
-                onProjects: () => router.visit('/projects'),
+                onBack: () => router.visit('/tasks'),
                 onNewGoal: () => setDialog('new'),
                 onFocusGoal: (id) => router.post(route('focus.start'), { goal_id: id }, opts),
                 onEditGoal: (id) => {

@@ -200,17 +200,18 @@ export default function TasksIndex() {
                 <TasksHead
                     tab={view}
                     count={view === 'waiting' ? notReady.length : base.length}
+                    layouts={
+                        view !== 'waiting' &&
+                        LAYOUTS.map(([k, label, icon]) => (
+                            <button key={k} aria-pressed={layout === k} onClick={() => setLayout(k)} title={label}>
+                                <Icon name={icon} className="ic-sm" />
+                                <span className="btn-label">{label}</span>
+                            </button>
+                        ))
+                    }
                     actions={
                         view !== 'waiting' && (
                             <>
-                                <div className="layout-seg" role="radiogroup" aria-label="Show as">
-                                    {LAYOUTS.map(([k, label, icon]) => (
-                                        <button key={k} role="radio" aria-checked={layout === k} onClick={() => setLayout(k)} title={label}>
-                                            <Icon name={icon} className="ic-sm" />
-                                            <span className="btn-label">{label}</span>
-                                        </button>
-                                    ))}
-                                </div>
                                 <div className="pop-wrap">
                                     <button
                                         ref={weightsBtn}

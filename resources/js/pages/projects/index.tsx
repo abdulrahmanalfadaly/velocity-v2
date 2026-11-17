@@ -36,7 +36,7 @@ const TABS: [Status, string][] = [
     ['archived', 'Archived'],
 ];
 
-/** Projects, by area and status: progress, open tasks, due date and the rank of each one's best task. A switch opens the Goals map. */
+/** Projects, by area and status: progress, open tasks, due date and the rank of each one's best task. "Tasks" goes back. */
 export default function AllProjects() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
@@ -61,22 +61,13 @@ export default function AllProjects() {
             <div className="main-inner">
                 <header className="page-head">
                     <div>
-                        <p className="eyebrow is-section">Projects</p>
+                        <Link href="/tasks" className="back-link">
+                            <Icon name="arrowL" className="ic-sm" />
+                            Tasks
+                        </Link>
                         <h1 className="h1">
                             {areaName ?? 'All projects'} <span className="count">{inArea.length}</span>
                         </h1>
-                    </div>
-                    <div className="page-actions">
-                        <div className="layout-seg" role="radiogroup" aria-label="Show as">
-                            <button role="radio" aria-checked="true" title="List">
-                                <Icon name="list" className="ic-sm" />
-                                <span className="btn-label">List</span>
-                            </button>
-                            <button role="radio" aria-checked="false" title="Goals map" onClick={() => router.visit('/goals')}>
-                                <Icon name="target" className="ic-sm" />
-                                <span className="btn-label">Map</span>
-                            </button>
-                        </div>
                     </div>
                 </header>
                 {chips.length > 1 && (

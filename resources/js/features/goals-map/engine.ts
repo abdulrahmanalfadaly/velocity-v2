@@ -133,6 +133,7 @@ const P: Record<string, string> = {
     minus: '<path d="M5 12h14"/>',
     sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
     chevR: '<path d="m9.5 6 6 6-6 6"/>',
+    arrowL: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
     inbox: '<path d="M3.5 13.5h5l1.5 2.5h4l1.5-2.5h5"/><path d="M6 5h12l2.5 8.5v5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-5z"/>',
     rank: '<path d="M4 6.5h9M4 12h6.5M4 17.5h4"/><path d="M18 19.5v-14M15 8.5l3-3 3 3"/>',
     hourglass:
@@ -184,8 +185,8 @@ export interface MapContext {
     onDone: (taskId: number) => void;
     onPromote: (stepId: number) => void;
     onToggleMenu: () => void;
-    /** "Projects": back to the projects list. */
-    onProjects: () => void;
+    /** "Tasks": back to the Tasks page. */
+    onBack: () => void;
     onNewGoal: () => void;
     onEditGoal: (goalId: number) => void;
     /** "Focus" in a goal's panel: start focus on the goal. */
@@ -464,12 +465,12 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         .toUpperCase();
     mount.innerHTML = `
         <div class="gm-bar">
+            <button class="btn btn-ghost btn-sm gm-back" data-gm-back>${ic('arrowL', 'ic-sm')}Tasks</button>
             <button class="icon-btn gm-menu" data-gm-side title="Show the Tasks menu" aria-label="Show the Tasks menu">${ic('menu')}</button>
             <div class="gm-title"><h1>Goals map</h1><span>${goalCount} goals · ${projectCount} projects · ${totals.total} tasks · ${totals.pct}% done</span></div>
             <div class="gm-goals" role="group" aria-label="Jump to a goal">${data.goals.map((g) => `<button class="gm-goal" data-gm-goal="g${g.id}" aria-pressed="false" style="--g:var(--goal-${g.color})"><span class="gdot">${ic(g.icon || 'target')}</span><span class="gm-goal-name">${esc(g.title)}</span><b>${tally(goalNode(g)).pct}%</b></button>`).join('')}</div>
             <div class="gm-tools">
                 <label class="gm-search">${ic('search', 'ic-sm')}<input data-gm-search placeholder="Find in the map" aria-label="Find in the map" autocomplete="off"><small data-gm-count></small></label>
-                <button class="btn btn-secondary btn-sm" data-gm-projects title="The projects list">${ic('list', 'ic-sm')}<span class="btn-label">Projects</span></button>
                 <div class="pop-wrap">
                     <button class="btn btn-secondary btn-sm" data-gm-newgoal>${ic('plus', 'ic-sm')}<span class="btn-label">New goal</span></button>
                     <button class="btn btn-secondary btn-sm" data-gm-layers aria-expanded="false" aria-controls="gm-layers">${ic('sliders', 'ic-sm')}<span class="btn-label">Show</span></button>
@@ -1329,7 +1330,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         if (t.closest('[data-gm-gonext]')) return goNext();
         if (t.closest('[data-gm-close]')) return select(null);
         if (t.closest('[data-gm-side]')) return ctx.onToggleMenu();
-        if (t.closest('[data-gm-projects]')) return ctx.onProjects();
+        if (t.closest('[data-gm-back]')) return ctx.onBack();
         if (t.closest('[data-gm-newgoal]')) return ctx.onNewGoal();
         const focusGoal = t.closest<HTMLElement>('[data-gm-focusgoal]');
         if (focusGoal) return ctx.onFocusGoal(Number(focusGoal.dataset.gmFocusgoal));

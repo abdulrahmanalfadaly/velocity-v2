@@ -617,18 +617,9 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                     </div>
                 )}
             </nav>
-            {/* Always at the bottom of the menu: a new area, the Goals map, a new project. */}
+            {/* Always at the bottom of the menu: a new area, or a new project. */}
             <div className="side-foot">
                 <NewArea />
-                <Link
-                    href="/goals"
-                    className={`icon-btn${active === 'goals' ? ' is-active' : ''}`}
-                    aria-label="Goals map"
-                    title="Goals map"
-                    aria-current={active === 'goals' ? 'page' : undefined}
-                >
-                    <Icon name="target" />
-                </Link>
                 <button type="button" className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
                     <Icon name="folderPlus" />
                 </button>
