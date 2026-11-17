@@ -728,12 +728,12 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
 - [x] Inbox is a chip on Up next (tasks with no project, with "To sort"
       above them); `/tasks/inbox` sends you there. The old "Views" were
       already chips; "Low energy" now stays after a reload too
-- [x] Map and Projects sit next to Timeline in the Tasks switch (on every
-      tab); the Projects page (area chips: `/projects?area=3`, `?area=none`)
-      and the Goals map each have a "← Tasks" button back
-- [x] Weights in Settings → Tasks (the page `/weights` sends you there; FYP
-      mode keeps its own Weights page); the Weights pop-up on Up next stays,
-      with "More settings"
+- [x] One bar on every Tasks tab and on the Projects page: List · Board ·
+      Timeline · Projects, then a Map button (`TasksSwitch`). Away from Up
+      next a layout opens Up next in it. The Projects page has area chips
+      (`/projects?area=3`, `?area=none`); the Goals map has "← Tasks"
+- [x] Weights only in Settings → Tasks (the page `/weights` sends you there;
+      FYP mode keeps its own Weights page); the Up next pop-up is gone
 - [x] Templates: a button in Up next's "Add a task" (pick one, or "Manage
       templates"); Archive in the account menu; History removed (it is
       Review › 12 weeks)

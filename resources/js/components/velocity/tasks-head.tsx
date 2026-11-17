@@ -1,15 +1,61 @@
 import { Icon } from '@/components/velocity/icon';
 import type { VelocityShared } from '@/types/velocity';
-import { Link, usePage } from '@inertiajs/react';
-import type { ReactNode } from 'react';
+import { Link, router, usePage } from '@inertiajs/react';
 
 export type TasksTab = 'upnext' | 'waiting' | 'next' | 'all';
+export type Layout = 'list' | 'board' | 'timeline';
+
+const LAYOUTS: [Layout, string, string][] = [
+    ['list', 'List', 'list'],
+    ['board', 'Board', 'columns'],
+    ['timeline', 'Timeline', 'calendar'],
+];
 
 /**
- * The top of the main Tasks pages: the title; the switch (Up next's List / Board / Timeline, then the Goals map
- * and Projects, which open their own pages); the page's own buttons; and the tabs between its four views.
+ * The bar on the Tasks pages and the Projects page: List, Board and Timeline (Up next's layouts, remembered on
+ * this device) and Projects, then the Goals map. Away from Up next, a layout opens Up next in it.
  */
-export function TasksHead({ tab, count, layouts, actions }: { tab: TasksTab; count?: number; layouts?: ReactNode; actions?: ReactNode }) {
+export function TasksSwitch({ current, onLayout }: { current: Layout | 'projects' | null; onLayout?: (l: Layout) => void }) {
+    const pick = (l: Layout) => {
+        if (onLayout) return onLayout(l);
+        localStorage.setItem('velocity.layout', l);
+        router.visit('/tasks');
+    };
+    return (
+        <div className="page-actions">
+            <div className="layout-seg" role="group" aria-label="Show as">
+                {LAYOUTS.map(([k, label, icon]) => (
+                    <button key={k} type="button" aria-pressed={current === k} onClick={() => pick(k)} title={label}>
+                        <Icon name={icon} className="ic-sm" />
+                        <span className="btn-label">{label}</span>
+                    </button>
+                ))}
+                <Link href="/projects" aria-current={current === 'projects' ? 'page' : undefined} title="Projects">
+                    <Icon name="folder" className="ic-sm" />
+                    <span className="btn-label">Projects</span>
+                </Link>
+            </div>
+            <Link href="/goals" className="btn btn-secondary" title="Goals map">
+                <Icon name="target" />
+                <span className="btn-label">Map</span>
+            </Link>
+        </div>
+    );
+}
+
+/** The top of the main Tasks pages: the title, the bar, and the tabs between its four views. */
+export function TasksHead({
+    tab,
+    count,
+    layout = null,
+    onLayout,
+}: {
+    tab: TasksTab;
+    count?: number;
+    /** Up next's layout, pressed in the bar (none on the other tabs). */
+    layout?: Layout | null;
+    onLayout?: (l: Layout) => void;
+}) {
     const { props } = usePage<VelocityShared>();
     const counts = props.nav?.counts;
     const tabs: [TasksTab, string, string, number | null | undefined][] = [
@@ -22,20 +68,7 @@ export function TasksHead({ tab, count, layouts, actions }: { tab: TasksTab; cou
         <>
             <header className="page-head tasks-head">
                 <h1 className="h1">Tasks {count != null && <span className="count">{`${count} ${count === 1 ? 'task' : 'tasks'}`}</span>}</h1>
-                <div className="page-actions">
-                    <div className="layout-seg" role="group" aria-label="Show as">
-                        {layouts}
-                        <Link href="/goals" title="Goals map">
-                            <Icon name="target" className="ic-sm" />
-                            <span className="btn-label">Map</span>
-                        </Link>
-                        <Link href="/projects" title="Projects">
-                            <Icon name="folder" className="ic-sm" />
-                            <span className="btn-label">Projects</span>
-                        </Link>
-                    </div>
-                    {actions}
-                </div>
+                <TasksSwitch current={layout} onLayout={onLayout} />
             </header>
             <nav className="view-tabs" aria-label="Tasks views">
                 {tabs.map(([k, label, href, n]) => (

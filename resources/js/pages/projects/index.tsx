@@ -1,4 +1,5 @@
 import { Icon } from '@/components/velocity/icon';
+import { TasksSwitch } from '@/components/velocity/tasks-head';
 import { Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, goalVar } from '@/lib/velocity';
@@ -36,7 +37,7 @@ const TABS: [Status, string][] = [
     ['archived', 'Archived'],
 ];
 
-/** Projects, by area and status: progress, open tasks, due date and the rank of each one's best task. "Tasks" goes back. */
+/** Projects, by area and status: progress, open tasks, due date and the rank of each one's best task. The Tasks bar goes back. */
 export default function AllProjects() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
@@ -59,16 +60,11 @@ export default function AllProjects() {
     return (
         <VelocityShell title={areaName ?? 'Projects'} section="tasks" active={props.area ? `area:${props.area}` : 'projects'}>
             <div className="main-inner">
-                <header className="page-head">
-                    <div>
-                        <Link href="/tasks" className="back-link">
-                            <Icon name="arrowL" className="ic-sm" />
-                            Tasks
-                        </Link>
-                        <h1 className="h1">
-                            {areaName ?? 'All projects'} <span className="count">{inArea.length}</span>
-                        </h1>
-                    </div>
+                <header className="page-head tasks-head">
+                    <h1 className="h1">
+                        {areaName ?? 'All projects'} <span className="count">{inArea.length}</span>
+                    </h1>
+                    <TasksSwitch current="projects" />
                 </header>
                 {chips.length > 1 && (
                     <div className="filters ap-areas" role="group" aria-label="Area">
