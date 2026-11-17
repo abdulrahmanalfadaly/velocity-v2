@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import {
     Archive, ArrowRight, ArrowUpNarrowWide, ArrowUpRight, BarChart3, Bell, BookOpen, Briefcase, Calendar, CalendarClock, CalendarDays, CalendarPlus, Check, ChevronDown,
-    ChevronLeft, ChevronRight, ChevronsUpDown, CircleAlert, Clock, Columns3, CornerDownLeft, File, FileText, Flag, Flame, Folder, Gift,
+    ChevronLeft, ChevronRight, ChevronsUpDown, CircleAlert, Clock, Columns3, CornerDownLeft, File, FileText, Flag, Flame, Folder, FolderPlus, Gift,
     GitFork, GraduationCap, Heart, Hourglass, House, Inbox, Info, List, Lock, LucideIcon, Maximize2, Menu, Minus, Monitor, Moon, MoreHorizontal, Paperclip,
     Pause, Pin, Play, Plus, Repeat, Search, Settings, SlidersHorizontal, SquareCheck, Sun, Target, Timer, User, Users, WandSparkles, X, Zap, Scale, Download,
     ChevronUp, Mail, Phone, MessageCircle, Coffee, Bold, Italic, Strikethrough, Heading2, Heading3, ListOrdered, ListTodo, Quote, Code, Link, Unlink, ImagePlus, Trash2, ArrowLeft, NotebookPen, PinOff,
@@ -11,7 +11,7 @@ import {
 const ICONS = {
     home: House, tasks: SquareCheck, planner: CalendarDays, notes: FileText, habits: Repeat, people: Users, review: BarChart3,
     search: Search, plus: Plus, focus: Timer, settings: Settings, sliders: SlidersHorizontal, chevR: ChevronRight, chevL: ChevronLeft,
-    chevD: ChevronDown, inbox: Inbox, rank: ArrowUpNarrowWide, hourglass: Hourglass, folder: Folder, target: Target, more: MoreHorizontal,
+    chevD: ChevronDown, inbox: Inbox, rank: ArrowUpNarrowWide, hourglass: Hourglass, folder: Folder, folderPlus: FolderPlus, target: Target, more: MoreHorizontal,
     x: X, play: Play, pause: Pause, check: Check, clock: Clock, calendar: Calendar, paperclip: Paperclip, bell: Bell, sun: Sun, moon: Moon,
     lock: Lock, info: Info, arrowR: ArrowRight, flame: Flame, alert: CircleAlert, cap: GraduationCap, briefcase: Briefcase, heart: Heart,
     gift: Gift, expand: Maximize2, zap: Zap, flag: Flag, person: User, file: File, enter: CornerDownLeft, updown: ChevronsUpDown, menu: Menu,

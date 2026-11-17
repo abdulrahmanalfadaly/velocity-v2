@@ -719,9 +719,9 @@ covers it, and Review is about what happened).
 The user's rule (18 Nov): a side menu holds only areas and projects; every
 other view stays, moved onto its page as tabs and chips, or into Settings.
 
-- [x] Tasks menu: "Tasks" (back to the main page), then each area with its
-      projects and "New area". An area's name opens its projects; the arrow
-      folds it
+- [x] Tasks menu: each area with its projects, and a bar fixed at the
+      bottom with "New area" and a New project button (no title row). An
+      area's name opens its projects; the arrow folds it
 - [x] Tasks page tabs: Up next · Not ready · Next actions · All
       (`components/velocity/tasks-head.tsx`); the addresses stay the same
 - [x] Inbox is a chip on Up next (tasks with no project, with "To sort"

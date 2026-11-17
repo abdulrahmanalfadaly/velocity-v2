@@ -435,13 +435,13 @@ function AreaHead({
     );
 }
 
-/** "New area" at the end of the projects: a name, Enter. */
+/** "New area" in the bar at the bottom of the Tasks menu: the button becomes a name box; Enter adds it. */
 function NewArea() {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
     if (!open) {
         return (
-            <button type="button" className="nav-item nav-new-area" onClick={() => setOpen(true)}>
+            <button type="button" className="side-foot-new" onClick={() => setOpen(true)}>
                 <Icon name="plus" />
                 <span className="label">New area</span>
             </button>
@@ -449,7 +449,7 @@ function NewArea() {
     }
     return (
         <form
-            className="nav-area"
+            className="side-foot-form"
             onSubmit={(e) => {
                 e.preventDefault();
                 if (name.trim()) router.post(route('areas.store'), { name: name.trim() }, keepState);
@@ -483,9 +483,9 @@ const STATUS_TAG: Record<string, string> = { planned: 'Planned', on_hold: 'On ho
 function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: string; onNewProject: (areaId?: number) => void; autoFocus?: boolean }) {
     const { props } = usePage<VelocityShared>();
     const nav = props.nav;
-    const first = useRef<HTMLButtonElement>(null);
+    const list = useRef<HTMLElement>(null);
     useEffect(() => {
-        if (autoFocus) first.current?.focus();
+        if (autoFocus) list.current?.querySelector<HTMLElement>('a, button')?.focus();
     }, [autoFocus]);
     // Folded areas, remembered on this device.
     const [folded, setFolded] = useState<number[]>(() => {
@@ -516,24 +516,11 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
             )}
         </Link>
     );
-    const hasProjects = nav.loose.length > 0 || nav.areas.some((a) => a.projects.length > 0);
     // Projects outside any area: "Other" under the areas, or "Projects" when there are no areas. Its name opens them.
     const looseKey = nav.areas.length ? 'area:none' : 'projects';
     return (
-        <>
-            <div className="side-head">
-                <Link
-                    href="/tasks"
-                    className={`side-title side-title-link${active === 'tasks' ? ' is-active' : ''}`}
-                    aria-current={active === 'tasks' ? 'page' : undefined}
-                >
-                    Tasks
-                </Link>
-                <button ref={first} className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
-                    <Icon name="plus" />
-                </button>
-            </div>
-            <nav className="nav nav-areas" aria-label="Areas and projects">
+        <div className="side-col">
+            <nav ref={list} className="nav nav-areas" aria-label="Areas and projects">
                 {nav.areas.map((a) => (
                     <div key={a.id} className="nav-group">
                         <AreaHead
@@ -561,14 +548,14 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                         {nav.loose.map(project)}
                     </div>
                 )}
-                {!hasProjects && (
-                    <button type="button" className="nav-item" onClick={() => onNewProject()}>
-                        <Icon name="plus" />
-                        <span className="label">New project</span>
-                    </button>
-                )}
-                <NewArea />
             </nav>
-        </>
+            {/* Always at the bottom of the menu: a new area, or a new project. */}
+            <div className="side-foot">
+                <NewArea />
+                <button type="button" className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
+                    <Icon name="folderPlus" />
+                </button>
+            </div>
+        </div>
     );
 }
