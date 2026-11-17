@@ -110,6 +110,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('projects/{project}/complete', [ProjectStatusController::class, 'complete'])->name('projects.complete');
         Route::post('projects/{project}/reopen', [ProjectStatusController::class, 'reopen'])->name('projects.reopen');
         Route::post('areas', [AreaController::class, 'store'])->name('areas.store');
+        Route::post('areas/order', [AreaController::class, 'order'])->name('areas.order');
         Route::patch('areas/{area}', [AreaController::class, 'update'])->name('areas.update');
         Route::delete('areas/{area}', [AreaController::class, 'destroy'])->name('areas.destroy');
         Route::post('areas/{id}/restore', [AreaController::class, 'restore'])->whereNumber('id')->name('areas.restore');

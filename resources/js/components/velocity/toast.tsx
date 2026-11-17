@@ -53,6 +53,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'delete-area': { method: 'delete', route: 'areas.destroy' },
     'restore-area': { method: 'post', route: 'areas.restore' },
     'patch-area': { method: 'patch', route: 'areas.update' },
+    'order-areas': { method: 'post', route: 'areas.order' },
     'unarchive-project': { method: 'post', route: 'projects.unarchive' },
     'delete-project': { method: 'delete', route: 'projects.destroy' },
     'patch-project': { method: 'patch', route: 'projects.update' },

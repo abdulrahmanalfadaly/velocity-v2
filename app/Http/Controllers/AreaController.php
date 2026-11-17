@@ -7,7 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
-/** Areas in the Tasks menu: add, rename, change the icon, remove (its projects move to Other), each with Undo. */
+/** Areas in the Tasks menu: add, rename, change the icon, reorder, remove (its projects move to Other), each with Undo. */
 class AreaController extends Controller
 {
     public const ICONS = ['folder', 'cap', 'briefcase', 'heart', 'home', 'book', 'target', 'flame'];
@@ -29,6 +29,25 @@ class AreaController extends Controller
         $area->update($data);
 
         return back()->with('toast', 'Area saved')->with('undo', $this->undo('patch-area', $area->id, $before));
+    }
+
+    /** A new order for the areas (dragged in the Tasks menu, or Move up / down). Undo puts the old order back. */
+    public function order(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $ids = $request->validate(['ids' => ['required', 'array', 'max:200'], 'ids.*' => ['integer']])['ids'];
+        $before = $user->areas()->orderBy('position')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        // Only your own areas count; any left out keep their order after the ones given.
+        $given = array_values(array_intersect(array_unique(array_map('intval', $ids)), $before));
+        $after = [...$given, ...array_values(array_diff($before, $given))];
+        if ($after === $before) {
+            return back();
+        }
+        foreach ($after as $i => $id) {
+            Area::whereKey($id)->update(['position' => $i + 1]);
+        }
+
+        return back()->with('toast', 'Areas moved')->with('undo', $this->undo('order-areas', 0, ['ids' => $before]));
     }
 
     /** Remove an area: its projects stay, under Other. Undo puts them back in it. */

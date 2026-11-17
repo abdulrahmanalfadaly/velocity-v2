@@ -2637,3 +2637,10 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .ap-areas { margin: 0 0 12px; }
 /* Up next's "Add a task": the typing part is its own form, the template button sits beside it. */
 .add-row-form { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px; }
+
+/* Areas dragged by their name in the Tasks menu: a line shows where it will land. */
+.nav-area[draggable="true"] { cursor: grab; }
+.nav-group.is-dragging { opacity: .45; }
+.nav-group.drop-above { box-shadow: inset 0 2px 0 var(--violet); }
+.nav-group.drop-below { box-shadow: inset 0 -2px 0 var(--violet); }
+.side-foot .icon-btn.is-active { color: var(--violet-ink); background: var(--surface); box-shadow: var(--sh-xs), inset 0 0 0 1px var(--line); }

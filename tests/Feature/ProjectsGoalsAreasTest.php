@@ -100,6 +100,37 @@ class ProjectsGoalsAreasTest extends TestCase
         $this->delete(route('areas.destroy', $theirs))->assertNotFound();
     }
 
+    public function test_areas_can_be_put_in_a_new_order_with_undo(): void
+    {
+        foreach (['University', 'Work', 'Personal'] as $name) {
+            $this->post(route('areas.store'), ['name' => $name]);
+        }
+        [$uni, $work, $home] = Area::orderBy('position')->get()->all();
+        $theirs = User::factory()->create()->areas()->create(['name' => 'Theirs']);
+        $names = function () {
+            $out = null;
+            $this->get(route('tasks.index'))->assertInertia(function ($page) use (&$out) {
+                $out = array_column($page->toArray()['props']['nav']['areas'], 'name');
+            });
+
+            return $out;
+        };
+
+        // Personal dragged to the top (someone else's area is ignored); Undo puts the old order back.
+        $this->post(route('areas.order'), ['ids' => [$home->id, $theirs->id, $uni->id, $work->id]])
+            ->assertSessionHas('toast', 'Areas moved')->assertSessionHas('undo', ['action' => 'order-areas', 'id' => 0, 'data' => ['ids' => [$uni->id, $work->id, $home->id]]]);
+        $undo = session('undo')['data'];
+        $this->assertSame(['Personal', 'University', 'Work'], $names());
+        $this->post(route('areas.order'), $undo);
+        $this->assertSame(['University', 'Work', 'Personal'], $names());
+
+        // Only some given: those first, the rest after them in their old order. The same order changes nothing.
+        $this->post(route('areas.order'), ['ids' => [$work->id]]);
+        $this->assertSame(['Work', 'University', 'Personal'], $names());
+        $this->post(route('areas.order'), ['ids' => [$work->id, $uni->id, $home->id]])->assertSessionMissing('toast');
+        $this->assertSame('Theirs', $theirs->fresh()->name);
+    }
+
     public function test_a_planned_or_on_hold_projects_tasks_wait_under_not_ready(): void
     {
         $bakery = $this->user->projects()->create(['name' => 'Bakery']);

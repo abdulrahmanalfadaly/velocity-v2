@@ -13,7 +13,7 @@ import { Clock } from '@/lib/velocity';
 import type { User } from '@/types';
 import type { NavProject, VelocityShared } from '@/types/velocity';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type DragEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 export type Section = 'home' | 'tasks' | 'planner' | 'notes' | 'habits' | 'people' | 'review' | 'settings' | 'search';
 
@@ -305,12 +305,19 @@ function AreaHead({
     folded,
     onFold,
     onNewProject,
+    onMove,
+    onDragStart,
+    onDragEnd,
 }: {
     area: { id: number; name: string; icon: string | null };
     active: boolean;
     folded: boolean;
     onFold: () => void;
     onNewProject: (areaId: number) => void;
+    /** Up or down one place; missing at that end of the list. */
+    onMove: { up?: () => void; down?: () => void };
+    onDragStart: (e: DragEvent) => void;
+    onDragEnd: () => void;
 }) {
     const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
     const [renaming, setRenaming] = useState(false);
@@ -350,7 +357,7 @@ function AreaHead({
         );
     }
     return (
-        <div className="nav-area">
+        <div className="nav-area" draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
             <Link
                 href={`/projects?area=${area.id}`}
                 className={`nav-area-link${active ? ' is-active' : ''}`}
@@ -419,6 +426,30 @@ function AreaHead({
                         <Icon name="plus" />
                         New project here
                     </button>
+                    {onMove.up && (
+                        <button
+                            className="bmenu-item"
+                            onClick={() => {
+                                setMenu(null);
+                                onMove.up?.();
+                            }}
+                        >
+                            <Icon name="chevU" />
+                            Move up
+                        </button>
+                    )}
+                    {onMove.down && (
+                        <button
+                            className="bmenu-item"
+                            onClick={() => {
+                                setMenu(null);
+                                onMove.down?.();
+                            }}
+                        >
+                            <Icon name="chevD" />
+                            Move down
+                        </button>
+                    )}
                     <button
                         className="bmenu-item"
                         onClick={() => {
@@ -500,7 +531,16 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
         setFolded(next);
         localStorage.setItem('velocity.foldedAreas', JSON.stringify(next));
     };
+    // An area being dragged by its name, and the area it is over (it lands above or below that one).
+    const [drag, setDrag] = useState<{ id: number; over: number | null } | null>(null);
     if (!nav) return null;
+    const ids = nav.areas.map((a) => a.id);
+    // Put an area at a new place in the list (dragged, or Move up / down).
+    const place = (id: number, to: number) => {
+        const next = ids.filter((x) => x !== id);
+        next.splice(to, 0, id);
+        if (next.join() !== ids.join()) router.post(route('areas.order'), { ids: next }, keepState);
+    };
     const project = (p: NavProject) => (
         <Link
             key={p.id}
@@ -521,18 +561,46 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
     return (
         <div className="side-col">
             <nav ref={list} className="nav nav-areas" aria-label="Areas and projects">
-                {nav.areas.map((a) => (
-                    <div key={a.id} className="nav-group">
-                        <AreaHead
-                            area={a}
-                            active={active === `area:${a.id}`}
-                            folded={folded.includes(a.id)}
-                            onFold={() => fold(a.id)}
-                            onNewProject={onNewProject}
-                        />
-                        {!folded.includes(a.id) && a.projects.map(project)}
-                    </div>
-                ))}
+                {nav.areas.map((a, i) => {
+                    const over = drag && drag.over === a.id && drag.id !== a.id;
+                    return (
+                        <div
+                            key={a.id}
+                            className={`nav-group${drag?.id === a.id ? ' is-dragging' : ''}${over ? (ids.indexOf(drag.id) < i ? ' drop-below' : ' drop-above') : ''}`}
+                            onDragOver={(e) => {
+                                if (!drag) return;
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'move';
+                                if (drag.over !== a.id) setDrag({ ...drag, over: a.id });
+                            }}
+                            onDrop={(e) => {
+                                if (!drag) return;
+                                e.preventDefault();
+                                place(drag.id, i);
+                                setDrag(null);
+                            }}
+                        >
+                            <AreaHead
+                                area={a}
+                                active={active === `area:${a.id}`}
+                                folded={folded.includes(a.id)}
+                                onFold={() => fold(a.id)}
+                                onNewProject={onNewProject}
+                                onMove={{
+                                    up: i > 0 ? () => place(a.id, i - 1) : undefined,
+                                    down: i < ids.length - 1 ? () => place(a.id, i + 1) : undefined,
+                                }}
+                                onDragStart={(e) => {
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    e.dataTransfer.setData('text/plain', a.name);
+                                    setDrag({ id: a.id, over: null });
+                                }}
+                                onDragEnd={() => setDrag(null)}
+                            />
+                            {!folded.includes(a.id) && a.projects.map(project)}
+                        </div>
+                    );
+                })}
                 {(nav.loose.length > 0 || !nav.areas.length) && (
                     <div className="nav-group">
                         <div className="nav-area">
@@ -549,9 +617,18 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                     </div>
                 )}
             </nav>
-            {/* Always at the bottom of the menu: a new area, or a new project. */}
+            {/* Always at the bottom of the menu: a new area, the Goals map, a new project. */}
             <div className="side-foot">
                 <NewArea />
+                <Link
+                    href="/goals"
+                    className={`icon-btn${active === 'goals' ? ' is-active' : ''}`}
+                    aria-label="Goals map"
+                    title="Goals map"
+                    aria-current={active === 'goals' ? 'page' : undefined}
+                >
+                    <Icon name="target" />
+                </Link>
                 <button type="button" className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
                     <Icon name="folderPlus" />
                 </button>
