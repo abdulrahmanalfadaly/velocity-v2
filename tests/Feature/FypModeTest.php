@@ -69,7 +69,7 @@ class FypModeTest extends TestCase
     public function test_personal_mode_keeps_its_own_screens(): void
     {
         $this->actingAs($this->user)->get('/tasks')->assertInertia(fn (Assert $p) => $p->component('tasks/index'));
-        $this->get('/weights')->assertInertia(fn (Assert $p) => $p->component('weights/edit')->missing('ahp'));
+        $this->get('/weights')->assertRedirect(route('task-settings.edit'));
         $this->get('/history')->assertInertia(fn (Assert $p) => $p->component('history/index')->where('activity', []));
         $this->get('/home')->assertOk();
     }

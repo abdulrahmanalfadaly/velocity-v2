@@ -46,10 +46,10 @@ class TaskController extends Controller
         ]);
     }
 
-    /** Ranked tasks that are not in a project yet (they keep their place in the ranking). */
-    public function inbox(Request $request): Response
+    /** The Inbox is a chip on Up next now (tasks with no project, and captured ones to sort): old links land there. */
+    public function inbox(Request $request): RedirectResponse
     {
-        return $this->personalList($request, 'inbox');
+        return to_route('tasks.index', array_filter(['show' => 'inbox', 'task' => $request->query('task')]));
     }
 
     /** Open tasks that can't start yet: waiting on someone, after another task, or starting later. */
@@ -58,7 +58,7 @@ class TaskController extends Controller
         return $this->personalList($request, 'waiting');
     }
 
-    /** The personal Tasks page; $view picks Up next, Inbox or Not ready yet. */
+    /** The personal Tasks page; $view picks Up next or Not ready yet. */
     private function personalList(Request $request, string $view): Response
     {
         $user = $request->user();
@@ -81,10 +81,12 @@ class TaskController extends Controller
             // Captured only, waiting to be sorted (the Inbox's "To sort"), newest first.
             'captured' => $user->tasks()->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->with('project.goal')->latest('captured_at')->get()
                 ->map(fn ($t) => TaskPresenter::base($t)),
+            // For the template button in "Add a task": loaded only when it is pressed.
+            'templates' => Inertia::optional(fn () => $user->templates()->with('project:id,name')->get()->map(fn ($t) => TemplateController::present($t))->values()),
         ]);
     }
 
-    private const SHOWS = ['all', 'today', 'week', 'overdue', 'quick', 'doing', 'important', 'repeating', 'inbox'];
+    private const SHOWS = ['all', 'inbox', 'today', 'week', 'overdue', 'quick', 'easy', 'doing', 'important', 'repeating'];
 
     /** Tabs of All tasks. */
     public const ALL_TABS = ['open', 'done', 'cancelled', 'archived'];

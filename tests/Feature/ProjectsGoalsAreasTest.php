@@ -132,8 +132,16 @@ class ProjectsGoalsAreasTest extends TestCase
         // Keep them open: the project is done, its tasks stay in the list.
         $this->post(route('projects.complete', $fyp), ['open' => 'keep'])->assertSessionHas('toast', 'Completed “FYP”');
         $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->count('tasks', 2));
-        $this->get(route('projects.index'))->assertInertia(fn ($page) => $page->component('projects/index')
+        $this->get(route('projects.index'))->assertInertia(fn ($page) => $page->component('projects/index')->where('area', null)
             ->where('projects.0.status', 'completed')->where('projects.0.open', 2)->where('projects.0.done', 1)->where('projects.0.pct', 33)->where('projects.0.bestRank', 1));
+
+        // An area's name in the Tasks menu opens its projects; "none" is those outside any area; someone else's area is ignored.
+        $uni = $this->user->areas()->create(['name' => 'University']);
+        $fyp->update(['area_id' => $uni->id]);
+        $this->get(route('projects.index', ['area' => $uni->id]))->assertInertia(fn ($page) => $page->where('area', (string) $uni->id)->where('projects.0.areaId', $uni->id));
+        $this->get(route('projects.index', ['area' => 'none']))->assertInertia(fn ($page) => $page->where('area', 'none'));
+        $other = User::factory()->create()->areas()->create(['name' => 'Theirs']);
+        $this->get(route('projects.index', ['area' => $other->id]))->assertInertia(fn ($page) => $page->where('area', null));
     }
 
     public function test_a_goal_has_a_status_a_target_date_and_progress_by_milestones_or_by_hand(): void

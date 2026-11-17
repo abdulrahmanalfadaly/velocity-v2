@@ -2,6 +2,7 @@ import { BulkSet } from '@/components/velocity/bulk-set';
 import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
+import { TasksHead } from '@/components/velocity/tasks-head';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock } from '@/lib/velocity';
 import type { BaseTask, NotReadyTask, RankedTask, TaskDetail, VelocityShared } from '@/types/velocity';
@@ -81,7 +82,7 @@ export default function AllTasks() {
         <VelocityShell
             title="All tasks"
             section="tasks"
-            active="all"
+            active="tasks"
             panel={
                 props.selected ? (
                     <TaskPanel key={props.selected.id} task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} />
@@ -90,14 +91,7 @@ export default function AllTasks() {
             onEscape={() => (picked.length ? setPicked([]) : props.selected ? open(null) : undefined)}
         >
             <div className="main-inner">
-                <header className="page-head">
-                    <div>
-                        <p className="eyebrow is-section">Tasks</p>
-                        <h1 className="h1">
-                            All tasks <span className="count">{props.total}</span>
-                        </h1>
-                    </div>
-                </header>
+                <TasksHead tab="all" count={props.total} />
                 <div className="toolbar all-toolbar">
                     <div className="filters" role="group" aria-label="Show">
                         {TABS.map(([k, label]) => (

@@ -3,31 +3,14 @@ import { Field, TextField } from '@/components/velocity/field';
 import { Modal } from '@/components/velocity/forms';
 import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
+import { daysAfter, type Template, UseDialog } from '@/components/velocity/template-use';
 import { Dots } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
-import { Clock, fmtHours, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
+import { fmtHours, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
 import type { RepeatRule, VelocityShared } from '@/types/velocity';
 import { router, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, useState } from 'react';
 
-interface Template {
-    id: number;
-    name: string;
-    title: string;
-    notes: string | null;
-    importance: number;
-    urgency: number;
-    estHours: number;
-    /** Due this many days after it is used, at this time (none: the end of that day). */
-    dueDays: number | null;
-    dueTime: string | null;
-    /** Can start this many days after it is used. */
-    startDays: number | null;
-    project: { id: number; name: string } | null;
-    repeat: RepeatRule | null;
-    steps: string[];
-    used: number;
-}
 interface Props extends VelocityShared {
     templates: Template[];
     projects: { id: number; name: string }[];
@@ -35,7 +18,6 @@ interface Props extends VelocityShared {
 
 const keep = { preserveScroll: true, preserveState: true };
 const repeatKey = (r: RepeatRule | null) => (r ? `${r.every}-${r.unit}` : '');
-const daysAfter = (n: number) => (n === 0 ? 'the day it’s used' : n === 1 ? '1 day after use' : `${n} days after use`);
 /** "due 3 days after use, 17:00 · starts 1 day after use". */
 const whenText = (t: Template) =>
     [
@@ -290,67 +272,6 @@ function TemplateDialog({ template, projects, onClose }: { template?: Template; 
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={processing}>
                             {template ? 'Save' : 'Create template'}
-                        </button>
-                    </span>
-                </div>
-            </form>
-        </Modal>
-    );
-}
-
-/** "Use": pick a due date (and project), then the new task opens in Up next. */
-function UseDialog({ template, projects, onClose }: { template: Template; projects: Props['projects']; onClose: () => void }) {
-    const { props } = usePage<Props>();
-    const clock = Clock.from(props.clock);
-    // The template's own due date, counted from today (you can change it here).
-    const today = clock.localInput(clock.now.toISOString()).slice(0, 10);
-    const plus = (n: number) => {
-        const d = new Date(`${today}T12:00:00Z`);
-        d.setUTCDate(d.getUTCDate() + n);
-        return d.toISOString().slice(0, 10);
-    };
-    const form = useForm({
-        due_at: template.dueDays != null ? `${plus(template.dueDays)}T${template.dueTime ?? '23:59'}` : '',
-        project_id: template.project ? String(template.project.id) : '',
-    });
-    const { data, setData, processing } = form;
-    const errors = form.errors as Record<string, string | undefined>;
-    return (
-        <Modal title={`New task from “${template.name}”`} onClose={onClose}>
-            <form
-                className="vform"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    form.transform((d) => ({ due_at: d.due_at || null, project_id: d.project_id ? Number(d.project_id) : null }));
-                    form.post(route('templates.use', template.id));
-                }}
-            >
-                <p className="tpl-use-title">
-                    “{template.title}” · {fmtHours(template.estHours)}
-                    {template.steps.length > 0 && ` · ${template.steps.length} steps`}
-                    {template.startDays ? ` · can start ${daysAfter(template.startDays)}` : ''}
-                </p>
-                <div className="vform-row">
-                    <Field id="u-due" label="Due" error={errors.due_at}>
-                        <DatePick id="u-due" mode="datetime" value={data.due_at} onChange={(v) => setData('due_at', v)} placeholder="No due date" />
-                    </Field>
-                    <Field id="u-project" label="Project" error={errors.project_id}>
-                        <Select
-                            id="u-project"
-                            value={String(data.project_id)}
-                            onChange={(v) => setData('project_id', v)}
-                            options={[{ value: '', label: 'No project' }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
-                        />
-                    </Field>
-                </div>
-                <div className="vform-foot">
-                    <span />
-                    <span className="vform-foot-right">
-                        <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
-                        </button>
-                        <button type="submit" className="btn btn-primary" disabled={processing}>
-                            Add task
                         </button>
                     </span>
                 </div>

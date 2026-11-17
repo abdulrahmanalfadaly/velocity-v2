@@ -161,7 +161,11 @@ export function SearchPalette({ onClose, onAdd }: { onClose: () => void; onAdd: 
         const places: [string, string, string, string][] = [
             ['Home', '/home', 'home', 'today overview'],
             ['Up next', '/tasks', 'rank', 'tasks ranking'],
-            ['Inbox', '/tasks/inbox', 'inbox', 'tasks'],
+            ['Inbox', '/tasks?show=inbox', 'inbox', 'tasks no project to sort'],
+            ['Not ready', '/tasks/waiting', 'hourglass', 'tasks waiting later'],
+            ['Next actions', '/tasks/next', 'arrowR', 'tasks one per project'],
+            ['All tasks', '/tasks/all', 'list', 'done cancelled archived find'],
+            ['Projects', '/projects', 'folder', 'areas'],
             ['Planner', '/planner', 'planner', 'calendar classes'],
             ['Notes', '/notes', 'notes', ''],
             ['Journal', '/notes?in=journal', 'journal', 'diary'],
@@ -169,7 +173,9 @@ export function SearchPalette({ onClose, onAdd }: { onClose: () => void; onAdd: 
             ['People', '/people', 'people', 'birthdays contacts'],
             ['Review', '/review', 'review', 'history charts week month'],
             ['Goals map', '/goals', 'target', 'mind map'],
-            ['Weights', '/weights', 'sliders', 'formula'],
+            ['Templates', '/tasks/templates', 'file', 'task templates'],
+            ['Archive', '/tasks/archive', 'archive', 'deleted restore bin trash'],
+            ['Weights', '/settings/tasks', 'sliders', 'formula settings ranking'],
             ['Settings', '/settings/profile', 'settings', 'account profile'],
         ];
         return [

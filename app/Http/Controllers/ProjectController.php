@@ -35,8 +35,12 @@ class ProjectController extends Controller
             'tasks as open_count' => fn ($q) => $q->whereIn('status', Task::OPEN),
             'tasks as done_count' => fn ($q) => $q->where('status', Task::DONE),
         ])->orderBy('name')->get();
+        // An area's projects (its name in the Tasks menu), "none" for those outside any area, or all of them.
+        $area = $request->query('area');
+        $area = $area === 'none' || ($area && $user->areas()->whereKey((int) $area)->exists()) ? (string) $area : null;
 
         return Inertia::render('projects/index', [
+            'area' => $area,
             'projects' => $projects->map(fn (Project $p) => [
                 'id' => $p->id,
                 'name' => $p->name,
@@ -45,6 +49,7 @@ class ProjectController extends Controller
                 // Every goal it serves, the main one first.
                 'goals' => self::goals($p),
                 'area' => $p->area?->name,
+                'areaId' => $p->area_id,
                 'open' => $p->open_count,
                 'done' => $p->done_count,
                 'pct' => $p->open_count + $p->done_count ? (int) round($p->done_count / ($p->open_count + $p->done_count) * 100) : 0,

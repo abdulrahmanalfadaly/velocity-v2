@@ -700,7 +700,7 @@ function LookAhead({ w, clock }: { w: Weekly; clock: Clock }) {
                         'inbox',
                         w.inbox ? `${w.inbox} in the Inbox` : 'Inbox is empty',
                         w.inbox ? 'Not in a project yet' : 'Nothing to sort',
-                        w.inbox ? '/tasks/inbox' : undefined,
+                        w.inbox ? '/tasks?show=inbox' : undefined,
                         w.inbox > 0,
                     )}
                     {row(

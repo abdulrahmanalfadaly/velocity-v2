@@ -112,7 +112,7 @@ export default function Home() {
                                 <>
                                     {' '}
                                     <span className="dotsep" />{' '}
-                                    <Link className="page-sub-link" href="/tasks/inbox">
+                                    <Link className="page-sub-link" href="/tasks?show=inbox">
                                         Inbox {props.nav?.counts.inbox}
                                         {props.nav?.counts.captured ? ` · ${props.nav.counts.captured} to sort` : ''}
                                     </Link>

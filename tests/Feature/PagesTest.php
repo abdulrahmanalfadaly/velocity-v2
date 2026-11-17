@@ -60,7 +60,10 @@ class PagesTest extends TestCase
         $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->has('tasks', 14)->has('notReady', 3)->where('selected', null));
         $this->get("/projects/{$fyp->id}")->assertInertia(fn (Assert $p) => $p->component('projects/show')->where('project.name', 'Final Year Project')->has('milestones', 5));
         $this->get('/goals')->assertInertia(fn (Assert $p) => $p->component('goals/index')->has('goals', 3)->has('inbox', 2));
-        $this->get('/weights')->assertInertia(fn (Assert $p) => $p->component('weights/edit')->where('weights', ['I' => 42, 'U' => 23, 'D' => 23, 'P' => 12])->missing('ahp'));
+        // Weights live in Settings → Tasks in personal Velocity.
+        $this->get('/weights')->assertRedirect(route('task-settings.edit'));
+        $this->get(route('task-settings.edit'))->assertInertia(fn (Assert $p) => $p->component('settings/tasks')
+            ->where('weights', ['I' => 42, 'U' => 23, 'D' => 23, 'P' => 12])->where('horizonDays', 7)->where('hoursPerDay', 4)->missing('ahp'));
         $this->get('/history')->assertInertia(fn (Assert $p) => $p->component('history/index')->has('weeks', 12));
         $this->getJson('/search?q=chap')->assertOk()->assertJsonPath('groups.0.label', 'Tasks');
     }
@@ -87,12 +90,14 @@ class PagesTest extends TestCase
         $this->get('/search/all?q=chap')->assertInertia(fn (Assert $p) => $p->component('search/index')->where('groups.0.label', 'Tasks'));
     }
 
-    public function test_inbox_and_not_ready_have_their_own_pages(): void
+    public function test_the_inbox_is_a_chip_on_up_next_and_not_ready_has_its_own_tab(): void
     {
         $this->actingAs($this->user);
 
         $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->where('view', 'upnext')->where('nav.counts.inbox', 2)->where('nav.counts.waiting', 3));
-        $this->get('/tasks/inbox')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->where('view', 'inbox')
+        $this->get('/tasks/inbox?task=5')->assertRedirect('/tasks?show=inbox&task=5');
+        $this->get('/tasks?show=inbox')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->where('view', 'upnext')->where('show', 'inbox')
+            ->missing('templates')
             ->has('tasks', 14)
             ->where('tasks', fn ($tasks) => collect($tasks)->whereNull('project')->pluck('rank')->all() === [12, 14]));
         $this->get('/tasks/waiting')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->where('view', 'waiting')

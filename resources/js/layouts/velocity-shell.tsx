@@ -13,7 +13,7 @@ import { Clock } from '@/lib/velocity';
 import type { User } from '@/types';
 import type { NavProject, VelocityShared } from '@/types/velocity';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { type CSSProperties, Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 export type Section = 'home' | 'tasks' | 'planner' | 'notes' | 'habits' | 'people' | 'review' | 'settings' | 'search';
 
@@ -32,7 +32,7 @@ type Overlay = null | 'search' | 'add' | 'drawer' | 'more' | 'project';
 interface ShellProps {
     title: string;
     section: Section;
-    /** The highlighted place in the side menu: "upnext", "inbox", "waiting", "goals", "project:12". */
+    /** The highlighted place in the Tasks menu: "tasks" (its main pages), "area:3", "area:none", "projects", "project:12". */
     active?: string;
     children: ReactNode;
     /** A right-hand panel (the task panel), shown beside the content. */
@@ -270,10 +270,6 @@ export default function VelocityShell({ title, section, active, children, panel,
                                             </button>
                                         ),
                                     )}
-                                    <Link className="more-item" href="/weights">
-                                        <Icon name="sliders" />
-                                        <span>Weights</span>
-                                    </Link>
                                     <Link className="more-item" href="/settings/profile">
                                         <Icon name="settings" />
                                         <span>Settings</span>
@@ -296,29 +292,22 @@ export default function VelocityShell({ title, section, active, children, panel,
     );
 }
 
-/** The Tasks side menu: only places inside Tasks. */
-/** The views of the list in the Tasks menu ("Due today" …): the same ranking, some tasks left out. */
-export const TASK_VIEWS: ['today' | 'week' | 'overdue' | 'quick' | 'doing' | 'important' | 'repeating', string, string][] = [
-    ['today', 'sun', 'Due today'],
-    ['week', 'calendar', 'Due this week'],
-    ['overdue', 'alert', 'Overdue'],
-    ['quick', 'clock', 'Quick wins'],
-    ['doing', 'play', 'Doing'],
-    ['important', 'flag', 'Important'],
-    ['repeating', 'habits', 'Repeating'],
-];
-
 const AREA_ICONS = ['folder', 'cap', 'briefcase', 'heart', 'home', 'book', 'target', 'flame'];
 const keepState = { preserveScroll: true, preserveState: true };
 
-/** An area's header in the Tasks menu: fold it (remembered on this device), and a menu to rename it, change its icon, add a project, remove it. */
+/**
+ * An area's header in the Tasks menu: its name opens the area's projects, the arrow folds it (remembered on
+ * this device), and a menu renames it, changes its icon, adds a project or removes it.
+ */
 function AreaHead({
     area,
+    active,
     folded,
     onFold,
     onNewProject,
 }: {
     area: { id: number; name: string; icon: string | null };
+    active: boolean;
     folded: boolean;
     onFold: () => void;
     onNewProject: (areaId: number) => void;
@@ -362,10 +351,23 @@ function AreaHead({
     }
     return (
         <div className="nav-area">
-            <button type="button" className="nav-area-fold" aria-expanded={!folded} onClick={onFold} title={folded ? 'Show its projects' : 'Fold'}>
+            <Link
+                href={`/projects?area=${area.id}`}
+                className={`nav-area-link${active ? ' is-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+                title={`${area.name}: its projects`}
+            >
                 <Icon name={area.icon ?? 'folder'} />
                 <span>{area.name}</span>
-                <Icon name={folded ? 'chevR' : 'chevD'} className="ic-xs nav-area-chev" />
+            </Link>
+            <button
+                type="button"
+                className="icon-btn nav-area-fold"
+                aria-expanded={!folded}
+                aria-label={folded ? `Show the projects in ${area.name}` : `Fold ${area.name}`}
+                onClick={onFold}
+            >
+                <Icon name={folded ? 'chevR' : 'chevD'} className="ic-xs" />
             </button>
             <button
                 type="button"
@@ -515,47 +517,47 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
         </Link>
     );
     const hasProjects = nav.loose.length > 0 || nav.areas.some((a) => a.projects.length > 0);
-    const item = (key: string, icon: string, label: string, href: string, count?: number | null) => (
-        <Link className={`nav-item${active === key ? ' is-active' : ''}`} href={href} aria-current={active === key ? 'page' : undefined}>
-            <Icon name={icon} />
-            <span className="label">{label}</span>
-            {count != null && count > 0 && <span className="count">{count}</span>}
-        </Link>
-    );
+    // Projects outside any area: "Other" under the areas, or "Projects" when there are no areas. Its name opens them.
+    const looseKey = nav.areas.length ? 'area:none' : 'projects';
     return (
         <>
             <div className="side-head">
-                <span className="side-title">Tasks</span>
+                <Link
+                    href="/tasks"
+                    className={`side-title side-title-link${active === 'tasks' ? ' is-active' : ''}`}
+                    aria-current={active === 'tasks' ? 'page' : undefined}
+                >
+                    Tasks
+                </Link>
                 <button ref={first} className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
                     <Icon name="plus" />
                 </button>
             </div>
-            <nav className="nav" aria-label="Tasks">
-                {item('inbox', 'inbox', 'Inbox', '/tasks/inbox', nav.counts.inbox + (nav.counts.captured ?? 0))}
-                {item('upnext', 'rank', 'Up next', '/tasks', nav.counts.upNext)}
-                {item('waiting', 'hourglass', 'Not ready yet', '/tasks/waiting', nav.counts.waiting)}
-                {item('next', 'arrowR', 'Next actions', '/tasks/next')}
-                {item('all', 'list', 'All tasks', '/tasks/all')}
-                <div className="nav-label">Views</div>
-                {TASK_VIEWS.map(([k, icon, label]) => (
-                    <Fragment key={k}>{item(`show:${k}`, icon, label, `/tasks?show=${k}`, nav.counts.views?.[k])}</Fragment>
-                ))}
-                <div className="nav-label">Projects</div>
-                {item('projects', 'folder', 'All projects', '/projects')}
+            <nav className="nav nav-areas" aria-label="Areas and projects">
                 {nav.areas.map((a) => (
-                    <div key={a.id}>
-                        <AreaHead area={a} folded={folded.includes(a.id)} onFold={() => fold(a.id)} onNewProject={onNewProject} />
+                    <div key={a.id} className="nav-group">
+                        <AreaHead
+                            area={a}
+                            active={active === `area:${a.id}`}
+                            folded={folded.includes(a.id)}
+                            onFold={() => fold(a.id)}
+                            onNewProject={onNewProject}
+                        />
                         {!folded.includes(a.id) && a.projects.map(project)}
                     </div>
                 ))}
-                {nav.loose.length > 0 && (
-                    <div>
-                        {nav.areas.some((a) => a.projects.length > 0) && (
-                            <div className="nav-area">
+                {(nav.loose.length > 0 || !nav.areas.length) && (
+                    <div className="nav-group">
+                        <div className="nav-area">
+                            <Link
+                                href={nav.areas.length ? '/projects?area=none' : '/projects'}
+                                className={`nav-area-link${active === looseKey ? ' is-active' : ''}`}
+                                aria-current={active === looseKey ? 'page' : undefined}
+                            >
                                 <Icon name="folder" />
-                                Other
-                            </div>
-                        )}
+                                <span>{nav.areas.length ? 'Other' : 'Projects'}</span>
+                            </Link>
+                        </div>
                         {nav.loose.map(project)}
                     </div>
                 )}
@@ -566,12 +568,6 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                     </button>
                 )}
                 <NewArea />
-                <div className="nav-label">More</div>
-                {item('goals', 'target', 'Goals map', '/goals', nav.counts.goals)}
-                {item('weights', 'sliders', 'Weights', '/weights')}
-                {item('history', 'review', 'History', '/review?view=weeks')}
-                {item('templates', 'file', 'Templates', '/tasks/templates')}
-                {item('archive', 'archive', 'Archive', '/tasks/archive')}
             </nav>
         </>
     );

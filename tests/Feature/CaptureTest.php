@@ -26,7 +26,9 @@ class CaptureTest extends TestCase
         $this->assertNotNull($idea->captured_at);
 
         // Not in the ranking and not "not ready": only in To sort, and counted there.
-        $this->get(route('tasks.inbox'))->assertInertia(fn (Assert $p) => $p
+        $this->get(route('tasks.inbox'))->assertRedirect(route('tasks.index', ['show' => 'inbox']));
+        $this->get(route('tasks.index', ['show' => 'inbox']))->assertInertia(fn (Assert $p) => $p
+            ->where('show', 'inbox')
             ->has('tasks', 1)
             ->where('captured.0.title', 'Idea for the demo video')
             ->where('notReady', [])
@@ -35,7 +37,7 @@ class CaptureTest extends TestCase
 
         $this->post(route('tasks.rank', $idea))->assertSessionHas('toast', fn ($t) => str_starts_with($t, '“Idea for the demo video” is ranked · #'));
         $this->assertNull($idea->fresh()->captured_at);
-        $this->get(route('tasks.inbox'))->assertInertia(fn (Assert $p) => $p->has('tasks', 2)->where('captured', []));
+        $this->get(route('tasks.index', ['show' => 'inbox']))->assertInertia(fn (Assert $p) => $p->has('tasks', 2)->where('captured', []));
 
         // Undo puts it back in To sort.
         $this->post(route('tasks.capture', $idea))->assertSessionHas('toast', '“Idea for the demo video” is back in To sort');

@@ -14,24 +14,11 @@ class NavData
     {
         $eligible = $this->ranking->eligibleQuery($user);
         $openByProject = (clone $eligible)->selectRaw('project_id, count(*) as n')->groupBy('project_id')->pluck('n', 'project_id');
-        // The views in the Tasks menu: how many ranked tasks each one shows (filters only; the order stays the formula's).
-        $now = $this->ranking->now();
-        $today = $now->timezone($user->timezone)->startOfDay();
-        $views = (clone $eligible)->toBase()->selectRaw(
-            'sum(case when due_at >= ? and due_at < ? then 1 else 0 end) as today, '
-            .'sum(case when due_at < ? then 1 else 0 end) as week, '
-            .'sum(case when due_at < ? then 1 else 0 end) as overdue, '
-            .'sum(case when est_hours <= 1 then 1 else 0 end) as quick, '
-            ."sum(case when status = 'doing' then 1 else 0 end) as doing, "
-            .'sum(case when importance >= 4 then 1 else 0 end) as important, '
-            .'sum(case when repeat_unit is not null then 1 else 0 end) as repeating',
-            [$today->utc(), $today->addDay()->utc(), $today->addDays(8)->utc(), $now->utc()],
-        )->first();
         $ranked = (clone $eligible)->count();
         $captured = Task::where('user_id', $user->id)->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->count();
         $notReady = Task::where('user_id', $user->id)->whereIn('status', Task::OPEN)->count() - $ranked - $captured;
 
-        // Completed projects leave the menu (All projects lists them).
+        // Completed projects leave the menu (an area's projects page lists them).
         $projects = $user->projects()->whereNull('archived_at')->where('status', '!=', 'completed')->with('goal:id,color')->orderBy('position')->orderBy('id')->get();
         $item = fn ($p) => [
             'id' => $p->id,
@@ -49,7 +36,6 @@ class NavData
                 'captured' => $captured,
                 'waiting' => max(0, $notReady),
                 'goals' => $goals->count(),
-                'views' => collect((array) $views)->map(fn ($n) => (int) $n)->all(),
             ],
             'areas' => $user->areas()->orderBy('position')->get()->map(fn ($a) => [
                 'id' => $a->id,

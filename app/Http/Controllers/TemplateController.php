@@ -134,7 +134,7 @@ class TemplateController extends Controller
         return $data;
     }
 
-    private function present(TaskTemplate $t): array
+    public static function present(TaskTemplate $t): array
     {
         return [
             'id' => $t->id,

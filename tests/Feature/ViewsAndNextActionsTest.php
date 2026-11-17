@@ -46,8 +46,9 @@ class ViewsAndNextActionsTest extends TestCase
 
         $this->get(route('tasks.index', ['show' => 'today']))->assertInertia(fn ($page) => $page
             ->where('show', 'today')
-            ->where('nav.counts.views', ['today' => 1, 'week' => 3, 'overdue' => 1, 'quick' => 2, 'doing' => 1, 'important' => 1, 'repeating' => 1])
-            ->count('tasks', 4)); // the view filters on screen; every task keeps its number
+            ->missing('nav.counts.views')
+            ->count('tasks', 4)); // the chip filters on screen; every task keeps its number
+        $this->get(route('tasks.index', ['show' => 'easy']))->assertInertia(fn ($page) => $page->where('show', 'easy'));
         $this->get(route('tasks.index', ['show' => 'nonsense']))->assertInertia(fn ($page) => $page->where('show', 'all'));
     }
 

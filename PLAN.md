@@ -194,7 +194,8 @@ organised. Left for the very end, after the backlog (user, 16 Nov).
       the action (`Controller::undo()`); `toast.tsx` maps it to a route.
       Not undoable on purpose: ticks that are their own undo (step done,
       milestone reached), password and account deletion.
-- [ ] Ask the user for their side-menu changes before Phase 2 is finished
+- [x] Ask the user for their side-menu changes (done 18 Nov for the Tasks
+      menu: see "Side menus" below)
 
 ## Phase 3 checklist
 
@@ -712,6 +713,30 @@ covers it, and Review is about what happened).
       inside notes pointed at them (`App\Services\AccountTransfer`)
 - [x] The API: lists page by page (`limit`, `cursor`, `meta.next`) for
       tasks, notes and people; projects' `goal_ids`; Review's `range`
+
+## Side menus
+
+The user's rule (18 Nov): a side menu holds only areas and projects; every
+other view stays, moved onto its page as tabs and chips, or into Settings.
+
+- [x] Tasks menu: "Tasks" (back to the main page), then each area with its
+      projects and "New area". An area's name opens its projects; the arrow
+      folds it
+- [x] Tasks page tabs: Up next · Not ready · Next actions · All
+      (`components/velocity/tasks-head.tsx`); the addresses stay the same
+- [x] Inbox is a chip on Up next (tasks with no project, with "To sort"
+      above them); `/tasks/inbox` sends you there. The old "Views" were
+      already chips; "Low energy" now stays after a reload too
+- [x] Projects page: area chips (`/projects?area=3`, `?area=none`) and a
+      List / Map switch; the Goals map has a "Projects" button back
+- [x] Weights in Settings → Tasks (the page `/weights` sends you there; FYP
+      mode keeps its own Weights page); the Weights pop-up on Up next stays,
+      with "More settings"
+- [x] Templates: a button in Up next's "Add a task" (pick one, or "Manage
+      templates"); Archive in the account menu; History removed (it is
+      Review › 12 weeks)
+- [ ] The other sections' side menus (Planner, Notes, Habits, People,
+      Review), when the user gives their changes
 
 ## Run it
 

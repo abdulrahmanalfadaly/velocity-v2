@@ -1,5 +1,6 @@
 import { StartFocus } from '@/components/velocity/focus';
 import { Icon } from '@/components/velocity/icon';
+import { TasksHead } from '@/components/velocity/tasks-head';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmtHours, goalVar } from '@/lib/velocity';
 import type { RankedTask, VelocityShared } from '@/types/velocity';
@@ -16,16 +17,9 @@ export default function NextActions() {
     const clock = Clock.from(props.clock);
 
     return (
-        <VelocityShell title="Next actions" section="tasks" active="next">
+        <VelocityShell title="Next actions" section="tasks" active="tasks">
             <div className="main-inner">
-                <header className="page-head">
-                    <div>
-                        <p className="eyebrow is-section">Tasks</p>
-                        <h1 className="h1">
-                            Next actions <span className="count">{props.rows.length}</span>
-                        </h1>
-                    </div>
-                </header>
+                <TasksHead tab="next" count={props.rows.length} />
                 {props.rows.length === 0 ? (
                     <p className="list-empty">Nothing is ready to work on.</p>
                 ) : (

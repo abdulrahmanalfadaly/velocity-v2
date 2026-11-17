@@ -3,12 +3,14 @@ import { Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, goalVar } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { Fragment, useState } from 'react';
 
 type Status = 'active' | 'planned' | 'on_hold' | 'completed' | 'archived';
 
 interface Props extends VelocityShared {
+    /** The area picked (its id), "none" for projects outside any area, or null for all. */
+    area: string | null;
     projects: {
         id: number;
         name: string;
@@ -16,6 +18,7 @@ interface Props extends VelocityShared {
         goal: { title: string; color: number } | null;
         goals: { id: number; title: string; color: number }[];
         area: string | null;
+        areaId: number | null;
         open: number;
         done: number;
         pct: number;
@@ -33,27 +36,61 @@ const TABS: [Status, string][] = [
     ['archived', 'Archived'],
 ];
 
-/** All projects, by status: progress, open tasks, due date and the rank of each one's best task. */
+/** Projects, by area and status: progress, open tasks, due date and the rank of each one's best task. A switch opens the Goals map. */
 export default function AllProjects() {
     const { props } = usePage<Props>();
     const clock = Clock.from(props.clock);
     const [tab, setTab] = useState<Status>('active');
-    const shown = props.projects.filter((p) => p.status === tab);
+    const areas = props.nav?.areas ?? [];
+    const inArea = props.projects.filter((p) =>
+        props.area === null ? true : props.area === 'none' ? p.areaId === null : String(p.areaId) === props.area,
+    );
+    const shown = inArea.filter((p) => p.status === tab);
+    const areaName = props.area === null ? null : props.area === 'none' ? 'Other' : (areas.find((a) => String(a.id) === props.area)?.name ?? null);
+    // Chips for the areas: all of them, each area, and "Other" when some projects are in none.
+    const chips: [string | null, string][] = [
+        [null, 'All areas'],
+        ...areas.map((a): [string, string] => [String(a.id), a.name]),
+        ...(areas.length && props.projects.some((p) => p.areaId === null) ? [['none', 'Other'] as [string, string]] : []),
+    ];
+    const pickArea = (a: string | null) =>
+        router.get('/projects', a ? { area: a } : {}, { preserveState: true, preserveScroll: true, replace: true });
 
     return (
-        <VelocityShell title="All projects" section="tasks" active="projects">
+        <VelocityShell title={areaName ?? 'Projects'} section="tasks" active={props.area ? `area:${props.area}` : 'projects'}>
             <div className="main-inner">
                 <header className="page-head">
                     <div>
-                        <p className="eyebrow is-section">Tasks</p>
+                        <p className="eyebrow is-section">Projects</p>
                         <h1 className="h1">
-                            All projects <span className="count">{props.projects.length}</span>
+                            {areaName ?? 'All projects'} <span className="count">{inArea.length}</span>
                         </h1>
                     </div>
+                    <div className="page-actions">
+                        <div className="layout-seg" role="radiogroup" aria-label="Show as">
+                            <button role="radio" aria-checked="true" title="List">
+                                <Icon name="list" className="ic-sm" />
+                                <span className="btn-label">List</span>
+                            </button>
+                            <button role="radio" aria-checked="false" title="Goals map" onClick={() => router.visit('/goals')}>
+                                <Icon name="target" className="ic-sm" />
+                                <span className="btn-label">Map</span>
+                            </button>
+                        </div>
+                    </div>
                 </header>
+                {chips.length > 1 && (
+                    <div className="filters ap-areas" role="group" aria-label="Area">
+                        {chips.map(([k, label]) => (
+                            <button key={k ?? 'all'} className="filter" aria-pressed={props.area === k} onClick={() => pickArea(k)}>
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <div className="seg ev-seg ap-tabs" role="tablist" aria-label="Status">
                     {TABS.map(([k, label]) => {
-                        const n = props.projects.filter((p) => p.status === k).length;
+                        const n = inArea.filter((p) => p.status === k).length;
                         return (
                             <button key={k} type="button" role="tab" aria-selected={tab === k} aria-checked={tab === k} onClick={() => setTab(k)}>
                                 {label}

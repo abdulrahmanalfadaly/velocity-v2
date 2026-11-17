@@ -14,7 +14,7 @@ use Inertia\Response;
 /** Your weights (FR9) and how the score is worked out (NFR5). */
 class WeightController extends Controller
 {
-    public function edit(Request $request, RankingService $ranking, StudyLogger $log): Response
+    public function edit(Request $request, RankingService $ranking, StudyLogger $log): Response|RedirectResponse
     {
         $user = $request->user();
         $profile = $user->weights();
@@ -25,7 +25,8 @@ class WeightController extends Controller
             'hoursPerDay' => $profile->hours_per_day,
         ];
         if (! $user->fyp_mode) {
-            return Inertia::render('weights/edit', $settings);
+            // Personal Velocity keeps its weights in Settings → Tasks.
+            return to_route('task-settings.edit');
         }
 
         $list = $ranking->rank($user);

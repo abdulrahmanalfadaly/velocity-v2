@@ -3,7 +3,7 @@ import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { type User } from '@/types';
 import { Link } from '@inertiajs/react';
-import { LogOut, Settings } from 'lucide-react';
+import { Archive, LogOut, Settings } from 'lucide-react';
 
 interface UserMenuContentProps {
     user: User;
@@ -27,6 +27,15 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                         Settings
                     </Link>
                 </DropdownMenuItem>
+                {/* Deleted and archived things from every section, each with Restore (personal Velocity). */}
+                {!(user as User & { fypMode?: boolean }).fypMode && (
+                    <DropdownMenuItem asChild>
+                        <Link className="block w-full" href="/tasks/archive" as="button" onClick={cleanup}>
+                            <Archive className="mr-2" />
+                            Archive
+                        </Link>
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

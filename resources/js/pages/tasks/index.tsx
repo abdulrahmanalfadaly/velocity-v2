@@ -4,15 +4,17 @@ import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
 import { Board, Timeline } from '@/components/velocity/task-views';
+import { TasksHead } from '@/components/velocity/tasks-head';
+import { type Template, TemplatePick } from '@/components/velocity/template-use';
 import { ThisOrThat } from '@/components/velocity/this-or-that';
 import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { adjustWeights, Clock, CRIT, DEFAULT_WEIGHTS, dueInfo, fmt1, fmtHours, repeatText, rerank, sameWeights } from '@/lib/velocity';
 import type { BaseTask, CriterionKey, FollowUpTask, NotReadyTask, RankedTask, RankingSettings, TaskDetail, VelocityShared } from '@/types/velocity';
-import { router, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-type View = 'upnext' | 'inbox' | 'waiting';
+type View = 'upnext' | 'waiting';
 
 interface Props extends VelocityShared {
     view: View;
@@ -26,11 +28,12 @@ interface Props extends VelocityShared {
     projects: { id: number; name: string }[];
     /** Captured only: the Inbox's To sort, out of the ranking until "Rank it". */
     captured?: BaseTask[];
+    /** Loaded when the template button in "Add a task" is first pressed. */
+    templates?: Template[];
 }
 
 const VIEWS: Record<View, { title: string; href: string }> = {
     upnext: { title: 'Up next', href: '/tasks' },
-    inbox: { title: 'Inbox', href: '/tasks/inbox' },
     waiting: { title: 'Not ready yet', href: '/tasks/waiting' },
 };
 
@@ -45,6 +48,8 @@ type Filter = 'all' | 'today' | 'week' | 'overdue' | 'quick' | 'easy' | 'doing' 
 /** Views of the list: the same ranking (same numbers) with some tasks left out. */
 const FILTERS: [Filter, string, (t: RankedTask, c: Clock) => boolean][] = [
     ['all', 'All', () => true],
+    // Tasks with no project; captured ones waiting to be sorted show above them.
+    ['inbox', 'Inbox', (t) => !t.project],
     ['today', 'Due today', (t, c) => !!t.dueAt && c.dayDiff(t.dueAt) === 0],
     ['week', 'Due this week', (t, c) => !!t.dueAt && c.dayDiff(t.dueAt) <= 7],
     ['overdue', 'Overdue', (t, c) => !!t.dueAt && Date.parse(t.dueAt) < c.now.getTime()],
@@ -53,7 +58,6 @@ const FILTERS: [Filter, string, (t: RankedTask, c: Clock) => boolean][] = [
     ['doing', 'Doing', (t) => t.status === 'doing'],
     ['important', 'Important', (t) => t.importance >= 4],
     ['repeating', 'Repeating', (t) => !!t.repeat],
-    ['inbox', 'No project', (t) => !t.project],
 ];
 
 const KINDS: [NotReadyTask['kind'], string, string][] = [
@@ -66,10 +70,11 @@ const KINDS: [NotReadyTask['kind'], string, string][] = [
 export default function TasksIndex() {
     const { props } = usePage<Props>();
     const view = props.view ?? 'upnext';
-    const inInbox = view === 'inbox';
     const clock = Clock.from(props.clock);
-    // The view comes from the address (?show=today), so it stays after a reload and the Tasks menu can link to it.
+    // The chip comes from the address (?show=today), so it stays after a reload and other pages can link to it.
     const [filter, setFilterState] = useState<Filter>((props.show as Filter) ?? 'all');
+    const inInbox = view === 'upnext' && filter === 'inbox';
+    const captured = props.captured ?? [];
     useEffect(() => setFilterState((props.show as Filter) ?? 'all'), [props.show]);
     const setFilter = (k: Filter) => {
         setFilterState(k);
@@ -128,15 +133,18 @@ export default function TasksIndex() {
     );
 
     // The Inbox is the same ranking with project tasks hidden, so every task keeps its number.
-    const base = inInbox ? list.filter((t) => !t.project) : list;
+    const base = list;
     const followUps = inInbox ? props.followUps.filter((f) => !f.project) : props.followUps;
     const notReady = inInbox ? props.notReady.filter((w) => !w.project) : props.notReady;
     const doneToday = inInbox ? props.doneToday.filter((d) => !d.project) : props.doneToday;
-    const filters = inInbox ? FILTERS.filter((f) => f[0] !== 'inbox') : FILTERS;
-    const fn = FILTERS.find((f) => f[0] === filter)![2];
+    const fn = (FILTERS.find((f) => f[0] === filter) ?? FILTERS[0])[2];
     const shown = base.filter((t) => fn(t, clock));
     const open = (id: number | null) =>
-        router.get(VIEWS[view].href, id ? { task: id } : {}, { preserveState: true, preserveScroll: true, only: ['selected'] });
+        router.get(
+            VIEWS[view].href,
+            { ...(view === 'upnext' && filter !== 'all' ? { show: filter } : {}), ...(id ? { task: id } : {}) },
+            { preserveState: true, preserveScroll: true, only: ['selected'] },
+        );
 
     const pick = (id: number, range: boolean) => {
         const anchor = lastPick.current; // read now: it changes below, before React runs the update
@@ -180,7 +188,7 @@ export default function TasksIndex() {
         <VelocityShell
             title={VIEWS[view].title}
             section="tasks"
-            active={view === 'upnext' && filter !== 'all' ? `show:${filter}` : view}
+            active="tasks"
             panel={
                 props.selected ? (
                     <TaskPanel key={props.selected.id} task={props.selected} clock={clock} projects={props.projects} onClose={() => open(null)} />
@@ -189,77 +197,81 @@ export default function TasksIndex() {
             onEscape={() => (picked ? setPicked(null) : props.selected ? open(null) : undefined)}
         >
             <div className="main-inner">
-                <header className="page-head">
-                    <div>
-                        <p className="eyebrow is-section">Tasks</p>
-                        <h1 className="h1">
-                            {VIEWS[view].title} <span className="count">{view === 'waiting' ? notReady.length : base.length} tasks</span>
-                        </h1>
-                    </div>
-                    {view !== 'waiting' && (
-                        <div className="page-actions">
-                            <div className="layout-seg" role="radiogroup" aria-label="Show as">
-                                {LAYOUTS.map(([k, label, icon]) => (
-                                    <button key={k} role="radio" aria-checked={layout === k} onClick={() => setLayout(k)} title={label}>
-                                        <Icon name={icon} className="ic-sm" />
-                                        <span className="btn-label">{label}</span>
+                <TasksHead
+                    tab={view}
+                    count={view === 'waiting' ? notReady.length : base.length}
+                    actions={
+                        view !== 'waiting' && (
+                            <>
+                                <div className="layout-seg" role="radiogroup" aria-label="Show as">
+                                    {LAYOUTS.map(([k, label, icon]) => (
+                                        <button key={k} role="radio" aria-checked={layout === k} onClick={() => setLayout(k)} title={label}>
+                                            <Icon name={icon} className="ic-sm" />
+                                            <span className="btn-label">{label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="pop-wrap">
+                                    <button
+                                        ref={weightsBtn}
+                                        className="btn btn-secondary"
+                                        aria-expanded={popOpen}
+                                        aria-controls={popOpen ? 'weights-pop' : undefined}
+                                        onClick={() => setPopOpen((o) => !o)}
+                                    >
+                                        <Icon name="sliders" />
+                                        <span className="btn-label">Weights</span>
                                     </button>
-                                ))}
-                            </div>
-                            <div className="pop-wrap">
-                                <button
-                                    ref={weightsBtn}
-                                    className="btn btn-secondary"
-                                    aria-expanded={popOpen}
-                                    aria-controls={popOpen ? 'weights-pop' : undefined}
-                                    onClick={() => setPopOpen((o) => !o)}
-                                >
-                                    <Icon name="sliders" />
-                                    <span className="btn-label">Weights</span>
-                                </button>
-                                {popOpen && (
-                                    <div className="popover" id="weights-pop" role="dialog" aria-label="Weights" ref={weightsPop}>
-                                        <p className="pop-title">Weights</p>
-                                        {CRIT.map((c) => (
-                                            <div className="w-row" key={c.k}>
-                                                <label htmlFor={`w-${c.k}`}>
-                                                    <i className={`sw sw-${c.k}`} />
-                                                    {c.name}
-                                                </label>
-                                                <input
-                                                    type="range"
-                                                    id={`w-${c.k}`}
-                                                    min={0}
-                                                    max={100}
-                                                    value={weights[c.k]}
-                                                    onPointerDown={() => (snapshot.current = weights)}
-                                                    onFocus={() => (snapshot.current = weights)}
-                                                    onChange={(e) => setWeight(c.k, Number(e.target.value))}
-                                                />
-                                                <output htmlFor={`w-${c.k}`}>{weights[c.k]}%</output>
+                                    {popOpen && (
+                                        <div className="popover" id="weights-pop" role="dialog" aria-label="Weights" ref={weightsPop}>
+                                            <p className="pop-title">Weights</p>
+                                            {CRIT.map((c) => (
+                                                <div className="w-row" key={c.k}>
+                                                    <label htmlFor={`w-${c.k}`}>
+                                                        <i className={`sw sw-${c.k}`} />
+                                                        {c.name}
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        id={`w-${c.k}`}
+                                                        min={0}
+                                                        max={100}
+                                                        value={weights[c.k]}
+                                                        onPointerDown={() => (snapshot.current = weights)}
+                                                        onFocus={() => (snapshot.current = weights)}
+                                                        onChange={(e) => setWeight(c.k, Number(e.target.value))}
+                                                    />
+                                                    <output htmlFor={`w-${c.k}`}>{weights[c.k]}%</output>
+                                                </div>
+                                            ))}
+                                            <div className="pop-foot">
+                                                <Link className="link" href="/settings/tasks">
+                                                    More settings
+                                                </Link>
+                                                <button
+                                                    className="link"
+                                                    onClick={() =>
+                                                        router.put(
+                                                            route('weights.update'),
+                                                            { weights: DEFAULT_WEIGHTS },
+                                                            {
+                                                                preserveScroll: true,
+                                                                preserveState: true,
+                                                                only: ['tasks', 'settings', 'selected', 'nav'],
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    Reset
+                                                </button>
                                             </div>
-                                        ))}
-                                        <div className="pop-foot">
-                                            <span />
-                                            <button
-                                                className="link"
-                                                onClick={() =>
-                                                    router.put(
-                                                        route('weights.update'),
-                                                        { weights: DEFAULT_WEIGHTS },
-                                                        { preserveScroll: true, preserveState: true, only: ['tasks', 'settings', 'selected', 'nav'] },
-                                                    )
-                                                }
-                                            >
-                                                Reset
-                                            </button>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </header>
+                                    )}
+                                </div>
+                            </>
+                        )
+                    }
+                />
 
                 {view === 'waiting' ? (
                     <>
@@ -374,13 +386,13 @@ export default function TasksIndex() {
                     </>
                 ) : (
                     <>
-                        {inInbox && (props.captured ?? []).length > 0 && (
+                        {inInbox && captured.length > 0 && (
                             <details className="section-fold to-sort" open>
                                 <summary>
                                     <Icon name="chevR" className="chev" />
-                                    To sort <span className="hint">· {props.captured!.length} · not ranked yet</span>
+                                    To sort <span className="hint">· {captured.length} · not ranked yet</span>
                                 </summary>
-                                {props.captured!.map((c) => (
+                                {captured.map((c) => (
                                     <div
                                         className={`fold-row is-link${props.selected?.id === c.id ? ' is-selected' : ''}`}
                                         key={c.id}
@@ -424,28 +436,33 @@ export default function TasksIndex() {
                             </details>
                         )}
                         <div className="toolbar">
-                            <form
-                                className="add-row"
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    // Clear the box first, so a fast second Enter can't add the task twice.
-                                    if (!text.trim()) return;
-                                    setText('');
-                                    router.post(
-                                        route('tasks.store'),
-                                        { text },
-                                        { preserveScroll: true, preserveState: true, onError: () => setText(text) },
-                                    );
-                                }}
-                            >
-                                <Icon name="plus" />
-                                <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a task" aria-label="Add a task" />
-                                <kbd>Enter</kbd>
-                            </form>
+                            <div className="add-row">
+                                <form
+                                    className="add-row-form"
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        // Clear the box first, so a fast second Enter can't add the task twice.
+                                        if (!text.trim()) return;
+                                        setText('');
+                                        router.post(
+                                            route('tasks.store'),
+                                            { text },
+                                            { preserveScroll: true, preserveState: true, onError: () => setText(text) },
+                                        );
+                                    }}
+                                >
+                                    <Icon name="plus" />
+                                    <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a task" aria-label="Add a task" />
+                                    <kbd>Enter</kbd>
+                                </form>
+                                {/* Outside the form: its dialog has a form of its own. */}
+                                <TemplatePick templates={props.templates} projects={props.projects} />
+                            </div>
                             <div className="filters" role="group" aria-label="Show">
-                                {filters.map(([k, label, f]) => (
+                                {FILTERS.map(([k, label, f]) => (
                                     <button key={k} className="filter" aria-pressed={filter === k} onClick={() => setFilter(k)}>
-                                        {label} <span className="n">{base.filter((t) => f(t, clock)).length}</span>
+                                        {label}{' '}
+                                        <span className="n">{base.filter((t) => f(t, clock)).length + (k === 'inbox' ? captured.length : 0)}</span>
                                     </button>
                                 ))}
                                 {layout === 'list' && (
