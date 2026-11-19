@@ -21,7 +21,7 @@ export interface MapNote {
 export interface MapProject {
     id: number;
     name: string;
-    /** It serves this goal besides its main one: shown here too, counted once. */
+    /** It serves this goal besides its main one: drawn once, under the main goal, with a dashed line from this one. */
     also?: boolean;
     done: number;
     total: number;
@@ -255,8 +255,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                   ? 'overdue'
                   : 'open';
     const orderOf = (t: MapTask) => (t.kind === 'ranked' ? t.rank : t.kind === 'done' ? 10000 + t.id : 5000 + t.id);
-    // `pre` keeps node ids apart when a project shows under more than one goal.
-    function taskNodes(tasks: MapTask[], hue: number, pre = ''): TaskNode[] {
+    function taskNodes(tasks: MapTask[], hue: number): TaskNode[] {
         const byParent = new Map<number, MapTask[]>();
         const ids = new Set(tasks.map((t) => t.id));
         tasks.forEach((t) => {
@@ -265,42 +264,51 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             byParent.get(key)!.push(t);
         });
         const build = (t: MapTask): TaskNode => {
-            const steps = (t.steps || []).map((s) => make('step', { id: `${pre}s${s.id}`, stepId: s.id, title: s.title, done: s.done, hue }));
+            const steps = (t.steps || []).map((s) => make('step', { id: `s${s.id}`, stepId: s.id, title: s.title, done: s.done, hue }));
             const kids = (byParent.get(t.id) || []).sort((a, b) => orderOf(a) - orderOf(b)).map(build);
             const n = make(
                 'task',
                 {
-                    id: `${pre}t${t.id}`,
+                    id: `t${t.id}`,
                     title: t.title,
                     task: t,
                     state: stateOf(t),
                     hue,
                     rank: t.kind === 'ranked' ? t.rank : null,
-                    open: t.id === data.nextId && !pre,
+                    open: t.id === data.nextId,
                 },
                 [...steps, ...kids],
             );
-            if (t.id === data.nextId && !pre) NEXT = n;
+            if (t.id === data.nextId) NEXT = n;
             return n;
         };
         return (byParent.get(0) || []).sort((a, b) => orderOf(a) - orderOf(b)).map(build);
     }
     const root = make('root', { id: 'root', title: 'You' });
+    // A project that serves several goals is drawn once, under its main goal. Each other goal it serves gets a
+    // dashed line to it (see `shared` below) and counts it as its own.
+    const home = new Set(data.goals.flatMap((g) => g.projects.filter((p) => !p.also).map((p) => p.id)));
+    const built = new Set<number>();
+    const sharedFrom: [number, number][] = []; // [goal id, project id]
     data.goals.forEach((g) => {
-        const projects = g.projects.map((p) => {
-            // A project that serves several goals shows under each; its places besides the first get their own ids.
-            const pre = p.also ? `g${g.id}:` : '';
-            const kids: MapNode[] = taskNodes(p.tasks, g.color, pre);
+        const mine = g.projects.filter((p) => {
+            if (built.has(p.id) || (p.also && home.has(p.id))) {
+                sharedFrom.push([g.id, p.id]);
+                return false;
+            }
+            built.add(p.id);
+            return true;
+        });
+        const projects = mine.map((p) => {
+            const kids: MapNode[] = taskNodes(p.tasks, g.color);
             // A note can be in more than one project, so its id says which.
             p.notes.forEach((nt) =>
-                kids.push(
-                    make('note', { id: `${pre}p${p.id}n${nt.id}`, noteId: nt.id, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id }),
-                ),
+                kids.push(make('note', { id: `p${p.id}n${nt.id}`, noteId: nt.id, title: nt.title, when: nt.updatedAt, hue: g.color, pid: p.id })),
             );
             p.habits.forEach((h) =>
                 kids.push(
                     make('habit', {
-                        id: `${pre}h${h.id}`,
+                        id: `h${h.id}`,
                         habitId: h.id,
                         title: h.name,
                         streak: h.streak,
@@ -310,7 +318,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                     }),
                 ),
             );
-            return make('project', { id: `${pre}p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
+            return make('project', { id: `p${p.id}`, title: p.name, pid: p.id, hue: g.color, stats: { done: p.done, total: p.total } }, kids);
         });
         const habits = (g.habits ?? []).map((h) =>
             make('habit', { id: `g${g.id}h${h.id}`, habitId: h.id, title: h.name, streak: h.streak, today: h.doneToday, hue: g.color, pid: 0 }),
@@ -325,20 +333,33 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         n.depth = depth;
         n.children.forEach((c) => link(c, n, depth + 1));
     })(root, null, 0);
+    // Goal node id → the projects it serves that are drawn under another goal; project node id → those goals.
+    const shared = new Map<string, ProjectNode[]>();
+    const sharedBy = new Map<string, GoalNode[]>();
+    sharedFrom.forEach(([gid, pid]) => {
+        const g = nodes.get(`g${gid}`);
+        const p = nodes.get(`p${pid}`);
+        if (g?.type !== 'goal' || p?.type !== 'project' || p.parent === g) return;
+        shared.set(g.id, [...(shared.get(g.id) ?? []), p]);
+        sharedBy.set(p.id, [...(sharedBy.get(p.id) ?? []), g]);
+    });
+    const linkId = (g: MapNode, p: MapNode) => `${g.id}>${p.id}`;
 
     function tally(n: MapNode) {
         let done = 0;
         let total = 0;
-        // A project in two goals has its tasks on the map twice: count each task once.
+        // A goal counts the projects it shares with another goal too; each task once.
         const seen = new Set<number>();
-        (function walk(m: MapNode) {
+        const walk = (m: MapNode) => {
             if (m.type === 'task' && !seen.has(m.task.id)) {
                 seen.add(m.task.id);
                 total += 1;
                 if (m.state === 'done') done += 1;
             }
             m.children.forEach(walk);
-        })(n);
+        };
+        walk(n);
+        if (n.type === 'goal') shared.get(n.id)?.forEach(walk);
         if (n.type === 'project' && n.stats) {
             done = n.stats.done;
             total = n.stats.total;
@@ -393,18 +414,38 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     function layout() {
         root.kids = kidsOf(root);
         root.kids.forEach(measure);
-        const side: Record<'L' | 'R', MapNode[]> = { L: [], R: [] };
+        // Goals that share a project go on the same side, next to each other, so the line between them stays short.
+        const up = new Map<MapNode, MapNode>(root.kids.map((g) => [g, g]));
+        const find = (n: MapNode): MapNode => (up.get(n) === n ? n : find(up.get(n)!));
+        shared.forEach((ps, gid) =>
+            ps.forEach((p) => {
+                const g = nodes.get(gid)!;
+                if (p.parent && up.has(g) && up.has(p.parent)) up.set(find(g), find(p.parent));
+            }),
+        );
+        const groups = new Map<MapNode, MapNode[]>();
+        root.kids.forEach((g) => groups.set(find(g), [...(groups.get(find(g)) ?? []), g]));
+        const side: Record<'L' | 'R', MapNode[][]> = { L: [], R: [] };
         const used = { L: 0, R: 0 };
-        root.kids
-            .slice()
+        [...groups.values()]
+            .map((gs) => ({ gs, H: gs.reduce((t, g) => t + g.H + GAP.goal, 0) }))
             .sort((a, b) => b.H - a.H)
-            .forEach((g) => {
+            .forEach(({ gs, H }) => {
                 const s = used.R <= used.L ? 'R' : 'L';
-                side[s].push(g);
-                used[s] += g.H + GAP.goal;
+                side[s].push(gs);
+                used[s] += H;
             });
         (['L', 'R'] as const).forEach((s) => {
-            const arr = side[s].sort((a, b) => root.kids.indexOf(a) - root.kids.indexOf(b));
+            const at = (g: MapNode) => root.kids.indexOf(g);
+            const arr = side[s].sort((a, b) => Math.min(...a.map(at)) - Math.min(...b.map(at))).flatMap((gs) => gs.sort((a, b) => at(a) - at(b)));
+            // A shared project sits at the end of its goal nearest the other goal.
+            arr.forEach((g, i) => {
+                const toward = (p: MapNode) => {
+                    const js = (sharedBy.get(p.id) ?? []).map((o) => arr.indexOf(o)).filter((j) => j >= 0);
+                    return js.length ? (js.reduce((t, j) => t + j, 0) / js.length < i ? -1 : 1) : 0;
+                };
+                if (g.kids.some((k) => sharedBy.has(k.id))) g.kids = [...g.kids].sort((a, b) => toward(a) - toward(b));
+            });
             const total = arr.reduce((t, g, i) => t + g.H + (i ? GAP[g.type] : 0), 0);
             let y = -total / 2;
             arr.forEach((g, i) => {
@@ -571,7 +612,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             case 'goal': {
                 const t = tally(n);
                 const status = GOAL_STATUS[n.goal.status ?? 'active'];
-                return `<span class="gdot">${ic(n.goal.icon || 'target')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${count(n, 'project')} projects${status ? ` · ${status}` : ''}${goalBy(n.goal) ? ` · ${goalBy(n.goal)}` : ''}</div></div><span class="mn-pct">${progressRing(t.pct, 44, 4)}<span>${t.pct}%</span></span>${knob(n)}`;
+                return `<span class="gdot">${ic(n.goal.icon || 'target')}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${count(n, 'project') + (shared.get(n.id)?.length ?? 0)} projects${status ? ` · ${status}` : ''}${goalBy(n.goal) ? ` · ${goalBy(n.goal)}` : ''}</div></div><span class="mn-pct">${progressRing(t.pct, 44, 4)}<span>${t.pct}%</span></span>${knob(n)}`;
             }
             case 'inbox':
                 return `<span class="pdot">${ic('inbox')}</span><div class="mn-body"><div class="mn-title">Inbox</div><div class="mn-meta">${n.children.length} tasks not in a project yet</div></div>${knob(n)}`;
@@ -688,6 +729,20 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 const [w0, w1] = WIDTH[Math.min(c.depth, 5)];
                 out += `<path class="${cls}" data-c="${c.id}" d="${ribbon(Pt, w0, w1)}"/>`;
             }
+        });
+        // A project's other goals: a dashed line from each of them to it.
+        shared.forEach((ps, gid) => {
+            const g = nodes.get(gid)!;
+            if (!g.vis || !g.open) return;
+            ps.forEach((p) => {
+                if (!p.vis || p.side !== g.side) return;
+                const s = p.side;
+                const x0 = s > 0 ? g.x + g.w : g.x;
+                const x1 = s > 0 ? p.x : p.x + p.w;
+                const k = Math.abs(x1 - x0) * 0.56;
+                const id = linkId(g, p);
+                out += `<path class="lnk-also h${g.hue}${lit && lit.has(id) ? ' is-lit' : ''}" data-c="${id}" d="${curve([x0, g.cy, x0 + s * k, g.cy, x1 - s * k, p.cy, x1, p.cy])}"/>`;
+            });
         });
         linksG.innerHTML = out;
     }
@@ -866,7 +921,9 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         applyCam();
     }
     const fitAll = (ms?: number) => flyTo(frameFor(VIS, 48, 1), ms);
-    const focusOn = (n: MapNode, ms?: number) => flyTo(frameFor(subtree(n), 80, n.type === 'task' || n.type === 'step' ? 1.25 : 1.1), ms);
+    // A goal's frame takes in the projects it shares with another goal too (when they are on the map).
+    const framed = (n: MapNode) => (n.type === 'goal' ? [...subtree(n), ...(shared.get(n.id) ?? []).filter((p) => p.vis)] : subtree(n));
+    const focusOn = (n: MapNode, ms?: number) => flyTo(frameFor(framed(n), 80, n.type === 'task' || n.type === 'step' ? 1.25 : 1.1), ms);
 
     /* --------------------------------------------- relayout with animation */
     let layoutRaf = 0;
@@ -919,13 +976,25 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     /* --------------------------------------------------- focus and selection */
     function family(n: MapNode) {
         const s = new Set([n.id]);
-        for (let p = n.parent; p; p = p.parent) s.add(p.id);
-        (function down(m: MapNode) {
+        const down = (m: MapNode) =>
             (m.kids || []).forEach((c) => {
                 s.add(c.id);
                 down(c);
             });
-        })(n);
+        // Up to you, and to every other goal a shared project on the way serves.
+        for (let p: MapNode | null = n; p; p = p.parent) {
+            s.add(p.id);
+            const q = p;
+            (sharedBy.get(q.id) ?? []).forEach((g) => (s.add(g.id), s.add(linkId(g, q))));
+        }
+        down(n);
+        // A goal: the projects it shares with another goal too.
+        if (n.type === 'goal')
+            (shared.get(n.id) ?? []).forEach((p) => {
+                s.add(p.id);
+                s.add(linkId(n, p));
+                down(p);
+            });
         return s;
     }
     function setLit(set: Set<string> | null) {
@@ -1006,8 +1075,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                           : `${t.done} of ${t.total} tasks done`
                 }</b><span>${[GOAL_STATUS[n.goal.status ?? 'active'], goalBy(n.goal)].filter(Boolean).join(' · ')}</span></div></div>
                 <h3 class="p-section-title gp-h">Projects</h3>
-                <div class="gp-projects">${n.children
-                    .filter((p): p is ProjectNode => p.type === 'project')
+                <div class="gp-projects">${[...n.children.filter((p): p is ProjectNode => p.type === 'project'), ...(shared.get(n.id) ?? [])]
                     .map((p) => {
                         const pt = tally(p);
                         const next = p.children.find(isRanked);
@@ -1106,6 +1174,12 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 );
             }
             n.children.forEach((c) => walk(c, lv + 1));
+            if (n.type === 'goal')
+                (shared.get(n.id) ?? []).forEach((p) =>
+                    rows.push(
+                        `<button class="go-row go-project go-also h${n.hue}" data-go="${p.id}" style="--lv:${lv}" role="treeitem" aria-level="${lv + 1}"><span class="pdot">${ic('folder')}</span><span class="go-title">${esc(p.title)}</span><span class="go-meta">Under “${esc(p.parent?.title ?? '')}”</span></button>`,
+                    ),
+                );
         })(root, 0);
         outline.innerHTML = `<div class="go-wrap"><div class="go-list" role="tree" aria-label="Goals, projects, tasks and steps">${rows.join('')}</div></div>`;
     }

@@ -999,6 +999,12 @@ select.input { padding-right: 8px; }
 .lnk-soft { fill: none !important; stroke-width: 1.6; stroke-dasharray: 2 5; stroke-linecap: round; }
 .lnk-soft.h0 { stroke: var(--goal-0); } .lnk-soft.h1 { stroke: var(--goal-1); } .lnk-soft.h2 { stroke: var(--goal-2); } .lnk-soft.h3 { stroke: var(--goal-3); }
 .gm.has-lit .lnk:not(.is-lit) { opacity: 0.14; }
+/* A project that serves another goal too: a dashed line from that goal to it (the project is drawn once). */
+.lnk-also { fill: none; stroke-width: 2; stroke-dasharray: 7 6; stroke-linecap: round; stroke-opacity: 0.7; transition: opacity .25s; }
+.lnk-also.h0 { stroke: var(--goal-0); } .lnk-also.h1 { stroke: var(--goal-1); } .lnk-also.h2 { stroke: var(--goal-2); } .lnk-also.h3 { stroke: var(--goal-3); }
+.lnk-also.is-lit { stroke-opacity: 1; }
+.gm.has-lit .lnk-also:not(.is-lit) { opacity: 0.14; }
+.go-also .go-title { color: var(--text-2); }
 .gm.has-lit .gm-next, .gm.has-lit .gm-next-glow { opacity: 0.35; }
 .gm-next { fill: none; stroke: var(--violet); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transition: opacity .25s; }
 .gm-next-glow { fill: none; stroke: var(--violet); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; opacity: 0.22; filter: blur(5px); transition: opacity .25s; }
