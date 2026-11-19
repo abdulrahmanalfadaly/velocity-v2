@@ -20,7 +20,7 @@ class AccountTransferTest extends TestCase
     use RefreshDatabase;
 
     private const TABLES = [
-        'areas', 'goals', 'projects', 'milestones', 'goal_project', 'tasks', 'task_steps', 'task_dependencies', 'task_files', 'events',
+        'areas', 'goals', 'projects', 'milestones', 'goal_project', 'tasks', 'task_steps', 'task_dependencies', 'task_logs', 'task_files', 'events',
         'notes', 'note_files', 'note_task', 'habits', 'habit_entries', 'goal_habit', 'note_links', 'people', 'person_contacts', 'person_memories',
         'person_task', 'planner_blocks', 'focus_sessions',
     ];
@@ -52,7 +52,8 @@ class AccountTransferTest extends TestCase
         $sec->dependencies()->attach($survey->id);
         $ch->steps()->create(['title' => 'Outline', 'position' => 1]);
         Storage::disk('local')->put("task-files/{$u->id}/a.pdf", 'PDF');
-        $ch->files()->create(['user_id' => $u->id, 'name' => 'draft.pdf', 'path' => "task-files/{$u->id}/a.pdf", 'mime' => 'application/pdf', 'size' => 3]);
+        $log = $ch->logs()->create(['user_id' => $u->id, 'body' => 'Sent the draft']);
+        $ch->files()->create(['user_id' => $u->id, 'log_id' => $log->id, 'name' => 'draft.pdf', 'path' => "task-files/{$u->id}/a.pdf", 'mime' => 'application/pdf', 'size' => 3]);
         $note = $u->notes()->create(['title' => 'Survey method', 'body' => '<p>x</p>', 'project_id' => $fyp->id]);
         Storage::disk('local')->put("note-files/{$u->id}/p.png", 'PNG');
         $pic = $note->files()->create(['user_id' => $u->id, 'name' => 'chart.png', 'path' => "note-files/{$u->id}/p.png", 'mime' => 'image/png', 'size' => 3, 'inline' => true]);
@@ -126,6 +127,9 @@ class AccountTransferTest extends TestCase
         $this->assertSame(['Dr. Lim Wei'], $ch->people->pluck('name')->all());
         $this->assertSame('PDF', Storage::disk('local')->get($ch->files()->sole()->path));
         $this->assertStringStartsWith("task-files/{$b->id}/", $ch->files()->sole()->path);
+        // The file is still on its log entry.
+        $this->assertSame('Sent the draft', $ch->logs()->sole()->body);
+        $this->assertSame($ch->logs()->sole()->id, $ch->files()->sole()->log_id);
         // The picture and the link inside the note point at the new ones.
         $note = Note::where('user_id', $b->id)->sole();
         $pic = $note->files()->sole();

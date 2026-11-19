@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
-/** A file attached to a task. Removed files are kept (soft-deleted) so the removal can be undone. */
+/** A file attached to a task (log_id: on one of its log entries). Removed files are kept (soft-deleted) so the removal can be undone. */
 class TaskFile extends Model
 {
     use SoftDeletes;
@@ -15,7 +15,7 @@ class TaskFile extends Model
     /** Types a browser can show safely in a tab. Everything else is downloaded instead of opened. */
     public const INLINE = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
 
-    protected $fillable = ['user_id', 'task_id', 'name', 'path', 'mime', 'size'];
+    protected $fillable = ['user_id', 'task_id', 'log_id', 'name', 'path', 'mime', 'size'];
 
     protected function casts(): array
     {

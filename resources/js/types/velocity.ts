@@ -97,7 +97,10 @@ export type TaskDetail = BaseTask &
         /** Its history in plain words, newest first. */
         activity?: { text: string; at: string | null; via: string | null }[];
         candidates: { id: number; title: string }[];
+        /** The task's own files (files on a log entry are with the entry). */
         files: TaskFileInfo[];
+        /** Its log: entries the user wrote, newest first, each with its files. */
+        logs?: TaskLogInfo[];
         reminders: TaskReminderInfo[];
         /** Notes linked to the task (Notes › Link task, or New note here). */
         linkedNotes?: { id: number; title: string; quote?: string | null }[];
@@ -133,6 +136,15 @@ export interface TaskReminderInfo {
     atTime: string | null;
     everyMinutes: number | null;
     nextAt: string | null;
+}
+
+/** One entry in a task's log: what the user wrote, when, and the files on it. */
+export interface TaskLogInfo {
+    id: number;
+    body: string | null;
+    at: string | null;
+    edited: boolean;
+    files: TaskFileInfo[];
 }
 
 export interface TaskFileInfo {

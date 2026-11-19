@@ -29,6 +29,7 @@ use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskFileController;
+use App\Http\Controllers\TaskLogController;
 use App\Http\Controllers\TaskStepController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\WeightController;
@@ -81,6 +82,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('files/{file}', [TaskFileController::class, 'show'])->name('files.show');
         Route::delete('files/{file}', [TaskFileController::class, 'destroy'])->name('files.destroy');
         Route::post('files/{id}/restore', [TaskFileController::class, 'restore'])->whereNumber('id')->name('files.restore');
+        Route::post('tasks/{task}/logs', [TaskLogController::class, 'store'])->name('logs.store');
+        Route::patch('logs/{log}', [TaskLogController::class, 'update'])->name('logs.update');
+        Route::delete('logs/{log}', [TaskLogController::class, 'destroy'])->name('logs.destroy');
+        Route::post('logs/{id}/restore', [TaskLogController::class, 'restore'])->whereNumber('id')->name('logs.restore');
         Route::post('projects/{project}/files', [ProjectFileController::class, 'store'])->name('project-files.store');
         Route::post('projects/{project}/files/remove', [ProjectFileController::class, 'removeMany'])->name('project-files.remove-many');
         Route::get('project-files/{file}', [ProjectFileController::class, 'show'])->name('project-files.show');

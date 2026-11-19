@@ -28,6 +28,7 @@ const UNDO: Record<string, { method: 'post' | 'patch' | 'put' | 'delete'; route:
     'bulk-undo': { method: 'post', route: 'tasks.bulk-undo' },
     'restore-step': { method: 'post', route: 'steps.restore' },
     'restore-file': { method: 'post', route: 'files.restore' },
+    'restore-log': { method: 'post', route: 'logs.restore' },
     'focus-cancel': { method: 'post', route: 'focus.cancel' },
     'focus-restore': { method: 'post', route: 'focus.restore' },
     'delete-event': { method: 'delete', route: 'events.destroy' },

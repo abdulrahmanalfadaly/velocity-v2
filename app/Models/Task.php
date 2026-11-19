@@ -123,6 +123,12 @@ class Task extends Model
         return $this->hasMany(TaskFile::class)->latest('id');
     }
 
+    /** Its log: entries the user wrote about it, newest first. */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(TaskLog::class)->latest('created_at')->latest('id');
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(TaskEvent::class)->latest('created_at')->latest('id'); // newest first, also within one second

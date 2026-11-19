@@ -1,20 +1,51 @@
 import { Clock } from '@/lib/velocity';
-import type { TaskFileInfo, VelocityShared } from '@/types/velocity';
-import { Link, router, usePage } from '@inertiajs/react';
-import { type DragEvent, useEffect, useRef, useState } from 'react';
+import type { TaskFileInfo } from '@/types/velocity';
+import { Link, router } from '@inertiajs/react';
+import { type DragEvent, useRef, useState } from 'react';
 import { Icon } from './icon';
 
 const MAX = 20 * 1024 * 1024; // 20 MB, the same limit as the server
 
+/** A drag that carries files (not a task card or text). */
+export const hasFiles = (e: { dataTransfer: DataTransfer | null }) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+
+/** Why these files can't be sent ("bigger than 20 MB"), or null when they can. */
+export const tooBig = (list: File[]) => {
+    const big = list.find((f) => f.size > MAX);
+    return big ? `“${big.name}” is bigger than 20 MB.` : null;
+};
+
+/** Attaches files to a task (at most 10 at a time), or to one of its log entries. */
+export function attachFiles(taskId: number, list: File[], opts: { logId?: number; onError: (message: string) => void; onFinish?: () => void }) {
+    const picked = list.slice(0, 10);
+    const big = tooBig(picked);
+    if (!picked.length || big) {
+        if (big) opts.onError(big);
+        opts.onFinish?.();
+        return;
+    }
+    router.post(
+        route('files.store', taskId),
+        { files: picked, ...(opts.logId ? { log_id: opts.logId } : {}) },
+        {
+            forceFormData: true,
+            preserveScroll: true,
+            preserveState: true,
+            onError: (e) => opts.onError(Object.values(e)[0] ?? 'That file could not be attached.'),
+            onFinish: opts.onFinish,
+        },
+    );
+}
+
 export const fileSize = (b: number) => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
 
-/** The task panel's Files: attach (button, drag in, or paste), open, download, remove. */
+/** The task panel's Files: attach (button, drag in, or paste; the panel takes drops and pastes anywhere), open, download, remove. */
 export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileInfo[] }) {
     return <FileBox storeUrl={route('files.store', taskId)} removeRoute="files.destroy" files={files} paste />;
 }
 
 /** A pasted screenshot is called "image.png"; give it a name that says when (in the user's own time). */
-function pastedName(f: File, clock: Clock): File {
+export function pastedName(f: File, clock: Clock): File {
     if (f.name && f.name !== 'image.png') return f;
     const stamp = clock.localInput(new Date().toISOString()).replace('T', ' ').replace(':', '.');
     return new File([f], `Pasted ${stamp}.${f.type.split('/')[1] || 'png'}`, { type: f.type });
@@ -41,21 +72,6 @@ export function FileBox({
     const [over, setOver] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const clock = Clock.from(usePage<VelocityShared>().props.clock);
-
-    // Paste a file or a screenshot while the panel is open (not into another box).
-    useEffect(() => {
-        if (!paste) return;
-        const onPaste = (e: ClipboardEvent) => {
-            const list = [...(e.clipboardData?.files ?? [])];
-            const target = e.target as Element | null;
-            if (!list.length || !(target === document.body || target?.closest?.('.panel'))) return;
-            e.preventDefault();
-            upload(list.map((f) => pastedName(f, clock)));
-        };
-        document.addEventListener('paste', onPaste);
-        return () => document.removeEventListener('paste', onPaste);
-    });
 
     const upload = (list: FileList | File[] | null) => {
         if (!list?.length) return;
@@ -90,6 +106,7 @@ export function FileBox({
 
     return (
         <section
+            data-drop
             className={`p-section p-files${over ? ' is-over' : ''}`}
             onDragOver={(e) => drag(e, true)}
             onDragEnter={(e) => drag(e, true)}

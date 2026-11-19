@@ -4,13 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskFile;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/** Files on tasks: attach, open, remove (with undo). Only the owner can reach them. */
+/** Files on tasks (the task's own, or on one of its log entries): attach, open, remove (with undo). Only the owner can reach them. */
 class TaskFileController extends Controller
 {
     public const MAX_KB = 20480; // 20 MB a file
@@ -22,24 +24,36 @@ class TaskFileController extends Controller
         $request->validate([
             'files' => ['required', 'array', 'min:1', 'max:10'],
             'files.*' => ['file', 'max:'.self::MAX_KB],
+            'log_id' => ['nullable', 'integer'],
         ], ['files.*.max' => 'Each file can be up to 20 MB.'], ['files.*' => 'file']);
+        // On one of the task's log entries, or the task's own.
+        $logId = $request->integer('log_id') ?: null;
+        abort_if($logId && ! $task->logs()->whereKey($logId)->exists(), 404);
 
         $added = [];
         foreach ($request->file('files') as $upload) {
-            $ext = strtolower($upload->getClientOriginalExtension());
-            $path = $upload->storeAs("task-files/{$user->id}", Str::uuid().($ext !== '' ? ".{$ext}" : ''), 'local');
-            $added[] = $task->files()->create([
-                'user_id' => $user->id,
-                'name' => Str::limit($upload->getClientOriginalName(), 250, ''),
-                'path' => $path,
-                'mime' => $upload->getMimeType() ?: 'application/octet-stream',
-                'size' => $upload->getSize(),
-            ]);
+            $added[] = self::keep($task, $user, $upload, $logId);
         }
         $n = count($added);
         $toast = $n === 1 ? "Attached “{$added[0]->name}”" : "Attached {$n} files";
 
         return back()->with('toast', $toast)->with('undo', $this->undo('remove-files', $task->id, ['ids' => array_map(fn ($f) => $f->id, $added)]));
+    }
+
+    /** Stores an uploaded file privately and records it on the task (and the log entry, if given). */
+    public static function keep(Task $task, User $user, UploadedFile $upload, ?int $logId = null): TaskFile
+    {
+        $ext = strtolower($upload->getClientOriginalExtension());
+        $path = $upload->storeAs("task-files/{$user->id}", Str::uuid().($ext !== '' ? ".{$ext}" : ''), 'local');
+
+        return $task->files()->create([
+            'user_id' => $user->id,
+            'log_id' => $logId,
+            'name' => Str::limit($upload->getClientOriginalName(), 250, ''),
+            'path' => $path,
+            'mime' => $upload->getMimeType() ?: 'application/octet-stream',
+            'size' => $upload->getSize(),
+        ]);
     }
 
     /** Opens the file in the browser if that is safe (pictures, PDF, plain text), otherwise downloads it. */

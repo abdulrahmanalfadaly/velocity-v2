@@ -737,6 +737,18 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
 - [x] Templates: a button in Up next's "Add a task" (pick one, or "Manage
       templates"); Archive in the account menu; History removed (it is
       Review › 12 weeks)
+- [x] Task panel, top to bottom (20 Nov): the title and status; Waiting for
+      and Follow up; Ranking (Importance, Urgency, Due, Work, Energy);
+      Subtasks; Steps; then groups that open and close, remembered on the
+      device: Schedule (Can start, Starts after, Blocks, Repeats,
+      Reminders), Details (Project, Goal, People, Notes, GitHub, Files),
+      Log, History (Focused, Via, Activity; closed at first). A closed
+      group shows what is set in it
+- [x] The Log: entries the user writes about the task, each with files;
+      edit, delete with Undo (`task_logs`, `task_files.log_id`). A file
+      dropped or pasted anywhere while a task is open goes on the task
+      (on an entry when dropped on it, or on the new one when dropped or
+      pasted into its box)
 - [ ] The other sections' side menus (Planner, Notes, Habits, People,
       Review), when the user gives their changes
 

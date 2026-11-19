@@ -1,7 +1,7 @@
 import { Clock, fmt1, fmtHours, goalVar, LEVEL, REPEAT_CHOICES, repeatText } from '@/lib/velocity';
 import type { RankedTask, RepeatRule, TaskDetail, TaskReminderInfo, VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { StartFocus } from './focus';
 import { Modal } from './forms';
@@ -10,7 +10,8 @@ import { Icon } from './icon';
 import { Picker } from './pick';
 import { askToNotify, notifyState } from './reminders';
 import { Select } from './select';
-import { TaskFiles } from './task-files';
+import { attachFiles, hasFiles, pastedName, TaskFiles } from './task-files';
+import { TaskLog } from './task-log';
 import { Check, Dots } from './ui';
 
 type Value = string | number | boolean | null | number[];
@@ -27,6 +28,117 @@ const VIA_WORD: Record<string, string> = {
     deleted: 'deleted',
     restored: 'restored',
 };
+
+/** Which of the panel's groups are open, remembered on this device for every task (History starts closed). */
+const GROUPS_KEY = 'velocity.taskGroups';
+const GROUPS_OPEN: Record<string, boolean> = { schedule: true, details: true, log: true, history: false };
+function useGroups() {
+    const [open, setOpen] = useState<Record<string, boolean>>(() => {
+        try {
+            return { ...GROUPS_OPEN, ...JSON.parse(localStorage.getItem(GROUPS_KEY) ?? '{}') };
+        } catch {
+            return GROUPS_OPEN;
+        }
+    });
+    const toggle = (id: string) =>
+        setOpen((o) => {
+            const next = { ...o, [id]: !o[id] };
+            localStorage.setItem(GROUPS_KEY, JSON.stringify(next));
+            return next;
+        });
+    return [open, toggle] as const;
+}
+
+/** A group in the panel: its name opens or closes it; closed, a short line says what is set in it. */
+function PGroup({
+    id,
+    title,
+    summary,
+    open,
+    onToggle,
+    children,
+}: {
+    id: string;
+    title: string;
+    summary: string;
+    open: boolean;
+    onToggle: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <section className={`p-group${open ? ' is-open' : ''}`}>
+            <button type="button" className="p-group-head" aria-expanded={open} aria-controls={`pg-${id}`} onClick={onToggle}>
+                <Icon name="chevR" className="ic-sm p-group-chev" />
+                <span className="p-group-title">{title}</span>
+                {!open && summary && <span className="p-group-sum">{summary}</span>}
+            </button>
+            {/* Kept on the page while closed, so what is typed in it isn't lost. */}
+            <div id={`pg-${id}`} className="p-group-body" hidden={!open}>
+                {children}
+            </div>
+        </section>
+    );
+}
+
+/**
+ * While a task is open, a file dropped or pasted anywhere on the page is attached to it (a box that takes
+ * files itself, like the log, gets it instead). Text pasted into a text box stays text.
+ */
+function useAttachAnywhere(taskId: number, clock: Clock) {
+    const [over, setOver] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const clockRef = useRef(clock);
+    clockRef.current = clock;
+    useEffect(() => {
+        let timer = 0;
+        const send = (list: File[]) => {
+            setError(null);
+            attachFiles(taskId, list, { onError: setError });
+        };
+        const onOver = (e: DragEvent) => {
+            if (!hasFiles(e)) return;
+            e.preventDefault(); // dropping is allowed anywhere
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+            // Over a box that takes files itself, that box lights up instead.
+            setOver(!(e.target instanceof Element && e.target.closest('[data-drop]')));
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => setOver(false), 250);
+        };
+        const onDrop = (e: DragEvent) => {
+            if (!hasFiles(e)) return;
+            window.clearTimeout(timer);
+            setOver(false);
+            if (e.defaultPrevented) return; // a box took it
+            e.preventDefault();
+            send([...e.dataTransfer!.files]);
+        };
+        const onPaste = (e: ClipboardEvent) => {
+            const list = [...(e.clipboardData?.files ?? [])];
+            if (e.defaultPrevented || !list.length) return;
+            // Text copied from Word and the like comes with a picture of it: into a text box it goes in as text.
+            const typing = e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]');
+            if (typing && e.clipboardData?.types.includes('text/plain')) return;
+            e.preventDefault();
+            send(list.map((f) => pastedName(f, clockRef.current)));
+        };
+        window.addEventListener('dragover', onOver);
+        window.addEventListener('drop', onDrop);
+        document.addEventListener('paste', onPaste);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener('dragover', onOver);
+            window.removeEventListener('drop', onDrop);
+            document.removeEventListener('paste', onPaste);
+        };
+    }, [taskId]);
+    // A message about a file that couldn't go goes away by itself.
+    useEffect(() => {
+        if (!error) return;
+        const t = setTimeout(() => setError(null), 6000);
+        return () => clearTimeout(t);
+    }, [error]);
+    return [over, error] as const;
+}
 
 /** One task: its place in the list, details, steps and child tasks. Every change saves on its own. */
 export function TaskPanel({
@@ -94,6 +206,36 @@ export function TaskPanel({
     const remove = (children?: 'delete' | 'keep') =>
         router.delete(route('tasks.destroy', task.id), { preserveScroll: true, data: children ? { children } : {} });
     const kids = (n: number) => (n === 1 ? '1 subtask' : `${n} subtasks`);
+    const [groups, toggleGroup] = useGroups();
+    const [dropOver, dropError] = useAttachAnywhere(task.id, clock);
+    const logs = task.logs ?? [];
+    // What a closed group has in it, in a few words.
+    const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+    const openAfter = task.dependsOn.filter((d) => isOpen(d.status)).length;
+    const shortDay = (iso: string) => clock.date(iso, { weekday: 'short', day: 'numeric', month: 'short' });
+    const parts = (list: (string | false | null | undefined)[]) => list.filter(Boolean).join(' · ');
+    const scheduleSum =
+        parts([
+            task.availableFrom && `From ${shortDay(task.availableFrom)}`,
+            openAfter > 0 && `After ${count(openAfter, 'task')}`,
+            blocks.length > 0 && `Blocks ${count(blocks.length, 'task')}`,
+            task.repeat && repeatText(task.repeat),
+            task.reminders.length > 0 && count(task.reminders.length, 'reminder'),
+        ]) || 'Nothing set';
+    const detailsSum = parts([
+        task.project?.name ?? 'No project',
+        task.goal?.title,
+        !!task.people?.length && count(task.people.length, 'person', 'people'),
+        (!!task.notes || !!task.linkedNotes?.length) && 'Notes',
+        !!task.github?.links.length && count(task.github.links.length, 'GitHub link'),
+        task.files.length > 0 && count(task.files.length, 'file'),
+    ]);
+    const logSum = logs.length ? parts([count(logs.length, 'entry', 'entries'), logs[0].at && `last ${shortDay(logs[0].at)}`]) : 'No entries';
+    const historySum = parts([
+        task.focused.seconds > 0 && `${fmtHours(task.focused.seconds / 3600)} focused`,
+        !!task.activity?.length && count(task.activity.length, 'change'),
+    ]);
+    const historyEmpty = !historySum && !viaKey;
     const saveTitle = () => {
         if (!title.trim()) setTitle(task.title);
         else if (title !== task.title) patch(task.id, { title: title.trim() });
@@ -188,6 +330,12 @@ export function TaskPanel({
                         }}
                     />
                 </div>
+                {dropError && (
+                    <p className="p-warn p-drop-error" role="alert">
+                        <Icon name="alert" className="ic-xs" />
+                        {dropError}
+                    </p>
+                )}
                 {!finished && task.capturedAt && (
                     <div className="p-captured" role="status">
                         <Icon name="inbox" className="ic-sm" />
@@ -243,573 +391,143 @@ export function TaskPanel({
                     ) : null}
                 </p>
 
-                <div className="props">
-                    {task.status === 'waiting' && (
-                        <>
-                            <div className="prop-label">
-                                <Icon name="hourglass" />
-                                Waiting for
-                            </div>
-                            <div className="prop-value">
-                                <input
-                                    className="prop-input"
-                                    aria-label="Waiting for"
-                                    placeholder="Who or what?"
-                                    maxLength={160}
-                                    defaultValue={task.waitingFor ?? ''}
-                                    key={`${task.id}-w-${task.waitingFor}`}
-                                    onBlur={(e) =>
-                                        e.target.value.trim() !== (task.waitingFor ?? '') &&
-                                        patch(task.id, { waiting_for: e.target.value.trim() || null })
-                                    }
-                                    onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                                />
-                            </div>
-                        </>
-                    )}
-                    {!finished && (
-                        <>
-                            <div className="prop-label">
-                                <Icon name="followUp" />
-                                Follow up
-                            </div>
-                            <div className="prop-value">
-                                <DatePick
-                                    className="prop-input"
-                                    label="Follow up"
-                                    placeholder="No follow-up"
-                                    value={task.followUpOn ?? ''}
-                                    onChange={(v) => patch(task.id, { follow_up_on: v || null })}
-                                />
-                            </div>
-                        </>
-                    )}
-                    <div className="prop-label">
-                        <Icon name="flag" />
-                        Importance
-                    </div>
-                    <div className="prop-value">
-                        <Dots n={task.importance} c="I" onPick={(v) => patch(task.id, { importance: v })} />
-                        {LEVEL[task.importance]}
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="zap" />
-                        Urgency
-                    </div>
-                    <div className="prop-value">
-                        <Dots n={task.urgency} c="U" onPick={(v) => patch(task.id, { urgency: v })} />
-                        {LEVEL[task.urgency]}
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="calendar" />
-                        Due
-                    </div>
-                    <div className="prop-value">
-                        <DatePick
-                            mode="datetime"
-                            className="prop-input"
-                            label="Due"
-                            placeholder="No due date"
-                            value={clock.localInput(task.dueAt)}
-                            onChange={(v) => patch(task.id, { due_at: v || null })}
-                        />
-                        {lateForProject && (
-                            <span className="p-warn">
-                                <Icon name="alert" className="ic-xs" />
-                                After the project’s due date (
-                                {clock.date(`${task.project!.dueDate}T12:00:00Z`, {
-                                    weekday: 'short',
-                                    day: 'numeric',
-                                    month: 'short',
-                                    timeZone: 'UTC',
-                                })}
-                                )
-                            </span>
+                {(task.status === 'waiting' || !finished) && (
+                    <div className="props">
+                        {task.status === 'waiting' && (
+                            <>
+                                <div className="prop-label">
+                                    <Icon name="hourglass" />
+                                    Waiting for
+                                </div>
+                                <div className="prop-value">
+                                    <input
+                                        className="prop-input"
+                                        aria-label="Waiting for"
+                                        placeholder="Who or what?"
+                                        maxLength={160}
+                                        defaultValue={task.waitingFor ?? ''}
+                                        key={`${task.id}-w-${task.waitingFor}`}
+                                        onBlur={(e) =>
+                                            e.target.value.trim() !== (task.waitingFor ?? '') &&
+                                            patch(task.id, { waiting_for: e.target.value.trim() || null })
+                                        }
+                                        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                                    />
+                                </div>
+                            </>
+                        )}
+                        {!finished && (
+                            <>
+                                <div className="prop-label">
+                                    <Icon name="followUp" />
+                                    Follow up
+                                </div>
+                                <div className="prop-value">
+                                    <DatePick
+                                        className="prop-input"
+                                        label="Follow up"
+                                        placeholder="No follow-up"
+                                        value={task.followUpOn ?? ''}
+                                        onChange={(v) => patch(task.id, { follow_up_on: v || null })}
+                                    />
+                                </div>
+                            </>
                         )}
                     </div>
-                    <div className="prop-label">
-                        <Icon name="clock" />
-                        Work
+                )}
+
+                <section className="p-section p-ranking">
+                    <div className="p-section-head">
+                        <h3 className="p-section-title">Ranking</h3>
                     </div>
-                    <div className="prop-value">
-                        <input
-                            type="number"
-                            min={0.25}
-                            max={500}
-                            step={0.25}
-                            aria-label="Estimated hours"
-                            defaultValue={task.estHours}
-                            key={`${task.id}-h-${task.estHours}`}
-                            onBlur={(e) => {
-                                const h = Number(e.target.value);
-                                if (!(h > 0 && h <= 500))
-                                    e.target.value = String(task.estHours); // not a usable number: put the old one back
-                                else if (h !== task.estHours) patch(task.id, { est_hours: h });
-                            }}
-                            className="prop-input"
-                            style={{ width: 80 }}
-                        />
-                        <span className="muted">{Number.isInteger(task.estHours) ? 'hours' : `hours · ${fmtHours(task.estHours)}`}</span>
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="flame" />
-                        Energy
-                    </div>
-                    <div className="prop-value">
-                        <Select
-                            className="prop-input"
-                            value={task.energy ?? ''}
-                            label="Energy it needs"
-                            search={false}
-                            onChange={(v) => patch(task.id, { energy: v || null })}
-                            options={[
-                                { value: '', label: 'Not set' },
-                                { value: 'low', label: 'Low' },
-                                { value: 'normal', label: 'Normal' },
-                                { value: 'high', label: 'High' },
-                            ]}
-                        />
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="folder" />
-                        Project
-                    </div>
-                    <div className="prop-value">
-                        <Select
-                            className="prop-input"
-                            value={String(task.project?.id ?? '')}
-                            label="Project"
-                            onChange={(v) => patch(task.id, { project_id: v ? Number(v) : null })}
-                            options={[
-                                { value: '', label: 'Inbox (no project)' },
-                                ...projectChoices.map((p) => ({ value: String(p.id), label: p.name })),
-                            ]}
-                        />
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="target" />
-                        Goal
-                    </div>
-                    <div className="prop-value">
-                        {task.project ? (
-                            task.goal ? (
-                                <Link
-                                    className="p-goal"
-                                    href={`/goals?focus=g${task.goal.id}`}
-                                    style={{ ['--g' as string]: goalVar(task.goal.color) }}
-                                >
-                                    <i />
-                                    {task.goal.title}
-                                </Link>
-                            ) : (
-                                <span className="muted">The project has no goal</span>
-                            )
-                        ) : (
-                            // No project: the task can belong straight to a goal.
+                    <div className="props">
+                        <div className="prop-label">
+                            <Icon name="flag" />
+                            Importance
+                        </div>
+                        <div className="prop-value">
+                            <Dots n={task.importance} c="I" onPick={(v) => patch(task.id, { importance: v })} />
+                            {LEVEL[task.importance]}
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="zap" />
+                            Urgency
+                        </div>
+                        <div className="prop-value">
+                            <Dots n={task.urgency} c="U" onPick={(v) => patch(task.id, { urgency: v })} />
+                            {LEVEL[task.urgency]}
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="calendar" />
+                            Due
+                        </div>
+                        <div className="prop-value">
+                            <DatePick
+                                mode="datetime"
+                                className="prop-input"
+                                label="Due"
+                                placeholder="No due date"
+                                value={clock.localInput(task.dueAt)}
+                                onChange={(v) => patch(task.id, { due_at: v || null })}
+                            />
+                            {lateForProject && (
+                                <span className="p-warn">
+                                    <Icon name="alert" className="ic-xs" />
+                                    After the project’s due date (
+                                    {clock.date(`${task.project!.dueDate}T12:00:00Z`, {
+                                        weekday: 'short',
+                                        day: 'numeric',
+                                        month: 'short',
+                                        timeZone: 'UTC',
+                                    })}
+                                    )
+                                </span>
+                            )}
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="clock" />
+                            Work
+                        </div>
+                        <div className="prop-value">
+                            <input
+                                type="number"
+                                min={0.25}
+                                max={500}
+                                step={0.25}
+                                aria-label="Estimated hours"
+                                defaultValue={task.estHours}
+                                key={`${task.id}-h-${task.estHours}`}
+                                onBlur={(e) => {
+                                    const h = Number(e.target.value);
+                                    if (!(h > 0 && h <= 500))
+                                        e.target.value = String(task.estHours); // not a usable number: put the old one back
+                                    else if (h !== task.estHours) patch(task.id, { est_hours: h });
+                                }}
+                                className="prop-input"
+                                style={{ width: 80 }}
+                            />
+                            <span className="muted">{Number.isInteger(task.estHours) ? 'hours' : `hours · ${fmtHours(task.estHours)}`}</span>
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="flame" />
+                            Energy
+                        </div>
+                        <div className="prop-value">
                             <Select
                                 className="prop-input"
-                                value={String(task.goal?.id ?? '')}
-                                label="Goal"
-                                onChange={(v) => patch(task.id, { goal_id: v ? Number(v) : null })}
-                                options={[{ value: '', label: 'No goal' }, ...goalChoices.map((g) => ({ value: String(g.id), label: g.title }))]}
+                                value={task.energy ?? ''}
+                                label="Energy it needs"
+                                search={false}
+                                onChange={(v) => patch(task.id, { energy: v || null })}
+                                options={[
+                                    { value: '', label: 'Not set' },
+                                    { value: 'low', label: 'Low' },
+                                    { value: 'normal', label: 'Normal' },
+                                    { value: 'high', label: 'High' },
+                                ]}
                             />
-                        )}
+                        </div>
                     </div>
-                    <div className="prop-label">
-                        <Icon name="habits" />
-                        Repeats
-                    </div>
-                    <div className="prop-value p-repeat">
-                        <Select
-                            className="prop-input"
-                            value={repeatKey(task.repeat ? { unit: task.repeat.unit, every: task.repeat.every } : null)}
-                            label="Repeats"
-                            onChange={(v) => {
-                                const [every, unit] = v.split('-'); // "" = doesn't repeat
-                                patch(task.id, { repeat_unit: unit ?? null, repeat_every: Number(every) || 1 });
-                            }}
-                            options={[
-                                { value: '', label: 'Doesn’t repeat' },
-                                ...[
-                                    ...REPEAT_CHOICES,
-                                    ...(task.repeat && !REPEAT_CHOICES.some((r) => repeatKey(r) === repeatKey(task.repeat))
-                                        ? [{ unit: task.repeat.unit, every: task.repeat.every }]
-                                        : []),
-                                ].map((r) => ({ value: repeatKey(r), label: repeatText(r) })),
-                            ]}
-                        />
-                        {task.repeat?.unit === 'week' && (
-                            <div className="hb-days p-weekdays" role="group" aria-label="On which days">
-                                {WEEK.map((w, i) => {
-                                    // Without named days a weekly repeat keeps to the due date's weekday.
-                                    const due = task.dueAt ? WEEK.indexOf(clock.weekday(task.dueAt)) + 1 : 0;
-                                    const days = task.repeat?.days?.length ? task.repeat.days : due ? [due] : [];
-                                    const on = days.includes(i + 1);
-                                    return (
-                                        <button
-                                            key={w}
-                                            type="button"
-                                            aria-pressed={on}
-                                            onClick={() => {
-                                                const next = on ? days.filter((d) => d !== i + 1) : [...days, i + 1].sort();
-                                                if (next.length) patch(task.id, { repeat_days: next.length > 1 || next[0] !== due ? next : null });
-                                            }}
-                                        >
-                                            {w.slice(0, 2)}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        {task.repeat && (
-                            <span className="p-repeat-until">
-                                <DatePick
-                                    className="prop-input"
-                                    label="Repeats until"
-                                    min={clock.localInput(clock.now.toISOString()).slice(0, 10)}
-                                    placeholder="No end"
-                                    value={task.repeat.until ?? ''}
-                                    onChange={(v) => patch(task.id, { repeat_until: v || null })}
-                                />
-                                {!finished && (
-                                    <button
-                                        type="button"
-                                        className="link"
-                                        onClick={() =>
-                                            router.post(route('tasks.cancel', task.id), { skip: true }, { preserveScroll: true, preserveState: true })
-                                        }
-                                    >
-                                        Skip this one
-                                    </button>
-                                )}
-                            </span>
-                        )}
-                    </div>
-                    {task.focused.seconds > 0 && (
-                        <>
-                            <div className="prop-label">
-                                <Icon name="focus" />
-                                Focused
-                            </div>
-                            <div className="prop-value">
-                                <span className="nowrap">{fmtHours(task.focused.seconds / 3600)}</span>
-                                <span className="muted">
-                                    · {task.focused.sessions} {task.focused.sessions === 1 ? 'session' : 'sessions'} · {fmtHours(task.estHours)}{' '}
-                                    estimated
-                                </span>
-                            </div>
-                        </>
-                    )}
-                    {viaKey && (
-                        <>
-                            <div className="prop-label">
-                                <Icon name="key" />
-                                Via
-                            </div>
-                            <div className="prop-value">
-                                {viaKey.via}
-                                <span className="muted">
-                                    · {VIA_WORD[viaKey.type] ?? 'changed'}
-                                    {viaKey.at ? ` ${clock.date(viaKey.at, { day: 'numeric', month: 'short' })}` : ''}
-                                </span>
-                            </div>
-                        </>
-                    )}
-                    <div className="prop-label">
-                        <Icon name="bell" />
-                        Reminders
-                    </div>
-                    <div className="prop-value p-reminders">
-                        {task.reminders.map((r) => (
-                            <span key={r.id} className={`p-after-chip${r.kind === 'before' && !task.dueAt ? ' is-waiting' : ''}`}>
-                                <Icon name={r.kind === 'bug' ? 'zap' : 'bell'} className="ic-xs" />
-                                {reminderText(r, clock)}
-                                <button
-                                    type="button"
-                                    aria-label={r.kind === 'bug' ? 'Stop bugging' : `Remove reminder “${reminderText(r, clock)}”`}
-                                    title={r.kind === 'bug' ? 'Stop bugging' : 'Remove'}
-                                    onClick={() => router.delete(route('reminders.destroy', r.id), { preserveScroll: true, preserveState: true })}
-                                >
-                                    <Icon name="x" className="ic-xs" />
-                                </button>
-                            </span>
-                        ))}
-                        {!finished && task.reminders.length < 5 && (
-                            <span className="p-reminder">
-                                <DatePick
-                                    mode="datetime"
-                                    className="prop-input"
-                                    label="Remind me at"
-                                    placeholder="At a time…"
-                                    defaultTime="09:00"
-                                    value=""
-                                    onChange={(v) => v && addReminder(task.id, { kind: 'at', at: v })}
-                                />
-                                <Select
-                                    className="prop-input"
-                                    label="Add a reminder"
-                                    value=""
-                                    placeholder="Before due / Bug me…"
-                                    onChange={(v) =>
-                                        addReminder(
-                                            task.id,
-                                            v.startsWith('bug') ? { kind: 'bug', every: Number(v.slice(3)) } : { kind: 'before', before: v },
-                                        )
-                                    }
-                                    options={[
-                                        ...BEFORE.filter(([key]) => !task.reminders.some((r) => r.kind === 'before' && beforeKey(r) === key)).map(
-                                            ([value, label]) => ({
-                                                value,
-                                                label,
-                                                group: task.dueAt ? 'Before it’s due' : 'Before it’s due (once it has a date)',
-                                            }),
-                                        ),
-                                        ...(task.reminders.some((r) => r.kind === 'bug')
-                                            ? []
-                                            : EVERY.map(([m, label]) => ({ value: `bug${m}`, label: `Bug me ${label}`, group: 'Until it’s done' }))),
-                                    ]}
-                                />
-                            </span>
-                        )}
-                        <NotifyHint />
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="calendar" />
-                        Can start
-                    </div>
-                    <div className="prop-value">
-                        <DatePick
-                            mode="datetime"
-                            className="prop-input"
-                            label="Can start"
-                            placeholder="Any time"
-                            defaultTime="09:00"
-                            value={clock.localInput(task.availableFrom)}
-                            onChange={(v) => patch(task.id, { available_from: v || null })}
-                        />
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="lock" />
-                        Starts after
-                    </div>
-                    <div className="prop-value p-after">
-                        {task.dependsOn.map((d) => (
-                            <span key={d.id} className={`p-after-chip${d.status === 'done' || d.status === 'cancelled' ? ' is-done' : ''}`}>
-                                {d.title}
-                                <button
-                                    type="button"
-                                    aria-label={`Remove “${d.title}”`}
-                                    onClick={() => patch(task.id, { depends_on: waitsFor.filter((x) => x !== d.id) })}
-                                >
-                                    <Icon name="x" className="ic-xs" />
-                                </button>
-                            </span>
-                        ))}
-                        <Select
-                            className="prop-input"
-                            value=""
-                            label="Add a task it starts after"
-                            placeholder={task.dependsOn.length ? 'Add another…' : 'Nothing – pick a task…'}
-                            onChange={(v) => patch(task.id, { depends_on: [...waitsFor, Number(v)] }, linkFailed)}
-                            options={task.candidates.filter((c) => !waitsFor.includes(c.id)).map((c) => ({ value: String(c.id), label: c.title }))}
-                        />
-                    </div>
-                    <div className="prop-label">
-                        <Icon name="branch" />
-                        Blocks
-                    </div>
-                    <div className="prop-value p-after">
-                        {blocks.map((b) => (
-                            <span key={b.id} className={`p-after-chip${isOpen(b.status) ? '' : ' is-done'}`}>
-                                <Link href={`?task=${b.id}`} preserveScroll preserveState className="p-chip-link">
-                                    {b.title}
-                                </Link>
-                                <button
-                                    type="button"
-                                    aria-label={`“${b.title}” doesn’t wait on this`}
-                                    title="Doesn’t wait on this"
-                                    onClick={() =>
-                                        router.post(route('tasks.blocks', task.id), { remove: b.id }, { preserveScroll: true, preserveState: true })
-                                    }
-                                >
-                                    <Icon name="x" className="ic-xs" />
-                                </button>
-                            </span>
-                        ))}
-                        <Select
-                            className="prop-input"
-                            value=""
-                            label="Add a task that waits on this one"
-                            placeholder={blocks.length ? 'Add another…' : 'Nothing waits on it…'}
-                            onChange={(v) =>
-                                router.post(
-                                    route('tasks.blocks', task.id),
-                                    { add: Number(v) },
-                                    { preserveScroll: true, preserveState: true, onError: linkFailed },
-                                )
-                            }
-                            options={task.candidates
-                                .filter((c) => !waitsFor.includes(c.id) && !blocks.some((b) => b.id === c.id))
-                                .map((c) => ({ value: String(c.id), label: c.title }))}
-                        />
-                        {linkError && (
-                            <span className="p-warn" role="alert">
-                                <Icon name="alert" className="ic-xs" />
-                                {linkError}
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                <section className="p-section">
-                    <div className="p-section-head">
-                        <h3 className="p-section-title">People</h3>
-                    </div>
-                    <div className="p-linked">
-                        {task.people?.map((p) => (
-                            <span key={p.id} className="note-task">
-                                <Link className="note-task-open" href={`/people?person=${p.id}`}>
-                                    <Icon name="person" className="ic-xs" />
-                                    <span>{p.name}</span>
-                                </Link>
-                                <button
-                                    className="note-task-x"
-                                    aria-label={`Unlink “${p.name}”`}
-                                    onClick={() =>
-                                        router.post(
-                                            route('people.unlink', p.id),
-                                            { type: 'task', id: task.id },
-                                            { preserveScroll: true, preserveState: true },
-                                        )
-                                    }
-                                >
-                                    <Icon name="x" className="ic-xs" />
-                                </button>
-                            </span>
-                        ))}
-                        <Picker
-                            label={task.status === 'waiting' ? 'Waiting on…' : 'Add person'}
-                            find="Find a person"
-                            options={(task.peopleChoices ?? []).map((p) => ({ id: p.id, title: p.name }))}
-                            taken={task.people?.map((p) => p.id) ?? []}
-                            none="No one matches. Add people in People."
-                            onPick={(id) =>
-                                router.post(route('people.link', id), { type: 'task', id: task.id }, { preserveScroll: true, preserveState: true })
-                            }
-                        />
-                    </div>
-                </section>
-
-                {task.github && <TaskGitHub taskId={task.id} title={task.title} notes={task.notes} done={done} github={task.github} />}
-
-                <TaskFiles taskId={task.id} files={task.files} />
-
-                <section className="p-section">
-                    <div className="p-section-head">
-                        <h3 className="p-section-title">Notes</h3>
-                    </div>
-                    <textarea
-                        className="p-notes"
-                        aria-label="Notes"
-                        placeholder="Add notes…"
-                        defaultValue={task.notes ?? ''}
-                        key={`${task.id}-n-${task.notes}`}
-                        maxLength={20000}
-                        rows={3}
-                        onBlur={(e) => e.target.value !== (task.notes ?? '') && patch(task.id, { notes: e.target.value || null })}
-                    />
-                    <div className="p-linked">
-                        {task.linkedNotes?.map((n) =>
-                            n.quote ? (
-                                // Made from words in this note: the link opens it at those words.
-                                <Link
-                                    key={n.id}
-                                    className="p-linked-note is-source"
-                                    href={`/notes?note=${n.id}&find=${encodeURIComponent(n.quote.slice(0, 80))}`}
-                                    title={`“${n.quote}”`}
-                                >
-                                    <Icon name="notes" className="ic-sm" />
-                                    <span>From note: {n.title}</span>
-                                    <Icon name="chevR" className="ic-xs" />
-                                </Link>
-                            ) : (
-                                <Link key={n.id} className="p-linked-note" href={`/notes?note=${n.id}`}>
-                                    <Icon name="notes" className="ic-sm" />
-                                    <span>{n.title}</span>
-                                </Link>
-                            ),
-                        )}
-                        <button className="note-add" onClick={() => router.post(route('notes.store'), { task_id: task.id })}>
-                            <Icon name="plus" className="ic-xs" />
-                            New note
-                        </button>
-                    </div>
-                </section>
-
-                <section className="p-section">
-                    <div className="p-section-head">
-                        <h3 className="p-section-title">Steps</h3>
-                        {task.steps.length > 0 && (
-                            <span className="card-sub">
-                                {task.steps.filter((s) => s.done).length} of {task.steps.length} done
-                            </span>
-                        )}
-                    </div>
-                    <ul className="steps">
-                        {task.steps.map((s) => (
-                            <li key={s.id} className={`pt-step${s.done ? ' is-done' : ''}`} style={{ minHeight: 34 }}>
-                                <Check
-                                    done={s.done}
-                                    label={s.done ? 'Mark step not done' : 'Mark step done'}
-                                    onClick={() =>
-                                        router.patch(route('steps.update', s.id), { done: !s.done }, { preserveScroll: true, preserveState: true })
-                                    }
-                                />
-                                <span className="pt-step-title" title={s.title}>
-                                    {s.title}
-                                </span>
-                                <button
-                                    className="pt-promote"
-                                    onClick={() => router.post(route('steps.promote', s.id), {}, { preserveScroll: true, preserveState: true })}
-                                >
-                                    <Icon name="rank" className="ic-xs" />
-                                    Make it a task
-                                </button>
-                                <button
-                                    className="icon-btn pt-remove"
-                                    aria-label={`Remove step “${s.title}”`}
-                                    title="Remove step"
-                                    onClick={() => router.delete(route('steps.destroy', s.id), { preserveScroll: true, preserveState: true })}
-                                >
-                                    <Icon name="x" className="ic-sm" />
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                    <form
-                        className="add-step"
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!newStep.trim()) return;
-                            const text = newStep;
-                            setNewStep(''); // cleared first, so a fast second Enter can't add it twice
-                            router.post(
-                                route('steps.store', task.id),
-                                { title: text },
-                                { preserveScroll: true, preserveState: true, onError: () => setNewStep(text) },
-                            );
-                        }}
-                    >
-                        <Icon name="plus" className="ic-sm" />
-                        <input
-                            value={newStep}
-                            onChange={(e) => setNewStep(e.target.value)}
-                            placeholder="Add a step"
-                            aria-label="Add a step"
-                            maxLength={255}
-                            style={{ flex: 1, border: 0, background: 'transparent', outline: 0 }}
-                        />
-                    </form>
                 </section>
 
                 {(!finished || task.children.length > 0) && (
@@ -877,7 +595,489 @@ export function TaskPanel({
                         )}
                     </section>
                 )}
-                <TaskActivity key={task.id} items={task.activity ?? []} clock={clock} />
+
+                <section className="p-section">
+                    <div className="p-section-head">
+                        <h3 className="p-section-title">Steps</h3>
+                        {task.steps.length > 0 && (
+                            <span className="card-sub">
+                                {task.steps.filter((s) => s.done).length} of {task.steps.length} done
+                            </span>
+                        )}
+                    </div>
+                    <ul className="steps">
+                        {task.steps.map((s) => (
+                            <li key={s.id} className={`pt-step${s.done ? ' is-done' : ''}`} style={{ minHeight: 34 }}>
+                                <Check
+                                    done={s.done}
+                                    label={s.done ? 'Mark step not done' : 'Mark step done'}
+                                    onClick={() =>
+                                        router.patch(route('steps.update', s.id), { done: !s.done }, { preserveScroll: true, preserveState: true })
+                                    }
+                                />
+                                <span className="pt-step-title" title={s.title}>
+                                    {s.title}
+                                </span>
+                                <button
+                                    className="pt-promote"
+                                    onClick={() => router.post(route('steps.promote', s.id), {}, { preserveScroll: true, preserveState: true })}
+                                >
+                                    <Icon name="rank" className="ic-xs" />
+                                    Make it a task
+                                </button>
+                                <button
+                                    className="icon-btn pt-remove"
+                                    aria-label={`Remove step “${s.title}”`}
+                                    title="Remove step"
+                                    onClick={() => router.delete(route('steps.destroy', s.id), { preserveScroll: true, preserveState: true })}
+                                >
+                                    <Icon name="x" className="ic-sm" />
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                    <form
+                        className="add-step"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!newStep.trim()) return;
+                            const text = newStep;
+                            setNewStep(''); // cleared first, so a fast second Enter can't add it twice
+                            router.post(
+                                route('steps.store', task.id),
+                                { title: text },
+                                { preserveScroll: true, preserveState: true, onError: () => setNewStep(text) },
+                            );
+                        }}
+                    >
+                        <Icon name="plus" className="ic-sm" />
+                        <input
+                            value={newStep}
+                            onChange={(e) => setNewStep(e.target.value)}
+                            placeholder="Add a step"
+                            aria-label="Add a step"
+                            maxLength={255}
+                            style={{ flex: 1, border: 0, background: 'transparent', outline: 0 }}
+                        />
+                    </form>
+                </section>
+
+                <PGroup id="schedule" title="Schedule" summary={scheduleSum} open={groups.schedule} onToggle={() => toggleGroup('schedule')}>
+                    <div className="props">
+                        <div className="prop-label">
+                            <Icon name="calendar" />
+                            Can start
+                        </div>
+                        <div className="prop-value">
+                            <DatePick
+                                mode="datetime"
+                                className="prop-input"
+                                label="Can start"
+                                placeholder="Any time"
+                                defaultTime="09:00"
+                                value={clock.localInput(task.availableFrom)}
+                                onChange={(v) => patch(task.id, { available_from: v || null })}
+                            />
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="lock" />
+                            Starts after
+                        </div>
+                        <div className="prop-value p-after">
+                            {task.dependsOn.map((d) => (
+                                <span key={d.id} className={`p-after-chip${d.status === 'done' || d.status === 'cancelled' ? ' is-done' : ''}`}>
+                                    {d.title}
+                                    <button
+                                        type="button"
+                                        aria-label={`Remove “${d.title}”`}
+                                        onClick={() => patch(task.id, { depends_on: waitsFor.filter((x) => x !== d.id) })}
+                                    >
+                                        <Icon name="x" className="ic-xs" />
+                                    </button>
+                                </span>
+                            ))}
+                            <Select
+                                className="prop-input"
+                                value=""
+                                label="Add a task it starts after"
+                                placeholder={task.dependsOn.length ? 'Add another…' : 'Nothing – pick a task…'}
+                                onChange={(v) => patch(task.id, { depends_on: [...waitsFor, Number(v)] }, linkFailed)}
+                                options={task.candidates
+                                    .filter((c) => !waitsFor.includes(c.id))
+                                    .map((c) => ({ value: String(c.id), label: c.title }))}
+                            />
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="branch" />
+                            Blocks
+                        </div>
+                        <div className="prop-value p-after">
+                            {blocks.map((b) => (
+                                <span key={b.id} className={`p-after-chip${isOpen(b.status) ? '' : ' is-done'}`}>
+                                    <Link href={`?task=${b.id}`} preserveScroll preserveState className="p-chip-link">
+                                        {b.title}
+                                    </Link>
+                                    <button
+                                        type="button"
+                                        aria-label={`“${b.title}” doesn’t wait on this`}
+                                        title="Doesn’t wait on this"
+                                        onClick={() =>
+                                            router.post(
+                                                route('tasks.blocks', task.id),
+                                                { remove: b.id },
+                                                { preserveScroll: true, preserveState: true },
+                                            )
+                                        }
+                                    >
+                                        <Icon name="x" className="ic-xs" />
+                                    </button>
+                                </span>
+                            ))}
+                            <Select
+                                className="prop-input"
+                                value=""
+                                label="Add a task that waits on this one"
+                                placeholder={blocks.length ? 'Add another…' : 'Nothing waits on it…'}
+                                onChange={(v) =>
+                                    router.post(
+                                        route('tasks.blocks', task.id),
+                                        { add: Number(v) },
+                                        { preserveScroll: true, preserveState: true, onError: linkFailed },
+                                    )
+                                }
+                                options={task.candidates
+                                    .filter((c) => !waitsFor.includes(c.id) && !blocks.some((b) => b.id === c.id))
+                                    .map((c) => ({ value: String(c.id), label: c.title }))}
+                            />
+                            {linkError && (
+                                <span className="p-warn" role="alert">
+                                    <Icon name="alert" className="ic-xs" />
+                                    {linkError}
+                                </span>
+                            )}
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="habits" />
+                            Repeats
+                        </div>
+                        <div className="prop-value p-repeat">
+                            <Select
+                                className="prop-input"
+                                value={repeatKey(task.repeat ? { unit: task.repeat.unit, every: task.repeat.every } : null)}
+                                label="Repeats"
+                                onChange={(v) => {
+                                    const [every, unit] = v.split('-'); // "" = doesn't repeat
+                                    patch(task.id, { repeat_unit: unit ?? null, repeat_every: Number(every) || 1 });
+                                }}
+                                options={[
+                                    { value: '', label: 'Doesn’t repeat' },
+                                    ...[
+                                        ...REPEAT_CHOICES,
+                                        ...(task.repeat && !REPEAT_CHOICES.some((r) => repeatKey(r) === repeatKey(task.repeat))
+                                            ? [{ unit: task.repeat.unit, every: task.repeat.every }]
+                                            : []),
+                                    ].map((r) => ({ value: repeatKey(r), label: repeatText(r) })),
+                                ]}
+                            />
+                            {task.repeat?.unit === 'week' && (
+                                <div className="hb-days p-weekdays" role="group" aria-label="On which days">
+                                    {WEEK.map((w, i) => {
+                                        // Without named days a weekly repeat keeps to the due date's weekday.
+                                        const due = task.dueAt ? WEEK.indexOf(clock.weekday(task.dueAt)) + 1 : 0;
+                                        const days = task.repeat?.days?.length ? task.repeat.days : due ? [due] : [];
+                                        const on = days.includes(i + 1);
+                                        return (
+                                            <button
+                                                key={w}
+                                                type="button"
+                                                aria-pressed={on}
+                                                onClick={() => {
+                                                    const next = on ? days.filter((d) => d !== i + 1) : [...days, i + 1].sort();
+                                                    if (next.length)
+                                                        patch(task.id, { repeat_days: next.length > 1 || next[0] !== due ? next : null });
+                                                }}
+                                            >
+                                                {w.slice(0, 2)}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {task.repeat && (
+                                <span className="p-repeat-until">
+                                    <DatePick
+                                        className="prop-input"
+                                        label="Repeats until"
+                                        min={clock.localInput(clock.now.toISOString()).slice(0, 10)}
+                                        placeholder="No end"
+                                        value={task.repeat.until ?? ''}
+                                        onChange={(v) => patch(task.id, { repeat_until: v || null })}
+                                    />
+                                    {!finished && (
+                                        <button
+                                            type="button"
+                                            className="link"
+                                            onClick={() =>
+                                                router.post(
+                                                    route('tasks.cancel', task.id),
+                                                    { skip: true },
+                                                    { preserveScroll: true, preserveState: true },
+                                                )
+                                            }
+                                        >
+                                            Skip this one
+                                        </button>
+                                    )}
+                                </span>
+                            )}
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="bell" />
+                            Reminders
+                        </div>
+                        <div className="prop-value p-reminders">
+                            {task.reminders.map((r) => (
+                                <span key={r.id} className={`p-after-chip${r.kind === 'before' && !task.dueAt ? ' is-waiting' : ''}`}>
+                                    <Icon name={r.kind === 'bug' ? 'zap' : 'bell'} className="ic-xs" />
+                                    {reminderText(r, clock)}
+                                    <button
+                                        type="button"
+                                        aria-label={r.kind === 'bug' ? 'Stop bugging' : `Remove reminder “${reminderText(r, clock)}”`}
+                                        title={r.kind === 'bug' ? 'Stop bugging' : 'Remove'}
+                                        onClick={() => router.delete(route('reminders.destroy', r.id), { preserveScroll: true, preserveState: true })}
+                                    >
+                                        <Icon name="x" className="ic-xs" />
+                                    </button>
+                                </span>
+                            ))}
+                            {!finished && task.reminders.length < 5 && (
+                                <span className="p-reminder">
+                                    <DatePick
+                                        mode="datetime"
+                                        className="prop-input"
+                                        label="Remind me at"
+                                        placeholder="At a time…"
+                                        defaultTime="09:00"
+                                        value=""
+                                        onChange={(v) => v && addReminder(task.id, { kind: 'at', at: v })}
+                                    />
+                                    <Select
+                                        className="prop-input"
+                                        label="Add a reminder"
+                                        value=""
+                                        placeholder="Before due / Bug me…"
+                                        onChange={(v) =>
+                                            addReminder(
+                                                task.id,
+                                                v.startsWith('bug') ? { kind: 'bug', every: Number(v.slice(3)) } : { kind: 'before', before: v },
+                                            )
+                                        }
+                                        options={[
+                                            ...BEFORE.filter(([key]) => !task.reminders.some((r) => r.kind === 'before' && beforeKey(r) === key)).map(
+                                                ([value, label]) => ({
+                                                    value,
+                                                    label,
+                                                    group: task.dueAt ? 'Before it’s due' : 'Before it’s due (once it has a date)',
+                                                }),
+                                            ),
+                                            ...(task.reminders.some((r) => r.kind === 'bug')
+                                                ? []
+                                                : EVERY.map(([m, label]) => ({
+                                                      value: `bug${m}`,
+                                                      label: `Bug me ${label}`,
+                                                      group: 'Until it’s done',
+                                                  }))),
+                                        ]}
+                                    />
+                                </span>
+                            )}
+                            <NotifyHint />
+                        </div>
+                    </div>
+                </PGroup>
+
+                <PGroup id="details" title="Details" summary={detailsSum} open={groups.details} onToggle={() => toggleGroup('details')}>
+                    <div className="props">
+                        <div className="prop-label">
+                            <Icon name="folder" />
+                            Project
+                        </div>
+                        <div className="prop-value">
+                            <Select
+                                className="prop-input"
+                                value={String(task.project?.id ?? '')}
+                                label="Project"
+                                onChange={(v) => patch(task.id, { project_id: v ? Number(v) : null })}
+                                options={[
+                                    { value: '', label: 'Inbox (no project)' },
+                                    ...projectChoices.map((p) => ({ value: String(p.id), label: p.name })),
+                                ]}
+                            />
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="target" />
+                            Goal
+                        </div>
+                        <div className="prop-value">
+                            {task.project ? (
+                                task.goal ? (
+                                    <Link
+                                        className="p-goal"
+                                        href={`/goals?focus=g${task.goal.id}`}
+                                        style={{ ['--g' as string]: goalVar(task.goal.color) }}
+                                    >
+                                        <i />
+                                        {task.goal.title}
+                                    </Link>
+                                ) : (
+                                    <span className="muted">The project has no goal</span>
+                                )
+                            ) : (
+                                // No project: the task can belong straight to a goal.
+                                <Select
+                                    className="prop-input"
+                                    value={String(task.goal?.id ?? '')}
+                                    label="Goal"
+                                    onChange={(v) => patch(task.id, { goal_id: v ? Number(v) : null })}
+                                    options={[{ value: '', label: 'No goal' }, ...goalChoices.map((g) => ({ value: String(g.id), label: g.title }))]}
+                                />
+                            )}
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="person" />
+                            People
+                        </div>
+                        <div className="prop-value p-linked p-people">
+                            {task.people?.map((p) => (
+                                <span key={p.id} className="note-task">
+                                    <Link className="note-task-open" href={`/people?person=${p.id}`}>
+                                        <Icon name="person" className="ic-xs" />
+                                        <span>{p.name}</span>
+                                    </Link>
+                                    <button
+                                        className="note-task-x"
+                                        aria-label={`Unlink “${p.name}”`}
+                                        onClick={() =>
+                                            router.post(
+                                                route('people.unlink', p.id),
+                                                { type: 'task', id: task.id },
+                                                { preserveScroll: true, preserveState: true },
+                                            )
+                                        }
+                                    >
+                                        <Icon name="x" className="ic-xs" />
+                                    </button>
+                                </span>
+                            ))}
+                            <Picker
+                                label={task.status === 'waiting' ? 'Waiting on…' : 'Add person'}
+                                find="Find a person"
+                                options={(task.peopleChoices ?? []).map((p) => ({ id: p.id, title: p.name }))}
+                                taken={task.people?.map((p) => p.id) ?? []}
+                                none="No one matches. Add people in People."
+                                onPick={(id) =>
+                                    router.post(
+                                        route('people.link', id),
+                                        { type: 'task', id: task.id },
+                                        { preserveScroll: true, preserveState: true },
+                                    )
+                                }
+                            />
+                        </div>
+                    </div>
+                    <section className="p-section">
+                        <div className="p-section-head">
+                            <h3 className="p-section-title">Notes</h3>
+                        </div>
+                        <textarea
+                            className="p-notes"
+                            aria-label="Notes"
+                            placeholder="Add notes…"
+                            defaultValue={task.notes ?? ''}
+                            key={`${task.id}-n-${task.notes}`}
+                            maxLength={20000}
+                            rows={3}
+                            onBlur={(e) => e.target.value !== (task.notes ?? '') && patch(task.id, { notes: e.target.value || null })}
+                        />
+                        <div className="p-linked">
+                            {task.linkedNotes?.map((n) =>
+                                n.quote ? (
+                                    // Made from words in this note: the link opens it at those words.
+                                    <Link
+                                        key={n.id}
+                                        className="p-linked-note is-source"
+                                        href={`/notes?note=${n.id}&find=${encodeURIComponent(n.quote.slice(0, 80))}`}
+                                        title={`“${n.quote}”`}
+                                    >
+                                        <Icon name="notes" className="ic-sm" />
+                                        <span>From note: {n.title}</span>
+                                        <Icon name="chevR" className="ic-xs" />
+                                    </Link>
+                                ) : (
+                                    <Link key={n.id} className="p-linked-note" href={`/notes?note=${n.id}`}>
+                                        <Icon name="notes" className="ic-sm" />
+                                        <span>{n.title}</span>
+                                    </Link>
+                                ),
+                            )}
+                            <button className="note-add" onClick={() => router.post(route('notes.store'), { task_id: task.id })}>
+                                <Icon name="plus" className="ic-xs" />
+                                New note
+                            </button>
+                        </div>
+                    </section>
+                    {task.github && <TaskGitHub taskId={task.id} title={task.title} notes={task.notes} done={done} github={task.github} />}
+                    <TaskFiles taskId={task.id} files={task.files} />
+                </PGroup>
+
+                <PGroup id="log" title="Log" summary={logSum} open={groups.log} onToggle={() => toggleGroup('log')}>
+                    <TaskLog taskId={task.id} logs={logs} />
+                </PGroup>
+
+                <PGroup
+                    id="history"
+                    title="History"
+                    summary={historySum || 'Nothing yet'}
+                    open={groups.history}
+                    onToggle={() => toggleGroup('history')}
+                >
+                    {(task.focused.seconds > 0 || viaKey) && (
+                        <div className="props">
+                            {task.focused.seconds > 0 && (
+                                <>
+                                    <div className="prop-label">
+                                        <Icon name="focus" />
+                                        Focused
+                                    </div>
+                                    <div className="prop-value">
+                                        <span className="nowrap">{fmtHours(task.focused.seconds / 3600)}</span>
+                                        <span className="muted">
+                                            · {task.focused.sessions} {task.focused.sessions === 1 ? 'session' : 'sessions'} ·{' '}
+                                            {fmtHours(task.estHours)} estimated
+                                        </span>
+                                    </div>
+                                </>
+                            )}
+                            {viaKey && (
+                                <>
+                                    <div className="prop-label">
+                                        <Icon name="key" />
+                                        Via
+                                    </div>
+                                    <div className="prop-value">
+                                        {viaKey.via}
+                                        <span className="muted">
+                                            · {VIA_WORD[viaKey.type] ?? 'changed'}
+                                            {viaKey.at ? ` ${clock.date(viaKey.at, { day: 'numeric', month: 'short' })}` : ''}
+                                        </span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                    <TaskActivity key={task.id} items={task.activity ?? []} clock={clock} />
+                    {historyEmpty && <p className="p-files-empty">Nothing yet</p>}
+                </PGroup>
             </div>
             <div className="panel-foot">
                 <button className="btn btn-primary btn-lg" onClick={toggleDone} disabled={busy}>
@@ -886,6 +1086,14 @@ export function TaskPanel({
                 </button>
                 {!finished && <StartFocus taskId={task.id} className="btn btn-secondary btn-lg" />}
             </div>
+            {dropOver && (
+                <div className="p-drop" aria-hidden="true">
+                    <span>
+                        <Icon name="paperclip" className="ic-sm" />
+                        Drop to attach to this task
+                    </span>
+                </div>
+            )}
             {cancelling && <CancelTask task={task} onClose={() => setCancelling(false)} />}
             {asking && (
                 <Modal
@@ -1056,10 +1264,7 @@ function TaskActivity({ items, clock }: { items: NonNullable<TaskDetail['activit
     const [all, setAll] = useState(false);
     if (!items.length) return null;
     return (
-        <section className="p-section">
-            <div className="p-section-head">
-                <h3 className="p-section-title">Activity</h3>
-            </div>
+        <section className="p-section p-history">
             <ol className="p-activity">
                 {(all ? items : items.slice(0, 6)).map((a, i) => (
                     <li key={i}>
