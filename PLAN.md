@@ -754,9 +754,12 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
 
 ## Run it
 
-**One click:** `scripts/Velocity.bat` (a copy sits on the Desktop) starts the database, the app
-server and the live server, opens Velocity in its own Chrome window, and stops everything it
-started when that window is closed. Log: `%LOCALAPPDATA%\Velocity\launcher.log`. By hand:
+**One click:** `scripts/Velocity.bat` (a copy sits on the Desktop) shows a "Starting Velocity" box
+at once, starts the database, the live server and the app server, opens Velocity in its own Chrome
+window when the first page is drawn, builds the phone copy behind it, and stops everything it
+started when the last Velocity window is closed (it watches the window's own browser profile, not
+one process). Clicking again brings the open window to the front. Log:
+`%LOCALAPPDATA%\Velocity\launcher.log`. By hand:
 
 ```bash
 composer install && npm install
