@@ -236,15 +236,32 @@ export function TaskPanel({
     return (
         <>
             <div className="panel-head">
-                <div className="crumbs">
-                    {task.project ? <span>{task.project.name}</span> : <span>Inbox</span>}
+                {/* Where it sits: the project (opens it) and, for a subtask, its task (opens that in this panel). */}
+                <nav className="crumbs" aria-label="Where this task is">
+                    {task.project ? (
+                        <Link href={`/projects/${task.project.id}`} className="crumb" title={`Open “${task.project.name}”`}>
+                            {task.project.name}
+                        </Link>
+                    ) : (
+                        <Link href="/tasks?show=inbox" className="crumb" title="Open the Inbox">
+                            Inbox
+                        </Link>
+                    )}
                     {task.parent && (
                         <>
                             <Icon name="chevR" />
-                            <span>{task.parent.title}</span>
+                            <Link
+                                href={`?task=${task.parent.id}`}
+                                preserveScroll
+                                preserveState
+                                className="crumb is-last"
+                                title={`Open “${task.parent.title}”`}
+                            >
+                                {task.parent.title}
+                            </Link>
                         </>
                     )}
-                </div>
+                </nav>
                 <div className="panel-tools">
                     <button
                         className="icon-btn"

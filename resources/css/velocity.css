@@ -653,6 +653,12 @@ select.input { padding-right: 8px; }
 .crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; color: var(--text-3); font-weight: 550; }
 .crumbs .ic { width: 13px; height: 13px; }
 .crumbs span:last-child { color: var(--text-2); }
+/* In the task panel the names open the project and, for a subtask, its task: one line, cut short if long. */
+.crumbs .ic { flex: none; }
+.crumb { min-width: 0; padding: 2px 6px; margin: 0 -6px; border-radius: 6px; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb:first-child:not(:only-child) { flex: none; max-width: 45%; }
+.crumb.is-last { color: var(--text-2); }
+.crumb:hover { background: var(--hover); color: var(--text); }
 .panel-tools { display: flex; gap: 2px; }
 .panel-body { flex: 1; overflow-y: auto; padding: 20px 20px 28px; scrollbar-width: thin; }
 .panel-foot { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--line); flex: none; background: var(--surface); }
