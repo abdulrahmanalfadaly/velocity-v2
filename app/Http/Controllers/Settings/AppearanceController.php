@@ -13,7 +13,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/** Settings → Appearance: the theme (kept on this device) and the wallpaper (kept on the account). */
+/** Settings → Appearance: the theme (kept on this device), the wallpaper and the task cards' see-through (kept on the account). */
 class AppearanceController extends Controller
 {
     /** Soft gradients (each with a light and a dark look), photos, or the user's own picture. */
@@ -38,6 +38,21 @@ class AppearanceController extends Controller
         $user->forceFill(['wallpaper' => $name])->save();
 
         return back()->with('toast', $name ? 'Wallpaper set' : 'No wallpaper')->with('undo', $this->undo('put-wallpaper', 0, ['wallpaper' => $before]));
+    }
+
+    /** Task cards: how see-through (percent) and how blurred (pixels) they are over the wallpaper. */
+    public function cards(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['clear' => ['required', 'integer', 'between:0,80'], 'blur' => ['required', 'integer', 'between:0,30']]);
+        $request->user()->forceFill(['card_clear' => $data['clear'], 'card_blur' => $data['blur']])->save();
+
+        return back();
+    }
+
+    /** What the task cards need: see-through and blur. Null in FYP mode (it keeps the usual look). */
+    public static function cardsShared(User $user): ?array
+    {
+        return $user->fyp_mode ? null : ['clear' => (int) ($user->card_clear ?? 6), 'blur' => (int) ($user->card_blur ?? 8)];
     }
 
     /** Your own picture: it replaces the one before, and becomes the wallpaper. */

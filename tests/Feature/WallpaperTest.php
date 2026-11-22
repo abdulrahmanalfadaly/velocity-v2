@@ -52,4 +52,21 @@ class WallpaperTest extends TestCase
         $user->forceFill(['wallpaper' => 'g-dusk', 'fyp_mode' => true])->save();
         $this->get(route('appearance'))->assertInertia(fn (Assert $p) => $p->where('wallpaper', null));
     }
+
+    public function test_task_cards_see_through_and_blur_are_kept_on_the_account(): void
+    {
+        $user = User::factory()->create(['fyp_mode' => false]);
+        $this->actingAs($user);
+
+        // 6% and 8 px at first; set, checked, and shared with every page.
+        $this->get(route('appearance'))->assertInertia(fn (Assert $p) => $p->where('cards', ['clear' => 6, 'blur' => 8]));
+        $this->put(route('cards.update'), ['clear' => 25, 'blur' => 12])->assertSessionHasNoErrors();
+        $this->get(route('tasks.index'))->assertInertia(fn (Assert $p) => $p->where('cards', ['clear' => 25, 'blur' => 12]));
+        $this->put(route('cards.update'), ['clear' => 95, 'blur' => -1])->assertSessionHasErrors(['clear', 'blur']);
+        $this->assertSame([25, 12], [$user->fresh()->card_clear, $user->fresh()->card_blur]);
+
+        // FYP mode keeps the usual look.
+        $user->forceFill(['fyp_mode' => true])->save();
+        $this->get(route('appearance'))->assertInertia(fn (Assert $p) => $p->where('cards', null));
+    }
 }

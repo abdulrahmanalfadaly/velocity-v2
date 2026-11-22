@@ -154,7 +154,15 @@ export default function VelocityShell({ title, section, active, children, panel,
             <div
                 className={`app${hasSidebar ? '' : ' no-sidebar'}${panel ? ' has-panel' : ''}${canvas ? ' is-canvas' : ''}${props.focusSession ? ' has-focus' : ''}`}
                 data-wall={props.wallpaper?.name}
-                style={props.wallpaper?.url ? ({ ['--wall-img' as string]: `url("${props.wallpaper.url}")` } as CSSProperties) : undefined}
+                style={
+                    {
+                        ...(props.wallpaper?.url ? { ['--wall-img' as string]: `url("${props.wallpaper.url}")` } : {}),
+                        // Task cards' see-through and blur (Settings → Appearance).
+                        ...(props.cards
+                            ? { ['--card-clear' as string]: props.cards.clear / 100, ['--card-blur' as string]: `${props.cards.blur}px` }
+                            : {}),
+                    } as CSSProperties
+                }
             >
                 {/* The first Tab on any page: straight to the page itself, past the menus. */}
                 <a className="skip-link" href="#main">

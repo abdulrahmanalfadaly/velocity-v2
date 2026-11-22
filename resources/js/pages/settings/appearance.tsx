@@ -4,7 +4,7 @@ import AppLayout from '@/layouts/app-layout';
 import SettingsLayout, { SettingsCard } from '@/layouts/settings/layout';
 import type { VelocityShared } from '@/types/velocity';
 import { Head, router, usePage } from '@inertiajs/react';
-import { type CSSProperties, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 
 const THEMES: { value: Theme; icon: string; label: string }[] = [
     { value: 'light', icon: 'sun', label: 'Light' },
@@ -56,6 +56,7 @@ export default function Appearance() {
                     </div>
                 </SettingsCard>
                 {personal && <Wallpaper current={props.wallpaper?.name ?? null} own={props.ownWallpaper} />}
+                {personal && props.cards && <TaskCards cards={props.cards} wall={props.wallpaper ?? null} />}
             </SettingsLayout>
         </AppLayout>
     );
@@ -140,6 +141,108 @@ function Wallpaper({ current, own }: { current: string | null; own: string | nul
                     <span className="card-sub">JPG, PNG or WebP, up to 8 MB</span>
                 </div>
                 {error && <p className="field-error">{error}</p>}
+            </div>
+        </SettingsCard>
+    );
+}
+
+const CARDS_START = { clear: 6, blur: 8 };
+const SAMPLE: [string, string, number][] = [
+    ['Method chapter', 'Final Year Project · 3 h', 82.4],
+    ['Quiz revision', 'Data Mining · 2 h', 61.0],
+    ['Groceries', 'Home · 30 min', 43.1],
+];
+
+/**
+ * Task cards: how much of the wallpaper shows through them, and how blurred it is. The whole app follows as
+ * you slide, and the sample shows it over your wallpaper; saved on your account a moment after you stop.
+ */
+function TaskCards({ cards, wall }: { cards: { clear: number; blur: number }; wall: { name: string; url: string | null } | null }) {
+    const [look, setLook] = useState(cards);
+    const saved = useRef(cards);
+    useEffect(() => {
+        const app = document.querySelector<HTMLElement>('.app');
+        app?.style.setProperty('--card-clear', String(look.clear / 100));
+        app?.style.setProperty('--card-blur', `${look.blur}px`);
+        if (look.clear === saved.current.clear && look.blur === saved.current.blur) return;
+        const t = setTimeout(() => {
+            saved.current = look;
+            router.put(route('cards.update'), look, keep);
+        }, 400);
+        return () => clearTimeout(t);
+    }, [look]);
+    const atStart = look.clear === CARDS_START.clear && look.blur === CARDS_START.blur;
+
+    return (
+        <SettingsCard title="Task cards">
+            <div className="settings-form cards-look">
+                <div className="cards-sliders">
+                    <div className="cards-slider">
+                        <label className="cards-slider-head" htmlFor="card-clear">
+                            <span>See-through</span>
+                            <output htmlFor="card-clear">{look.clear}%</output>
+                        </label>
+                        <input
+                            id="card-clear"
+                            type="range"
+                            min={0}
+                            max={80}
+                            step={1}
+                            value={look.clear}
+                            onChange={(e) => setLook({ ...look, clear: Number(e.target.value) })}
+                        />
+                    </div>
+                    <div className="cards-slider">
+                        <label className="cards-slider-head" htmlFor="card-blur">
+                            <span>Blur</span>
+                            <output htmlFor="card-blur">{look.blur} px</output>
+                        </label>
+                        <input
+                            id="card-blur"
+                            type="range"
+                            min={0}
+                            max={30}
+                            step={1}
+                            value={look.blur}
+                            onChange={(e) => setLook({ ...look, blur: Number(e.target.value) })}
+                        />
+                    </div>
+                    <div className="wall-own">
+                        <button type="button" className="btn btn-ghost btn-sm" disabled={atStart} onClick={() => setLook(CARDS_START)}>
+                            Back to 6% · 8 px
+                        </button>
+                        {!wall && <span className="card-sub">Shows over a wallpaper</span>}
+                    </div>
+                </div>
+                <div
+                    className="cards-preview"
+                    data-wall={wall?.name}
+                    aria-hidden="true"
+                    style={
+                        {
+                            ...(wall?.url ? { '--wall-img': `url("${wall.url}")` } : {}),
+                            '--card-clear': look.clear / 100,
+                            '--card-blur': `${look.blur}px`,
+                        } as CSSProperties
+                    }
+                >
+                    <ol className="rank-list is-ranked">
+                        {SAMPLE.map(([title, sub, score], i) => (
+                            <li key={title} className="row">
+                                <span className="check" />
+                                <div>
+                                    <div className="row-title">
+                                        {i + 1}. {title}
+                                    </div>
+                                    <div className="row-sub">
+                                        <span>{sub}</span>
+                                    </div>
+                                </div>
+                                <span className="score-num">{score.toFixed(1)}</span>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
             </div>
         </SettingsCard>
     );

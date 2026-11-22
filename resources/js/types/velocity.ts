@@ -253,6 +253,8 @@ export interface VelocityShared {
     focusSession?: FocusRunning | null;
     /** The wallpaper behind the pages (Settings → Appearance); none in FYP mode. */
     wallpaper?: { name: string; url: string | null } | null;
+    /** How see-through (percent) and blurred (px) the task cards are over it; none in FYP mode. */
+    cards?: { clear: number; blur: number } | null;
     [key: string]: unknown;
 }
 

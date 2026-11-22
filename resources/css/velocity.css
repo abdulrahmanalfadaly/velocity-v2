@@ -2741,15 +2741,29 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .p-files .p-section-head:last-child { margin-bottom: 0; }
 .props > .prop-label:has(+ .p-people) { align-self: start; }
 
-/* Task cards (the list, "Add a task", Not ready, board cards): the colour and see-through of the user's
-   example (22 Nov): #2b2b2b at 94% in dark mode, so a wallpaper shows through faintly, softly blurred.
-   The task panel, menus and dialogs stay solid. */
-:root { --task-card: rgba(255, 255, 255, 0.94); }
-:root.dark { --task-card: rgba(43, 43, 43, 0.94); }
-:is(.rank-list, .add-row, .vcard, .section-fold) { background: var(--task-card); }
-.app[data-wall] :is(.rank-list, .add-row, .vcard, .section-fold) {
-    -webkit-backdrop-filter: blur(8px) saturate(1.1); backdrop-filter: blur(8px) saturate(1.1);
+/* Task cards (the list, "Add a task", Not ready, board cards): the colour of the user's example (22 Nov),
+   #2b2b2b in dark mode. How see-through and blurred they are is a setting (Settings → Appearance → Task
+   cards: --card-clear, --card-blur; 6% and 8px at first). The task panel, menus and dialogs stay solid. */
+:root { --task-card-rgb: 255 255 255; }
+:root.dark { --task-card-rgb: 43 43 43; }
+:is(.rank-list, .add-row, .vcard, .section-fold) { background: rgb(var(--task-card-rgb) / calc(1 - var(--card-clear, 0.06))); }
+:is(.app[data-wall], .cards-preview) :is(.rank-list, .add-row, .vcard, .section-fold) {
+    -webkit-backdrop-filter: blur(var(--card-blur, 8px)) saturate(1.1); backdrop-filter: blur(var(--card-blur, 8px)) saturate(1.1);
 }
+/* Settings → Appearance: the sliders, and a sample of the cards over the wallpaper. */
+.cards-look { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; align-items: center; }
+@media (max-width: 720px) { .cards-look { grid-template-columns: 1fr; } }
+.cards-sliders { display: grid; gap: 16px; }
+.cards-slider { display: grid; gap: 6px; }
+.cards-slider-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.cards-slider-head output { color: var(--text); font-variant-numeric: tabular-nums; }
+.cards-slider input[type=range] { width: 100%; accent-color: var(--violet); }
+.cards-preview { position: relative; padding: 22px 20px; border-radius: 14px; border: 1px solid var(--line); background: var(--wall, var(--bg)); overflow: hidden; }
+.cards-preview:is([data-wall^="p-"], [data-wall="own"]) {
+    background: linear-gradient(var(--wall-veil), var(--wall-veil)), var(--wall-img) center / cover no-repeat, var(--bg);
+}
+.cards-preview .rank-list { pointer-events: none; }
+.cards-preview .row { grid-template-columns: 20px minmax(0, 1fr) auto; padding: 11px 14px; }
 .app[data-wall] .vcol {
     background: color-mix(in srgb, var(--surface-2) 50%, transparent);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);

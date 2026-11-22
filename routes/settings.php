@@ -45,6 +45,7 @@ Route::middleware('auth')->group(function () {
         Route::post('settings/data/import', [DataController::class, 'import'])->name('data.import');
         // The wallpaper behind the pages.
         Route::put('settings/wallpaper', [AppearanceController::class, 'update'])->name('wallpaper.update');
+        Route::put('settings/cards', [AppearanceController::class, 'cards'])->name('cards.update');
         Route::post('settings/wallpaper/picture', [AppearanceController::class, 'upload'])->name('wallpaper.upload');
         Route::delete('settings/wallpaper/picture', [AppearanceController::class, 'destroyPicture'])->name('wallpaper.picture.destroy');
         Route::get('settings/wallpaper/picture', [AppearanceController::class, 'picture'])->name('wallpaper.picture');

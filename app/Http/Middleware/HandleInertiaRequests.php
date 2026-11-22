@@ -51,6 +51,8 @@ class HandleInertiaRequests extends Middleware
             'focusSession' => fn () => $user && ! $user->fyp_mode ? app(FocusActions::class)->state($user) : null,
             // The wallpaper behind the pages (Settings → Appearance); none in FYP mode.
             'wallpaper' => fn () => $user ? AppearanceController::shared($user) : null,
+            // How see-through the task cards are over it.
+            'cards' => fn () => $user ? AppearanceController::cardsShared($user) : null,
             'flash' => fn () => [
                 'toast' => $request->session()->get('toast'),
                 'undo' => $request->session()->get('undo'),
