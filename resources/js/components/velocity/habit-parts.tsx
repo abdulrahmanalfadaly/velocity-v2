@@ -3,6 +3,7 @@ import { type Clock, hm12 } from '@/lib/velocity';
 import type { HabitDay, HabitToday, VelocityShared } from '@/types/velocity';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
@@ -150,7 +151,10 @@ export function DayMark({
     );
 }
 
-/** A small popover in a fixed place, closed by a click outside or Escape. */
+/**
+ * A small popover in a fixed place, closed by a click outside or Escape. Drawn at the top of the page, so a
+ * see-through (blurred) card it opens from can't shift or clip it.
+ */
 export function Pop({
     x,
     y,
@@ -182,7 +186,7 @@ export function Pop({
             document.removeEventListener('keydown', onKey);
         };
     }, [onClose]);
-    return (
+    return createPortal(
         <div
             className="bmenu hb-pop"
             role="dialog"
@@ -191,7 +195,8 @@ export function Pop({
             style={{ width, left: Math.max(8, Math.min(x, window.innerWidth - width - 8)), top: Math.max(8, Math.min(y, window.innerHeight - 240)) }}
         >
             {children}
-        </div>
+        </div>,
+        document.body,
     );
 }
 
