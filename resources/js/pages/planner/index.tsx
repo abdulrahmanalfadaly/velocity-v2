@@ -94,7 +94,7 @@ interface PlanHabit {
     target: number;
 }
 
-const HOUR = 64; // px for one hour in the grid (CSS reads it as --hour)
+const HOUR = 80; // px for one hour in the grid (CSS reads it as --hour)
 const SNAP = 15; // minutes a dragged block snaps to
 const ICON: Record<CalendarKey, string> = { class: 'cap', work: 'briefcase', personal: 'heart' };
 const LABEL: Record<CalendarKey, string> = { class: 'Class', work: 'Work', personal: 'Personal' };
@@ -752,17 +752,18 @@ export default function Planner() {
                                             // Its size on screen decides its layout: a tall block shows as many title lines
                                             // as fit above the time (never a half-cut line), a short one puts the title and
                                             // time side by side, a tiny one (15–25 min) shows the title alone.
-                                            const h = Math.max(24, ((p.bottom - p.top) / 60) * HOUR - 3);
-                                            const next = p.it.kind === 'block' && p.it.bl.kind === 'project' ? 15 : 0;
+                                            const h = Math.max(28, ((p.bottom - p.top) / 60) * HOUR - 3);
+                                            const next = p.it.kind === 'block' && p.it.bl.kind === 'project' ? 17 : 0;
                                             const style = {
                                                 top: (p.top / 60) * HOUR + 1,
                                                 height: h,
                                                 left: `calc(${(p.lane / p.lanes) * 100}% + 3px)`,
                                                 width: `calc(${100 / p.lanes}% - 6px)`,
-                                                ['--lines' as string]: Math.max(1, Math.min(3, Math.floor((h - 27 - next) / 16.25))),
+                                                // 14 px padding, the 13 px time line (16) and 2 px gap; a 14 px title line is 18.2 px.
+                                                ['--lines' as string]: Math.max(1, Math.min(4, Math.floor((h - 32 - next) / 18.2))),
                                             } as CSSProperties;
-                                            const short = h < 47;
-                                            const tiny = h < 30;
+                                            const short = h < 52;
+                                            const tiny = h < 36;
                                             if (p.it.kind === 'block') {
                                                 const { bl, s, e } = p.it;
                                                 const when = `${minLabel(s.min)}–${minLabel(e.min)}`;
@@ -887,7 +888,7 @@ export default function Planner() {
                                                         key={t.id}
                                                         className={`pg-due${over ? ' is-compact' : ''}`}
                                                         href={`/tasks?task=${t.id}`}
-                                                        style={{ top: (m / 60) * HOUR - 10 }}
+                                                        style={{ top: (m / 60) * HOUR - 11 }}
                                                         title={`Due: ${t.title}`}
                                                         aria-label={`Due: ${t.title}`}
                                                     >
@@ -901,7 +902,7 @@ export default function Planner() {
                                                 className={`pblock is-ghost${drag.eventKey ? ' is-event' : ''}`}
                                                 style={{
                                                     top: (drag.to.min / 60) * HOUR + 1,
-                                                    height: Math.max(24, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 3),
+                                                    height: Math.max(28, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 3),
                                                     left: 3,
                                                     right: 3,
                                                 }}
