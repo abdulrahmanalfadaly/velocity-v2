@@ -105,7 +105,7 @@ class UndoTest extends TestCase
         $task = $this->task();
         $step = $task->steps()->create(['title' => 'Outline', 'position' => 0]);
 
-        $this->delete(route('steps.destroy', $step))->assertSessionHas('toast', 'Removed step “Outline”');
+        $this->delete(route('steps.destroy', $step))->assertSessionHas('toast', 'Removed subtask “Outline”');
         $this->assertSoftDeleted($step);
         $this->undo();
         $this->assertNull($step->fresh()->deleted_at);

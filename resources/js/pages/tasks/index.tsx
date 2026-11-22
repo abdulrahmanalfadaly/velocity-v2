@@ -382,7 +382,7 @@ export default function TasksIndex() {
                                     {shown.length === 0 && <li className="list-empty">Nothing here right now.</li>}
                                     {shown.map((t) => {
                                         const due = dueInfo(t, clock);
-                                        const done = t.steps.filter((s) => s.done).length;
+                                        const subs = t.subtaskCount ?? { done: t.steps.filter((s) => s.done).length, total: t.steps.length };
                                         return (
                                             <li
                                                 key={t.id}
@@ -430,11 +430,11 @@ export default function TasksIndex() {
                                                                 </span>
                                                             </>
                                                         )}
-                                                        {t.steps.length > 0 && (
+                                                        {subs.total > 0 && (
                                                             <>
                                                                 <span className="dotsep" />
                                                                 <span>
-                                                                    {done}/{t.steps.length} steps
+                                                                    {subs.done}/{subs.total} subtasks
                                                                 </span>
                                                             </>
                                                         )}

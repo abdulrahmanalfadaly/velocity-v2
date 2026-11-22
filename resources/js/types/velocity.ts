@@ -58,6 +58,8 @@ export interface BaseTask {
     /** How many files it has (on the ranked list). */
     fileCount?: number | null;
     steps: Step[];
+    /** Its subtasks, counted as the task panel does: the unranked ones and the ones made into tasks. */
+    subtaskCount?: { done: number; total: number } | null;
 }
 
 /** A task with its place in the ranking (report Algorithms 3.2 and 3.3). */

@@ -742,11 +742,14 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
       Importance, Urgency, Due, Work, Energy (no "Ranking" title);
       Subtasks; Files; then groups that open and close, remembered on the
       device: Schedule (Can start, Repeats, Reminders), Details (Project,
-      Goal, People, GitHub), Log, History (Focused, Via, Activity; closed
-      at first). A closed group shows what is set in it
+      Goal, People, Notes (linked notes, New note), GitHub), Log, History
+      (Focused, Via, Activity; closed at first). A closed group shows what
+      is set in it
 - [x] Subtasks are one list: "Add a subtask" adds a light item (a step,
       not ranked) with "Make it a task" (then a ranked task under this
-      one, still listed here with its rank). There is no Steps section
+      one, still listed here with its rank). There is no Steps section,
+      and no screen says "steps": rows, Home, projects, the Goals map and
+      templates say "subtasks" and count both kinds, as the panel does
 - [x] Nothing blocks anything (personal mode): "Starts after" and "Blocks"
       are gone, and old links hold nothing back. FYP mode keeps them, as
       the report has it

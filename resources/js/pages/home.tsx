@@ -246,7 +246,7 @@ function DoNext({
     onFit: (patch: Partial<Fit>) => void;
 }) {
     const due = dueInfo(task, clock);
-    const done = task.steps.filter((s) => s.done).length;
+    const subs = task.subtaskCount ?? { done: task.steps.filter((s) => s.done).length, total: task.steps.length };
     return (
         <section className="card" aria-labelledby="do-next">
             <div className="hero">
@@ -285,12 +285,12 @@ function DoNext({
                         Done
                     </button>
                     <span className="spacer" />
-                    {task.steps.length > 0 && (
+                    {subs.total > 0 && (
                         <span className="progress-mini">
                             <span className="track">
-                                <i style={{ width: `${(done / task.steps.length) * 100}%` }} />
+                                <i style={{ width: `${(subs.done / subs.total) * 100}%` }} />
                             </span>
-                            {done} of {task.steps.length} steps
+                            {subs.done} of {subs.total} subtasks
                         </span>
                     )}
                 </div>

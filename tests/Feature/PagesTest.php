@@ -155,6 +155,12 @@ class PagesTest extends TestCase
         $this->assertSame('Write Chapter 4 – Implementation', $task->parent->title);
         $this->assertNull(TaskStep::find($step->id));
         $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->has('tasks', 16));
+        // Its parent's rows count it with the subtasks still unranked, as the panel does.
+        $parent = Task::where('title', 'Write Chapter 4 – Implementation')->firstOrFail();
+        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->where('tasks', fn ($tasks) => collect($tasks)->firstWhere('id', $parent->id)['subtaskCount']
+            === ['done' => $parent->steps()->whereNotNull('done_at')->count() + $parent->children()->whereIn('status', Task::FINISHED)->count(),
+                'total' => $parent->steps()->count() + $parent->children()->count()]));
+        $this->assertSame(2, $parent->children()->count()); // the step just made a task, and the one it had
     }
 
     public function test_changing_weights_reranks(): void

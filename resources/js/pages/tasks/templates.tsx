@@ -27,7 +27,7 @@ const whenText = (t: Template) =>
         .filter(Boolean)
         .join(' · ');
 
-/** Templates: tasks to copy from. "Use" makes a new task with the template's steps. */
+/** Templates: tasks to copy from. "Use" makes a new task with the template's subtasks. */
 export default function Templates() {
     const { props } = usePage<Props>();
     const [dialog, setDialog] = useState<null | 'new' | Template>(null);
@@ -63,7 +63,7 @@ export default function Templates() {
                                     urgency {LEVEL[t.urgency].toLowerCase()}
                                     {t.repeat && ` · ${repeatText(t.repeat).toLowerCase()}`}
                                     {whenText(t) && ` · ${whenText(t)}`}
-                                    {t.steps.length > 0 && ` · ${t.steps.length} ${t.steps.length === 1 ? 'step' : 'steps'}`}
+                                    {t.steps.length > 0 && ` · ${t.steps.length} ${t.steps.length === 1 ? 'subtask' : 'subtasks'}`}
                                     {t.used > 0 && ` · used ${t.used}×`}
                                 </p>
                                 {t.steps.length > 0 && (
@@ -246,7 +246,7 @@ function TemplateDialog({ template, projects, onClose }: { template?: Template; 
                         />
                     </Field>
                 </div>
-                <Field id="t-steps" label="Steps (one per line)" error={errors.steps}>
+                <Field id="t-steps" label="Subtasks (one per line)" error={errors.steps}>
                     <textarea
                         id="t-steps"
                         className="input vform-text"

@@ -50,9 +50,14 @@ class TaskPresenter
             'parent' => $task->relationLoaded('parent') && $task->parent ? ['id' => $task->parent->id, 'title' => $task->parent->title] : null,
             // How many files it has (when counted with the list).
             'fileCount' => $task->files_count ?? null,
+            // Its subtasks: the light ones (stored as steps) and, when counted with the list, the ones made into tasks.
             'steps' => $task->relationLoaded('steps')
                 ? $task->steps->map(fn ($s) => ['id' => $s->id, 'title' => $s->title, 'done' => $s->done_at !== null])->values()->all()
                 : [],
+            'subtaskCount' => $task->relationLoaded('steps') ? [
+                'done' => $task->steps->whereNotNull('done_at')->count() + (int) ($task->children_finished_count ?? 0),
+                'total' => $task->steps->count() + (int) ($task->children_count ?? 0),
+            ] : null,
         ];
     }
 
@@ -92,7 +97,7 @@ class TaskPresenter
             $snap = $e->snapshot ?? [];
             $text = match ($e->type) {
                 'created' => isset($snap['repeatOf']) ? 'Added (the next repeat)' : 'Added',
-                'promoted' => 'Made from a step',
+                'promoted' => 'Made from a subtask',
                 'completed' => 'Done',
                 'cancelled' => 'Cancelled'.(! empty($snap['reason']) ? ': '.$snap['reason'] : ''),
                 'reopened' => 'Opened again',

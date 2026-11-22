@@ -61,7 +61,7 @@ export function UseDialog({ template, projects, onClose }: { template: Template;
             >
                 <p className="tpl-use-title">
                     “{template.title}” · {fmtHours(template.estHours)}
-                    {template.steps.length > 0 && ` · ${template.steps.length} steps`}
+                    {template.steps.length > 0 && ` · ${template.steps.length} ${template.steps.length === 1 ? 'subtask' : 'subtasks'}`}
                     {template.startDays ? ` · can start ${daysAfter(template.startDays)}` : ''}
                 </p>
                 <div className="vform-row">

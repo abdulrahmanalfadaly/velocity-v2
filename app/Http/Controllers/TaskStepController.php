@@ -8,7 +8,7 @@ use App\Support\Clock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
-/** Steps inside a task. A step that grows can become a real, ranked task. */
+/** Subtasks inside a task (stored as steps): not ranked until "Make it a task" makes one a real, ranked task. */
 class TaskStepController extends Controller
 {
     public function store(Request $request, Task $task): RedirectResponse
@@ -38,7 +38,7 @@ class TaskStepController extends Controller
         $this->taskOf($step, $request);
         $step->delete();
 
-        return back()->with('toast', "Removed step “{$step->title}”")->with('undo', $this->undo('restore-step', $step->id));
+        return back()->with('toast', "Removed subtask “{$step->title}”")->with('undo', $this->undo('restore-step', $step->id));
     }
 
     public function restore(Request $request, int $id): RedirectResponse
@@ -47,7 +47,7 @@ class TaskStepController extends Controller
         $this->taskOf($step, $request);
         $step->restore();
 
-        return back()->with('toast', "Step “{$step->title}” is back");
+        return back()->with('toast', "Subtask “{$step->title}” is back");
     }
 
     /** The step's task, if it is yours (a step of a deleted task is not found). */

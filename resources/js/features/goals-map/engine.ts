@@ -626,9 +626,11 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                 const t = n.task;
                 if (t.kind === 'ranked') {
                     const due = dueInfo(t, clock);
-                    const steps = t.steps || [];
+                    // Its subtasks: the unranked ones and the ones made into tasks, counted as the task panel does.
+                    const subs = n.children.filter((c) => c.type === 'step' || c.type === 'task');
                     const meta = [`<span${due.late ? ' class="is-late"' : ''}>${due.text}</span>`, fmtHours(t.estHours)];
-                    if (steps.length) meta.push(`${steps.filter((s) => s.done).length}/${steps.length} steps`);
+                    if (subs.length)
+                        meta.push(`${subs.filter((c) => (c.type === 'step' ? c.done : c.state === 'done')).length}/${subs.length} subtasks`);
                     return `${n === NEXT ? `<span class="mn-tag">${ic('zap', 'ic-xs')}Do next</span>` : ''}<span class="rank-badge">${n.rank}</span><div class="mn-body"><div class="mn-title">${esc(n.title)}</div><div class="mn-meta">${meta.join(' · ')}</div></div><span class="mn-score">${fmt1(t.score)}</span>${knob(n)}`;
                 }
                 const why = n.state === 'done' ? (t.completedAt ? `${clock.date(t.completedAt)}` : '') : t.why;
@@ -1112,7 +1114,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
             const parent = n.parent;
             const parentRank = parent && isRanked(parent) ? parent.rank : null;
             html = `${phead(crumbsOf(n))}<div class="panel-body" ${goalStyle(n)}>
-                <div class="gp-head"><span class="sdot sdot-lg${n.done ? ' is-done' : ''}">${ic('check')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">Step of “${esc(parent?.title)}”${parentRank ? ` (#${parentRank})` : ''}</p></div></div>
+                <div class="gp-head"><span class="sdot sdot-lg${n.done ? ' is-done' : ''}">${ic('check')}</span><div><h2 class="p-title">${esc(n.title)}</h2><p class="gp-why">Subtask of “${esc(parent?.title)}”${parentRank ? ` (#${parentRank})` : ''}</p></div></div>
             </div>${pfoot(`<button class="btn btn-primary btn-lg" data-gm-promote="${n.stepId}">${ic('rank')}Make it a task</button>`)}`;
         } else if (n.type === 'note' || n.type === 'habit') {
             const isNote = n.type === 'note';
@@ -1164,7 +1166,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                     meta = KIND_LABEL[n.state] ?? '';
                 } else if (n.type === 'step') {
                     lead = `<span class="sdot${n.done ? ' is-done' : ''}">${ic('check')}</span>`;
-                    meta = n.done ? 'Done' : 'Step';
+                    meta = n.done ? 'Done' : 'Subtask';
                 } else {
                     lead = ic(n.type === 'note' ? 'notes' : 'habits');
                     meta = n.type === 'note' ? 'Note' : `Habit · ${n.streak}-day streak`;
@@ -1181,7 +1183,7 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
                     ),
                 );
         })(root, 0);
-        outline.innerHTML = `<div class="go-wrap"><div class="go-list" role="tree" aria-label="Goals, projects, tasks and steps">${rows.join('')}</div></div>`;
+        outline.innerHTML = `<div class="go-wrap"><div class="go-list" role="tree" aria-label="Goals, projects, tasks and subtasks">${rows.join('')}</div></div>`;
     }
     function setMode(mode: string | undefined) {
         mount.querySelectorAll<HTMLElement>('[data-gm-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.gmMode === mode)));

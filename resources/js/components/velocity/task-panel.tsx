@@ -219,6 +219,7 @@ export function TaskPanel({
         task.project?.name ?? 'No project',
         task.goal?.title,
         !!task.people?.length && count(task.people.length, 'person', 'people'),
+        !!task.linkedNotes?.length && count(task.linkedNotes.length, 'note'),
         !!task.github?.links.length && count(task.github.links.length, 'GitHub link'),
     ]);
     const logSum = logs.length ? parts([count(logs.length, 'entry', 'entries'), logs[0].at && `last ${shortDay(logs[0].at)}`]) : 'No entries';
@@ -380,35 +381,9 @@ export function TaskPanel({
                     ) : null}
                 </p>
 
-                {/* Notes: what you write about it, and the notes linked to it. */}
+                {/* Notes: what you write about it (the notes linked to it are in Details). */}
                 <div className="p-notebox">
                     <NotesBox task={task} />
-                    <div className="p-notebox-links">
-                        {task.linkedNotes?.map((n) =>
-                            n.quote ? (
-                                // Made from words in this note: the link opens it at those words.
-                                <Link
-                                    key={n.id}
-                                    className="p-linked-note is-source"
-                                    href={`/notes?note=${n.id}&find=${encodeURIComponent(n.quote.slice(0, 80))}`}
-                                    title={`“${n.quote}”`}
-                                >
-                                    <Icon name="notes" className="ic-sm" />
-                                    <span>From note: {n.title}</span>
-                                    <Icon name="chevR" className="ic-xs" />
-                                </Link>
-                            ) : (
-                                <Link key={n.id} className="p-linked-note" href={`/notes?note=${n.id}`}>
-                                    <Icon name="notes" className="ic-sm" />
-                                    <span>{n.title}</span>
-                                </Link>
-                            ),
-                        )}
-                        <button type="button" className="p-note-new" onClick={() => router.post(route('notes.store'), { task_id: task.id })}>
-                            <Icon name="plus" className="ic-xs" />
-                            New note
-                        </button>
-                    </div>
                 </div>
 
                 <div className="props">
@@ -868,6 +843,36 @@ export function TaskPanel({
                                     )
                                 }
                             />
+                        </div>
+                        <div className="prop-label">
+                            <Icon name="notes" />
+                            Notes
+                        </div>
+                        <div className="prop-value p-linked p-people p-note-links">
+                            {task.linkedNotes?.map((n) =>
+                                n.quote ? (
+                                    // Made from words in this note: the link opens it at those words.
+                                    <Link
+                                        key={n.id}
+                                        className="p-linked-note is-source"
+                                        href={`/notes?note=${n.id}&find=${encodeURIComponent(n.quote.slice(0, 80))}`}
+                                        title={`“${n.quote}”`}
+                                    >
+                                        <Icon name="notes" className="ic-sm" />
+                                        <span>From note: {n.title}</span>
+                                        <Icon name="chevR" className="ic-xs" />
+                                    </Link>
+                                ) : (
+                                    <Link key={n.id} className="p-linked-note" href={`/notes?note=${n.id}`}>
+                                        <Icon name="notes" className="ic-sm" />
+                                        <span>{n.title}</span>
+                                    </Link>
+                                ),
+                            )}
+                            <button type="button" className="p-note-new" onClick={() => router.post(route('notes.store'), { task_id: task.id })}>
+                                <Icon name="plus" className="ic-xs" />
+                                New note
+                            </button>
                         </div>
                     </div>
                     {task.github && <TaskGitHub taskId={task.id} title={task.title} notes={task.notes} done={done} github={task.github} />}

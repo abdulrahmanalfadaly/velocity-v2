@@ -192,8 +192,8 @@ export default function Archive() {
                     <div className="vform">
                         <p className="vform-text-plain">
                             {emptying === 'archived'
-                                ? 'Every archived task goes, with its steps, files and history, and it leaves History and Review too.'
-                                : 'Every deleted task goes, with its steps, files and history.'}{' '}
+                                ? 'Every archived task goes, with its subtasks, files and history, and it leaves History and Review too.'
+                                : 'Every deleted task goes, with its subtasks, files and history.'}{' '}
                             This can’t be undone.
                         </p>
                         <div className="vform-foot">

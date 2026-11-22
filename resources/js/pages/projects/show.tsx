@@ -476,7 +476,7 @@ export default function ProjectShow() {
                                                         <button
                                                             className="pt-caret"
                                                             aria-expanded={isOpen}
-                                                            aria-label="Show steps"
+                                                            aria-label="Show subtasks"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setOpen((o) => ({ ...o, [t.id]: !o[t.id] }));
@@ -499,11 +499,12 @@ export default function ProjectShow() {
                                                             <span className={d.late ? 'is-late' : ''}>{d.text}</span>
                                                             <span className="dotsep" />
                                                             <span>{fmtHours(t.estHours)}</span>
-                                                            {t.steps.length > 0 && (
+                                                            {(t.subtaskCount?.total ?? t.steps.length) > 0 && (
                                                                 <>
                                                                     <span className="dotsep" />
                                                                     <span>
-                                                                        {t.steps.filter((s) => s.done).length}/{t.steps.length} steps
+                                                                        {t.subtaskCount?.done ?? t.steps.filter((s) => s.done).length}/
+                                                                        {t.subtaskCount?.total ?? t.steps.length} subtasks
                                                                     </span>
                                                                 </>
                                                             )}
@@ -518,7 +519,7 @@ export default function ProjectShow() {
                                                             <li key={s.id} className={`pt-step${s.done ? ' is-done' : ''}`}>
                                                                 <Check
                                                                     done={s.done}
-                                                                    label="Step done"
+                                                                    label={s.done ? `Mark “${s.title}” not done` : `Mark “${s.title}” done`}
                                                                     onClick={() =>
                                                                         router.patch(
                                                                             route('steps.update', s.id),
@@ -528,19 +529,21 @@ export default function ProjectShow() {
                                                                     }
                                                                 />
                                                                 <span className="pt-step-title">{s.title}</span>
-                                                                <button
-                                                                    className="pt-promote"
-                                                                    onClick={() =>
-                                                                        router.post(
-                                                                            route('steps.promote', s.id),
-                                                                            {},
-                                                                            { preserveScroll: true, preserveState: true },
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Icon name="rank" className="ic-xs" />
-                                                                    Make it a task
-                                                                </button>
+                                                                {!s.done && (
+                                                                    <button
+                                                                        className="pt-promote"
+                                                                        onClick={() =>
+                                                                            router.post(
+                                                                                route('steps.promote', s.id),
+                                                                                {},
+                                                                                { preserveScroll: true, preserveState: true },
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Icon name="rank" className="ic-xs" />
+                                                                        Make it a task
+                                                                    </button>
+                                                                )}
                                                             </li>
                                                         ))}
                                                         {kids.map((c) => (

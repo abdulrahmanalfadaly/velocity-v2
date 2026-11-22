@@ -51,7 +51,7 @@ class RankingService
         $params ??= $user->weights()->parameters();
         $tasks = $this->eligibleQuery($user)
             ->with(['project.goal', 'goal', 'parent:id,title', 'steps'])
-            ->withCount('files')
+            ->withCount(['files', 'children', 'children as children_finished_count' => fn (Builder $q) => $q->whereIn('status', Task::FINISHED)])
             ->get()
             ->keyBy('id');
 
