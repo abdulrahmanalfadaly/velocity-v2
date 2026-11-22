@@ -2741,11 +2741,14 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .p-files .p-section-head:last-child { margin-bottom: 0; }
 .props > .prop-label:has(+ .p-people) { align-self: start; }
 
-/* On a wallpaper, the task lists and cards let it show through a little (blurred, so text stays easy to read).
+/* Task cards (the list, "Add a task", Not ready, board cards): the colour and see-through of the user's
+   example (22 Nov): #2b2b2b at 94% in dark mode, so a wallpaper shows through faintly, softly blurred.
    The task panel, menus and dialogs stay solid. */
+:root { --task-card: rgba(255, 255, 255, 0.94); }
+:root.dark { --task-card: rgba(43, 43, 43, 0.94); }
+:is(.rank-list, .add-row, .vcard, .section-fold) { background: var(--task-card); }
 .app[data-wall] :is(.rank-list, .add-row, .vcard, .section-fold) {
-    background: color-mix(in srgb, var(--surface) 78%, transparent);
-    -webkit-backdrop-filter: blur(14px) saturate(1.25); backdrop-filter: blur(14px) saturate(1.25);
+    -webkit-backdrop-filter: blur(8px) saturate(1.1); backdrop-filter: blur(8px) saturate(1.1);
 }
 .app[data-wall] .vcol {
     background: color-mix(in srgb, var(--surface-2) 50%, transparent);
