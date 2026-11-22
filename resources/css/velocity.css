@@ -1611,6 +1611,9 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .planner { max-width: none; }
 /* The Planner fits the screen with one scroll (the grid's): less room kept under it. */
 @media (min-width: 768px) { .main:has(.planner) { padding-bottom: 18px; } }
+.ps-cap { grid-column: 1 / -1; display: grid; gap: 8px; margin-bottom: 4px; }
+.ps-cap .seg { margin: 0; justify-self: start; }
+.ps-cap .field-hint a { color: var(--violet-ink); }
 .planner-head { align-items: flex-end; }
 .planner-nav { display: inline-flex; align-items: center; gap: 4px; }
 .pgrid-wrap { --gutter: 60px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); overflow: hidden; }

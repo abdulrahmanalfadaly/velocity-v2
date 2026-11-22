@@ -89,8 +89,8 @@ class PlannerController extends Controller
                 array_slice($list->scored, 0, 150)),
             'free' => $month ? [] : $this->builder->free($user, $days->all()),
             'hours' => PlanBuilder::hours($user),
-            // Hours of task work "Plan" books a day at most (Settings → Planner); null = all the working hours.
-            'dayLimit' => PlannerSettings::of($user)['daily'] ?: null,
+            // Hours of task work "Plan" books a day at most: H when Settings → Planner says so; null = fill the working hours.
+            'dayLimit' => PlannerSettings::of($user)['cap'] ? (float) $user->weights()->hours_per_day : null,
             'busy' => $busy,
             'calendars' => collect(Event::CALENDARS)->mapWithKeys(fn ($c) => [$c => $events->where('calendar', $c)->count()]),
             'dueTasks' => $user->tasks()->open()->whereBetween('due_at', [$first->utc(), $first->addDays($count)->utc()])

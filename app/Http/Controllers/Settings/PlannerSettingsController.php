@@ -14,7 +14,13 @@ class PlannerSettingsController extends Controller
 {
     public function edit(Request $request): Response
     {
-        return Inertia::render('settings/planner', ['settings' => PlannerSettings::of($request->user())]);
+        $user = $request->user();
+
+        return Inertia::render('settings/planner', [
+            'settings' => PlannerSettings::of($user),
+            // "Hours a day" from Settings → Tasks, for the "Up to Hours a day" choice.
+            'hoursPerDay' => (float) $user->weights()->hours_per_day,
+        ]);
     }
 
     public function update(Request $request): RedirectResponse
