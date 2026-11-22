@@ -737,13 +737,19 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
 - [x] Templates: a button in Up next's "Add a task" (pick one, or "Manage
       templates"); Archive in the account menu; History removed (it is
       Review › 12 weeks)
-- [x] Task panel, top to bottom (20 Nov): the title and status; Waiting for
-      and Follow up; Ranking (Importance, Urgency, Due, Work, Energy);
-      Subtasks; Steps; then groups that open and close, remembered on the
-      device: Schedule (Can start, Starts after, Blocks, Repeats,
-      Reminders), Details (Project, Goal, People, Notes, GitHub, Files),
-      Log, History (Focused, Via, Activity; closed at first). A closed
-      group shows what is set in it
+- [x] Task panel, top to bottom (22 Nov): the title and status; the notes
+      box (with linked notes and New note); Waiting for, Follow up,
+      Importance, Urgency, Due, Work, Energy (no "Ranking" title);
+      Subtasks; Files; then groups that open and close, remembered on the
+      device: Schedule (Can start, Repeats, Reminders), Details (Project,
+      Goal, People, GitHub), Log, History (Focused, Via, Activity; closed
+      at first). A closed group shows what is set in it
+- [x] Subtasks are one list: "Add a subtask" adds a light item (a step,
+      not ranked) with "Make it a task" (then a ranked task under this
+      one, still listed here with its rank). There is no Steps section
+- [x] Nothing blocks anything (personal mode): "Starts after" and "Blocks"
+      are gone, and old links hold nothing back. FYP mode keeps them, as
+      the report has it
 - [x] The Log: entries the user writes about the task, each with files;
       edit, delete with Undo (`task_logs`, `task_files.log_id`). A file
       dropped or pasted anywhere while a task is open goes on the task

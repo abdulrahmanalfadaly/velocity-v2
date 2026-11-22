@@ -60,7 +60,6 @@ Route::prefix('v1')->name('api.')->group(function () {
             Route::post('reminders/{reminder}/snooze', [TaskMoreApiController::class, 'snoozeReminder'])->whereNumber('reminder')->name('reminders.snooze');
             Route::post('templates/{template}/use', [TaskMoreApiController::class, 'useTemplate'])->whereNumber('template')->name('templates.use');
             Route::post('tasks/{task}/subtasks', [TaskMoreApiController::class, 'subtask'])->whereNumber('task')->name('tasks.subtask');
-            Route::post('tasks/{task}/blocks', [TaskMoreApiController::class, 'blocks'])->whereNumber('task')->name('tasks.blocks');
         });
 
         Route::middleware('scope:projects:read')->group(function () {

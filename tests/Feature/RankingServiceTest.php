@@ -29,6 +29,7 @@ class RankingServiceTest extends TestCase
 
     public function test_demo_ranking_matches_the_approved_mockups(): void
     {
+        $this->user->update(['fyp_mode' => true]); // the report's ranking: FYP mode, where "starts after" still holds a task back
         $list = app(RankingService::class)->rank($this->user)->toArray();
 
         $this->assertSame(
@@ -51,6 +52,7 @@ class RankingServiceTest extends TestCase
 
     public function test_waiting_blocked_and_later_tasks_are_left_out_not_scored_lower(): void
     {
+        $this->user->update(['fyp_mode' => true]);
         $service = app(RankingService::class);
         $ranked = collect($service->rank($this->user)->toArray())->pluck('title');
         $notReady = $service->notReady($this->user)->mapWithKeys(fn ($r) => [$r['task']->title => $r['kind']]);
@@ -65,8 +67,17 @@ class RankingServiceTest extends TestCase
         }
     }
 
+    public function test_in_personal_mode_no_task_holds_another_back(): void
+    {
+        $service = app(RankingService::class);
+
+        $this->assertContains('Pilot the survey with 5 friends', collect($service->rank($this->user)->toArray())->pluck('title'));
+        $this->assertNotContains('blocked', $service->notReady($this->user)->pluck('kind'));
+    }
+
     public function test_finishing_the_blocking_task_releases_the_blocked_one(): void
     {
+        $this->user->update(['fyp_mode' => true]);
         $service = app(RankingService::class);
         Task::where('title', 'Email Dr. Lim about the ethics form')->update(['status' => Task::DONE]);
 

@@ -40,7 +40,8 @@ class RankingService
             ->whereIn('status', [Task::TODO, Task::DOING])
             ->whereNull('captured_at') // captured only: waits in the Inbox's "To sort" until "Rank it"
             ->where(fn (Builder $q) => $q->whereNull('available_from')->orWhere('available_from', '<=', $now))
-            ->whereDoesntHave('dependencies', fn (Builder $q) => $q->whereNotIn('status', [Task::DONE, Task::CANCELLED]))
+            // "Starts after" another task: only FYP mode, as the report has it. In personal mode nothing blocks anything.
+            ->when($user->fyp_mode, fn (Builder $q) => $q->whereDoesntHave('dependencies', fn (Builder $d) => $d->whereNotIn('status', [Task::DONE, Task::CANCELLED])))
             // A planned or on-hold project's tasks wait (personal mode; FYP mode stays as the report has it).
             ->when(! $user->fyp_mode, fn (Builder $q) => $q->whereDoesntHave('project', fn (Builder $p) => $p->whereIn('status', Project::HELD)));
     }
@@ -99,7 +100,7 @@ class RankingService
                     return ['task' => $t, 'kind' => 'waiting', 'why' => ($t->waiting_for ? "Waiting for {$t->waiting_for}" : 'Waiting on someone else')
                         .($since ? ' · '.FollowUps::days($since) : '')];
                 }
-                if ($t->dependencies->isNotEmpty()) {
+                if ($user->fyp_mode && $t->dependencies->isNotEmpty()) {
                     return ['task' => $t, 'kind' => 'blocked', 'why' => 'Starts after “'.$t->dependencies->first()->title.'”'];
                 }
 

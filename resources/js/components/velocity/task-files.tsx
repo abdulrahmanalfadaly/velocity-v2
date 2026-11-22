@@ -41,7 +41,7 @@ export const fileSize = (b: number) => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? 
 
 /** The task panel's Files: attach (button, drag in, or paste; the panel takes drops and pastes anywhere), open, download, remove. */
 export function TaskFiles({ taskId, files }: { taskId: number; files: TaskFileInfo[] }) {
-    return <FileBox storeUrl={route('files.store', taskId)} removeRoute="files.destroy" files={files} paste />;
+    return <FileBox storeUrl={route('files.store', taskId)} removeRoute="files.destroy" files={files} paste hint={false} />;
 }
 
 /** A pasted screenshot is called "image.png"; give it a name that says when (in the user's own time). */
@@ -61,12 +61,15 @@ export function FileBox({
     files,
     paste = false,
     title = 'Files',
+    hint = true,
 }: {
     storeUrl: string;
     removeRoute: string;
     files: TaskFileInfo[];
     paste?: boolean;
     title?: string;
+    /** "Drop files here…" while there are none (the task panel goes without: drops work anywhere there). */
+    hint?: boolean;
 }) {
     const input = useRef<HTMLInputElement>(null);
     const [over, setOver] = useState(false);
@@ -157,7 +160,7 @@ export function FileBox({
                     ))}
                 </ul>
             ) : (
-                <p className="p-files-empty">Drop files here{paste ? ', paste them' : ''}, or use Attach. Up to 20 MB each.</p>
+                hint && <p className="p-files-empty">Drop files here{paste ? ', paste them' : ''}, or use Attach. Up to 20 MB each.</p>
             )}
             {error && <p className="field-error">{error}</p>}
         </section>

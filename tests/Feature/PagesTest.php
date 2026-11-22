@@ -57,7 +57,7 @@ class PagesTest extends TestCase
         $fyp = Project::where('name', 'Final Year Project')->first();
 
         $this->get('/home')->assertInertia(fn (Assert $p) => $p->component('home')->where('top.0.title', 'Write Chapter 4 – Implementation')->where('top.0.score', 85.1)->has('habits', 5));
-        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->has('tasks', 14)->has('notReady', 3)->where('selected', null));
+        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->has('tasks', 15)->has('notReady', 2)->where('selected', null));
         $this->get("/projects/{$fyp->id}")->assertInertia(fn (Assert $p) => $p->component('projects/show')->where('project.name', 'Final Year Project')->has('milestones', 5));
         $this->get('/goals')->assertInertia(fn (Assert $p) => $p->component('goals/index')->has('goals', 3)->has('inbox', 2));
         // Weights live in Settings → Tasks in personal Velocity.
@@ -94,20 +94,20 @@ class PagesTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->where('view', 'upnext')->where('nav.counts.inbox', 2)->where('nav.counts.waiting', 3));
+        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->where('view', 'upnext')->where('nav.counts.inbox', 2)->where('nav.counts.waiting', 2));
         $this->get('/tasks/inbox?task=5')->assertRedirect('/tasks?show=inbox&task=5');
         $this->get('/tasks?show=inbox')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->where('view', 'upnext')->where('show', 'inbox')
             ->missing('templates')
-            ->has('tasks', 14)
-            ->where('tasks', fn ($tasks) => collect($tasks)->whereNull('project')->pluck('rank')->all() === [12, 14]));
+            ->has('tasks', 15)
+            ->where('tasks', fn ($tasks) => collect($tasks)->whereNull('project')->pluck('rank')->all() === [13, 15]));
         $this->get('/tasks/waiting')->assertInertia(fn (Assert $p) => $p->component('tasks/index')->where('view', 'waiting')
-            ->has('notReady', 3)
-            ->where('notReady', fn ($rows) => collect($rows)->pluck('kind')->sort()->values()->all() === ['blocked', 'later', 'waiting']));
+            ->has('notReady', 2)
+            ->where('notReady', fn ($rows) => collect($rows)->pluck('kind')->sort()->values()->all() === ['later', 'waiting']));
 
         // "Ready now" puts a waiting task back into the ranking.
         $waiting = Task::where('title', 'Revise Chapter 3 after feedback')->first();
         $this->patch("/tasks/{$waiting->id}", ['status' => Task::TODO])->assertRedirect();
-        $this->get('/tasks/waiting')->assertInertia(fn (Assert $p) => $p->has('notReady', 2)->where('nav.counts.upNext', 15));
+        $this->get('/tasks/waiting')->assertInertia(fn (Assert $p) => $p->has('notReady', 1)->where('nav.counts.upNext', 16));
     }
 
     public function test_the_task_panel_explains_the_top_task(): void
@@ -154,7 +154,7 @@ class PagesTest extends TestCase
 
         $this->assertSame('Write Chapter 4 – Implementation', $task->parent->title);
         $this->assertNull(TaskStep::find($step->id));
-        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->has('tasks', 15));
+        $this->get('/tasks')->assertInertia(fn (Assert $p) => $p->has('tasks', 16));
     }
 
     public function test_changing_weights_reranks(): void

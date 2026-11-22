@@ -177,22 +177,6 @@ class TaskMoreApiController extends ApiController
         return $this->ok(ApiPresent::task($kid->fresh(['project.goal', 'parent:id,title']), $this->ranking->rank($user)), 201);
     }
 
-    /** {"add": id} or {"remove": id}: a task that waits on this one (it is set to start after it). */
-    public function blocks(Request $request, Task $task): JsonResponse
-    {
-        $user = $request->user();
-        $this->own($task, $user);
-        $d = $request->validate([
-            'add' => ['required_without:remove', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
-            'remove' => ['required_without:add', 'integer'],
-        ]);
-        $other = Task::where('user_id', $user->id)->findOrFail($d['add'] ?? $d['remove']);
-        $ids = $other->dependencies()->pluck('tasks.id')->all();
-        $this->actions->update($other, $user, ['depends_on' => isset($d['add']) ? array_values(array_unique([...$ids, $task->id])) : array_values(array_diff($ids, [$task->id]))]);
-
-        return $this->ok($task->dependents()->get()->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status])->values());
-    }
-
     /** Each project's best task by the formula, and the projects with nothing ready. */
     public function next(Request $request, NextActions $next): JsonResponse
     {

@@ -68,11 +68,6 @@ class UndoTest extends TestCase
         $this->undo();
         $this->assertNull($task->fresh()->due_at);
 
-        $this->patch(route('tasks.update', $task), ['depends_on' => [$other->id]])->assertSessionHas('toast', 'Starts after changed');
-        $this->assertSame(1, $task->dependencies()->count());
-        $this->undo();
-        $this->assertSame(0, $task->dependencies()->count());
-
         // An undo belongs to its own task: the event of one task can't be replayed on another.
         $this->patch(route('tasks.update', $task), ['title' => 'Renamed']);
         $event = session('undo')['data']['event'];

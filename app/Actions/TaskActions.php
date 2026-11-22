@@ -13,7 +13,6 @@ use App\Services\RankingService;
 use App\Services\Reminders;
 use App\Services\Repeat;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -53,8 +52,6 @@ class TaskActions
             'repeat_until' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'available_from' => ['sometimes', 'nullable', 'date'],
             'reminder_at' => ['sometimes', 'nullable', 'date'],
-            'depends_on' => ['sometimes', 'array', 'max:20'],
-            'depends_on.*' => ['integer', 'distinct', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
         ];
     }
 
@@ -117,12 +114,6 @@ class TaskActions
      */
     public function update(Task $task, User $user, array $data): ?TaskEvent
     {
-        $deps = null;
-        if (array_key_exists('depends_on', $data)) {
-            $deps = ['before' => $task->dependencies()->pluck('tasks.id')->all(), 'after' => array_map('intval', $data['depends_on'])];
-            $this->setDependencies($task, $data['depends_on']);
-            unset($data['depends_on']);
-        }
         // A task in a project has the project's goal: moving it into one drops its own.
         if (! empty($data['project_id']) && $task->goal_id) {
             $data['goal_id'] = null;
@@ -171,36 +162,8 @@ class TaskActions
         $task->update($data);
 
         return $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => [
-            'before' => $before, 'after' => $task->only(array_keys($data)), 'depends_on' => $deps,
+            'before' => $before, 'after' => $task->only(array_keys($data)),
         ]]);
-    }
-
-    /**
-     * "Starts after …": the task can't start until these are done. A task can't
-     * wait for itself, or for a task that (through others) waits for it.
-     *
-     * @param  list<int>  $ids
-     */
-    public function setDependencies(Task $task, array $ids): void
-    {
-        $ids = array_values(array_unique(array_map('intval', $ids)));
-        $loops = in_array($task->id, $ids, true);
-        $seen = [];
-        $stack = $ids;
-        while (! $loops && $stack) {
-            $id = array_pop($stack);
-            if (isset($seen[$id])) {
-                continue;
-            }
-            $seen[$id] = true;
-            $next = DB::table('task_dependencies')->where('task_id', $id)->pluck('depends_on_id')->all();
-            $loops = in_array($task->id, $next, true);
-            array_push($stack, ...$next);
-        }
-        if ($loops) {
-            throw ValidationException::withMessages(['depends_on' => 'That would make these tasks wait for each other.']);
-        }
-        $task->dependencies()->sync($ids);
     }
 
     /**

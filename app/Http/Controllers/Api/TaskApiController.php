@@ -9,13 +9,11 @@ use App\Http\Controllers\FocusController;
 use App\Models\Task;
 use App\Models\TaskStep;
 use App\Services\RankingService;
-use App\Services\TaskLinks;
 use App\Services\TaskPresenter;
 use App\Support\ApiPresent;
 use App\Support\Clock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 
 /** Tasks, their steps and the focus timer. */
@@ -71,13 +69,11 @@ class TaskApiController extends ApiController
     {
         $user = $request->user();
         $this->own($task, $user);
-        $task->load(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'dependents', 'linkedNotes.event', 'people', 'events' => fn ($q) => $q->limit(20)]);
+        $task->load(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'linkedNotes.event', 'people', 'events' => fn ($q) => $q->limit(20)]);
         $list = $this->ranking->rank($user);
 
         return $this->ok(ApiPresent::task($task, $list) + [
-            'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
-            // Tasks that wait on this one, and its subtasks.
-            'blocks' => $task->dependents->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
+            // Its subtasks made into tasks.
             'subtasks' => $task->children->map(fn ($c) => ['id' => $c->id, 'title' => $c->title, 'status' => $c->status, 'rank' => $list->rankOf($c->id)])->values(),
             'activity' => TaskPresenter::activity($task, $user, 20),
             'notes' => $task->linkedNotes->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
@@ -104,11 +100,7 @@ class TaskApiController extends ApiController
             $rules = TaskActions::updateRules($user);
             $rules['title'] = ['required', 'string', 'max:255'];
             $d = $this->dates($request->validate($rules), $user);
-            $deps = Arr::pull($d, 'depends_on');
             $task = $this->actions->create($user, $d + ['importance' => 3, 'urgency' => 3, 'est_hours' => 1]);
-            if ($deps) {
-                $this->actions->setDependencies($task, $deps);
-            }
         }
 
         return $this->ok(ApiPresent::task($task->fresh(['project.goal']), $this->ranking->rank($user)), 201);
@@ -160,11 +152,6 @@ class TaskApiController extends ApiController
     {
         $user = $request->user();
         $this->own($task, $user);
-        // Still waiting on another task: only with "anyway".
-        $waiting = $task->status === Task::DONE || $user->fyp_mode ? null : TaskLinks::waitingOn($task);
-        if ($waiting && ! $request->boolean('anyway')) {
-            abort(409, "It is still waiting on “{$waiting->title}”. Send {\"anyway\": true} to complete it anyway.");
-        }
         // "children": "complete" also finishes its open subtasks.
         $kids = $request->input('children') === 'complete' && $task->status !== Task::DONE ? $task->children()->open()->get() : collect();
         $list = $kids->isNotEmpty() ? $this->ranking->rank($user) : null;

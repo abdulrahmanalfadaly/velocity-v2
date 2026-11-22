@@ -160,17 +160,12 @@ class ApiMoreTest extends TestCase
         $this->api('GET', 'areas', [], $readOnly)->assertForbidden();
     }
 
-    public function test_phase_10_subtasks_blocks_finished_views_bulk_fields_and_deleting_a_project(): void
+    public function test_phase_10_subtasks_finished_views_bulk_fields_and_deleting_a_project(): void
     {
         $report = $this->task('Report');
         $this->api('POST', "tasks/{$report->id}/subtasks", ['title' => 'Intro'])->assertCreated()->assertJsonPath('data.parent.id', $report->id);
         $slides = $this->task('Slides');
-        $this->api('POST', "tasks/{$report->id}/blocks", ['add' => $slides->id])->assertOk()->assertJsonPath('data.0.title', 'Slides');
-        $this->api('GET', "tasks/{$report->id}")->assertOk()
-            ->assertJsonPath('data.subtasks.0.title', 'Intro')->assertJsonPath('data.blocks.0.title', 'Slides');
-        $this->api('GET', "tasks/{$slides->id}")->assertOk()->assertJsonPath('data.activity.0.text', 'Starts after changed');
-        // Waiting on "Report": 409 unless "anyway".
-        $this->api('POST', "tasks/{$slides->id}/complete")->assertStatus(409);
+        $this->api('GET', "tasks/{$report->id}")->assertOk()->assertJsonPath('data.subtasks.0.title', 'Intro')->assertJsonMissingPath('data.blocks');
         $this->api('POST', "tasks/{$report->id}/complete", ['children' => 'complete'])->assertOk();
         $this->assertSame(Task::DONE, Task::where('title', 'Intro')->sole()->status);
         // Cancelling can take the open subtasks with it.

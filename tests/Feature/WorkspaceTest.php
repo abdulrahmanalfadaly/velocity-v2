@@ -139,28 +139,16 @@ class WorkspaceTest extends TestCase
         }
     }
 
-    public function test_the_task_panel_sets_waiting_for_start_date_and_starts_after(): void
+    public function test_the_task_panel_sets_waiting_for_and_start_date(): void
     {
         $a = $this->task(['title' => 'A']);
         $b = $this->task(['title' => 'B']);
-        $c = $this->task(['title' => 'C']);
 
         $this->patch(route('tasks.update', $a), ['status' => 'waiting', 'waiting_for' => 'Dr. Lim']);
         $this->patch(route('tasks.update', $b), ['available_from' => '2026-11-15T08:00']);
         $this->assertSame('2026-11-15 08:00', $b->fresh()->available_from->timezone(self::TZ)->format('Y-m-d H:i'));
 
-        $this->patch(route('tasks.update', $c), ['depends_on' => [$b->id]])->assertSessionHasNoErrors();
-        // B waiting for C would make them wait for each other.
-        $this->patch(route('tasks.update', $b), ['depends_on' => [$c->id]])->assertSessionHasErrors('depends_on');
-        $this->patch(route('tasks.update', $c), ['depends_on' => [$c->id]])->assertSessionHasErrors('depends_on');
-
-        $this->get('/tasks/waiting')->assertInertia(fn ($page) => $page->has('notReady', 3));
-        $this->get(route('tasks.index', ['task' => $c->id]))->assertInertia(fn ($page) => $page
-            ->where('selected.dependsOn.0.title', 'B')
-            ->where('selected.candidates', fn ($c) => collect($c)->pluck('title')->sort()->values()->all() === ['A', 'B']));
-
-        $this->patch(route('tasks.update', $c), ['depends_on' => []]);
-        $this->assertSame(0, $c->dependencies()->count());
+        $this->get('/tasks/waiting')->assertInertia(fn ($page) => $page->has('notReady', 2));
     }
 
     public function test_done_twice_keeps_the_score_and_undo_brings_back_the_old_status(): void

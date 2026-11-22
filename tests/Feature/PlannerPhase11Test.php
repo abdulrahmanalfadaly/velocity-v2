@@ -127,9 +127,10 @@ class PlannerPhase11Test extends TestCase
             $this->post(route('blocks.store'), ['task_id' => $t->id, 'date' => '2026-11-12', 'start' => $at, 'minutes' => 60]);
         }
 
+        // An old "starts after" link holds nothing back any more.
         $this->get('/planner?date=2026-11-12&view=day')->assertInertia(fn (Assert $p) => $p
             ->where('blocks.0.title', 'Pilot the survey')
-            ->where('blocks.0.blocked', ['kind' => 'blocked', 'why' => 'Starts after “Email Dr. Lim”'])
+            ->where('blocks.0.blocked', null)
             ->where('blocks.1.blocked', null));
 
         $ready->update(['status' => Task::WAITING, 'waiting_for' => 'Dr. Lim']);

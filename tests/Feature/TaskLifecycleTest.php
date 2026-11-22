@@ -37,25 +37,24 @@ class TaskLifecycleTest extends TestCase
         return CarbonImmutable::parse($at, self::TZ)->utc();
     }
 
-    public function test_cancelling_keeps_the_reason_frees_waiting_tasks_and_reopen_puts_it_back(): void
+    public function test_cancelling_keeps_the_reason_and_reopen_puts_it_back(): void
     {
         $task = $this->task(['status' => Task::DOING]);
-        $after = $this->task(['title' => 'Slides']);
-        $after->dependencies()->sync([$task->id]);
-        $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->count('tasks', 1));
+        $other = $this->task(['title' => 'Slides']);
+        $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->count('tasks', 2));
 
         $this->post(route('tasks.cancel', $task), ['reason' => 'Supervisor dropped it'])
-            ->assertSessionHas('toast', 'Cancelled “Essay” · “Slides” can start now')->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id, 'data' => ['undo' => true]]);
+            ->assertSessionHas('toast', 'Cancelled “Essay”')->assertSessionHas('undo', ['action' => 'reopen', 'id' => $task->id, 'data' => ['undo' => true]]);
         $task->refresh();
         $this->assertSame([Task::CANCELLED, 'Supervisor dropped it'], [$task->status, $task->cancel_reason]);
         $this->assertNotNull($task->cancelled_at);
-        // It leaves the list; the task that waited for it can start now.
-        $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->count('tasks', 1)->where('tasks.0.id', $after->id));
+        // It leaves the list.
+        $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->count('tasks', 1)->where('tasks.0.id', $other->id));
         // A cancelled task can't be ticked off or have its status changed.
         $this->patch(route('tasks.update', $task), ['status' => 'todo']);
         $this->assertSame(Task::CANCELLED, $task->fresh()->status);
 
-        $this->post(route('tasks.reopen', $task))->assertSessionHas('toast', 'Back: “Essay” · “Slides” waits on it again')
+        $this->post(route('tasks.reopen', $task))->assertSessionHas('toast', 'Back: “Essay”')
             ->assertSessionHas('undo', ['action' => 'cancel-task', 'id' => $task->id, 'data' => ['reason' => 'Supervisor dropped it', 'skip' => false, 'undo' => true]]);
         $task->refresh();
         $this->assertSame([Task::DOING, null, null], [$task->status, $task->cancel_reason, $task->cancelled_at]);

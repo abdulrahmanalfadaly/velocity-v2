@@ -2660,7 +2660,7 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .gm-back { gap: 6px; padding: 0 10px 0 8px; margin-left: -6px; color: var(--text-2); }
 
 /* Task panel order: follow-up, Ranking, Subtasks, Steps, then groups that open and close (Schedule, Details, Log, History). */
-.p-ranking .props, .p-group .props { margin-top: 0; }
+.p-group .props { margin-top: 0; }
 .p-group { margin-top: 18px; border-top: 1px solid var(--line); }
 .p-group-head {
     display: flex; align-items: center; gap: 8px; width: calc(100% + 16px); min-height: 44px; margin: 4px -8px 0; padding: 0 8px;
@@ -2722,3 +2722,19 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .log-file > button { display: grid; place-items: center; width: 24px; height: 24px; margin-right: 3px; border: 0; border-radius: 6px; background: none; color: var(--text-3); }
 .log-file > button:hover { background: var(--hover); color: var(--text); }
 .log-busy { margin: 6px 0 0; font-size: 12px; color: var(--text-3); }
+
+/* Task panel (22 Nov): the notes box under the title, then the fields, Subtasks, Files and the groups. */
+.p-notebox { margin-top: 2px; }
+.p-notebox .p-notes { display: block; min-height: 40px; max-height: 320px; padding: 9px 12px; overflow-y: auto; resize: none; background: var(--surface-2); }
+.p-notebox .p-notes:not(:focus):hover { border-color: var(--line-strong); }
+.p-notebox-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.p-note-new {
+    display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px 0 9px; border: 1px dashed var(--line-strong);
+    border-radius: 999px; background: none; color: var(--text-3); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.p-note-new:hover { border-color: var(--violet); color: var(--violet-ink); background: var(--violet-soft); }
+.p-notebox + .props { margin-top: 16px; }
+.add-step input { flex: 1; min-width: 0; border: 0; background: transparent; outline: 0; color: var(--text); font: inherit; }
+.add-step input::placeholder { color: var(--text-3); }
+.p-subtasks .steps { margin: 0; padding: 0; list-style: none; }
+.p-files .p-section-head:last-child { margin-bottom: 0; }

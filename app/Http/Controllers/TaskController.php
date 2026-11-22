@@ -14,7 +14,6 @@ use App\Services\GitHub;
 use App\Services\NextActions;
 use App\Services\RankingService;
 use App\Services\StudyLogger;
-use App\Services\TaskLinks;
 use App\Services\TaskPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -171,7 +170,7 @@ class TaskController extends Controller
             return null;
         }
         $user = $request->user();
-        $task = Task::with(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'dependencies', 'dependents', 'files', 'logs.files', 'linkedNotes.event', 'people', 'githubLinks', 'reminders', 'events' => fn ($q) => $q->limit(8)])
+        $task = Task::with(['project.goal', 'goal', 'parent:id,title', 'steps', 'children', 'files', 'logs.files', 'linkedNotes.event', 'people', 'githubLinks', 'reminders', 'events' => fn ($q) => $q->limit(8)])
             ->where('user_id', $user->id)->find($id);
         if (! $task) {
             return null;
@@ -186,10 +185,6 @@ class TaskController extends Controller
                 'id' => $c->id, 'title' => $c->title, 'status' => $c->status, 'dueAt' => $c->due_at?->toIso8601ZuluString(),
                 'rank' => $list->rankOf($c->id), 'score' => $list->scoreOf($c->id),
             ])->values(),
-            'dependsOn' => $task->dependencies->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
-            // Tasks that wait on this one.
-            'blocks' => $task->dependents->map(fn ($d) => ['id' => $d->id, 'title' => $d->title, 'status' => $d->status])->values(),
-            // Open tasks this one could be set to start after.
             // The task's own files; files on a log entry show with the entry.
             'files' => $task->files->whereNull('log_id')->map(fn ($f) => $f->present())->values(),
             'logs' => $task->logs->map(fn ($l) => $l->present())->values(),
@@ -318,7 +313,7 @@ class TaskController extends Controller
         if ($request->boolean('form')) {
             $data = $this->formFields($request);
         } else {
-            $data = $request->validate(TaskActions::updateRules($user), [], ['depends_on.*' => 'task', 'available_from' => 'start date']);
+            $data = $request->validate(TaskActions::updateRules($user), [], ['available_from' => 'start date']);
             foreach (['due_at', 'available_from', 'reminder_at'] as $key) {
                 if (array_key_exists($key, $data)) {
                     $data[$key] = $this->fromLocal($data[$key], $user);
@@ -329,12 +324,11 @@ class TaskController extends Controller
         if (! $event) {
             return back();
         }
-        $deps = $event->snapshot['depends_on'] ?? null;
         $changed = array_keys(array_diff_key($event->snapshot['after'] ?? [], ['repeat_day' => 1, 'repeat_every' => 1, 'repeat_anchor' => 1, 'reminder_sent_at' => 1, 'waiting_since' => 1]));
-        $what = $deps ? 'Starts after' : (self::LABELS[$changed[0] ?? ''] ?? 'Task');
+        $what = self::LABELS[$changed[0] ?? ''] ?? 'Task';
         $toast = $request->boolean('form') ? $this->placed($task, 'Saved') : "{$what} changed";
         // A status change says what it became: "Doing: “Essay”".
-        if (! $request->boolean('form') && ! $deps && ($changed[0] ?? null) === 'status') {
+        if (! $request->boolean('form') && ($changed[0] ?? null) === 'status') {
             $toast = ['todo' => 'To do', 'doing' => 'Doing', 'waiting' => 'Waiting'][$task->status] ?? 'Status changed';
             $toast .= $toast === 'Status changed' ? '' : ": “{$task->title}”";
         }
@@ -355,9 +349,6 @@ class TaskController extends Controller
         $this->own($task, $user);
         $event = $task->events()->where('type', 'updated')->findOrFail($request->integer('event'));
         $snap = $event->snapshot;
-        if (! empty($snap['depends_on'])) {
-            $this->actions->setDependencies($task, $snap['depends_on']['before']);
-        }
         if (! empty($snap['before'])) {
             $task->update($snap['before']);
         }
@@ -417,12 +408,6 @@ class TaskController extends Controller
         if ($task->status === Task::DONE) {
             return back();
         }
-        // Still waiting on another task: done only when asked for ("Complete anyway" in the panel).
-        $waiting = $user->fyp_mode ? null : TaskLinks::waitingOn($task);
-        if ($waiting && ! $request->boolean('anyway')) {
-            return back()->with('toast', "“{$task->title}” is still waiting on “{$waiting->title}”. Open it to complete it anyway.")
-                ->with('toastOpen', route('tasks.index', ['task' => $task->id], false));
-        }
         // Open subtasks: complete them too, or only this one (the panel asks).
         $mode = $request->validate(['children' => ['sometimes', Rule::in(['complete', 'leave'])]])['children'] ?? null;
         $kids = $user->fyp_mode ? collect() : $task->children()->open()->get();
@@ -441,10 +426,10 @@ class TaskController extends Controller
             $kids->each(fn (Task $kid) => $this->actions->complete($kid, $user, $list->scoreOf($kid->id), false));
             $n = $kids->count();
 
-            return back()->with('toast', "Done: “{$task->title}” and {$n} ".($n === 1 ? 'subtask' : 'subtasks').$this->freedWords($task, $user))
+            return back()->with('toast', "Done: “{$task->title}” and {$n} ".($n === 1 ? 'subtask' : 'subtasks'))
                 ->with('undo', $this->undo('bulk-undo', 0, ['action' => 'complete', 'ids' => [$task->id, ...$kids->pluck('id')->all()], 'before' => []]));
         }
-        $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '').$this->freedWords($task, $user);
+        $toast = "Done: “{$task->title}”".($next ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '');
 
         return back()->with('toast', $toast)->with('undo', $this->undo('reopen', $task->id, ['undo' => true]));
     }
@@ -461,30 +446,6 @@ class TaskController extends Controller
         ]);
 
         return back()->with('toast', "Added subtask “{$kid->title}”")->with('undo', $this->undo('delete-task', $kid->id));
-    }
-
-    /** " · “Slides” can start now": tasks that waited on this one and now can (personal mode). */
-    private function freedWords(Task $task, User $user): string
-    {
-        return $user->fyp_mode ? '' : TaskLinks::words(TaskLinks::freed($task, $this->ranking->now()), 'can start now', 'can start now');
-    }
-
-    /** "Blocks": a task that waits on this one, added or taken away (it is set to start after this one). */
-    public function blocks(Request $request, Task $task): RedirectResponse
-    {
-        $user = $request->user();
-        $this->own($task, $user);
-        $data = $request->validate([
-            'add' => ['required_without:remove', 'integer', Rule::exists('tasks', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
-            'remove' => ['required_without:add', 'integer'],
-        ]);
-        $other = Task::where('user_id', $user->id)->findOrFail($data['add'] ?? $data['remove']);
-        $ids = $other->dependencies()->pluck('tasks.id')->all();
-        $after = isset($data['add']) ? array_values(array_unique([...$ids, $task->id])) : array_values(array_diff($ids, [$task->id]));
-        $event = $this->actions->update($other, $user, ['depends_on' => $after]);
-
-        return back()->with('toast', isset($data['add']) ? "“{$other->title}” now starts after this one" : "“{$other->title}” doesn’t wait on this one any more")
-            ->with('undo', $event ? $this->undo('revert-task', $other->id, ['event' => $event->id]) : null);
     }
 
     /**
@@ -597,7 +558,7 @@ class TaskController extends Controller
     /** A change from the selection bar goes into the task's history like one from its panel (Review counts it). */
     private function history(Task $task, User $user, array $before, array $after): void
     {
-        $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => ['before' => $before, 'after' => $after, 'depends_on' => null]]);
+        $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => ['before' => $before, 'after' => $after]]);
     }
 
     /** Undo of a bulk action: not done again, restored, or back to each task's old project / due date. */
@@ -676,21 +637,14 @@ class TaskController extends Controller
                 $this->actions->undid($task, 'reopened', ['cancelled']);
             }
 
-            return back()->with('toast', "Back: “{$task->title}”".$this->againWords($task, $user))->with('undo', $undo);
+            return back()->with('toast', "Back: “{$task->title}”")->with('undo', $undo);
         }
         $this->actions->reopen($task, $user, $status);
         if ($fromUndo) {
             $this->actions->undid($task, 'reopened', ['completed']);
         }
 
-        // Undo completes it again, even if it is still waiting on something.
-        return back()->with('toast', "Not done: “{$task->title}”".$this->againWords($task, $user))->with('undo', $this->undo('complete', $task->id, ['anyway' => true, 'undo' => true]));
-    }
-
-    /** " · 2 tasks wait on it again": opened again, the tasks after it can't start (personal mode). */
-    private function againWords(Task $task, User $user): string
-    {
-        return $user->fyp_mode ? '' : TaskLinks::words(TaskLinks::waitingAgain($task), 'waits on it again', 'wait on it again');
+        return back()->with('toast', "Not done: “{$task->title}”")->with('undo', $this->undo('complete', $task->id, ['anyway' => true, 'undo' => true]));
     }
 
     /** "Cancel task": it won't be done (with a reason, if given). A repeating one can skip only this time. */
@@ -719,7 +673,7 @@ class TaskController extends Controller
         $and = $n ? " and {$n} ".($n === 1 ? 'subtask' : 'subtasks') : '';
         $toast = $skip
             ? "Skipped “{$task->title}”{$and}".($next?->due_at ? ' · next one '.$next->due_at->timezone($user->timezone)->format('D j M') : '')
-            : "Cancelled “{$task->title}”{$and}".$this->freedWords($task, $user);
+            : "Cancelled “{$task->title}”{$and}";
 
         return back()->with('toast', $toast)->with('undo', $n
             ? $this->undo('bulk-undo', 0, ['action' => 'cancel', 'ids' => [$task->id, ...$kids->pluck('id')->all()], 'before' => []])

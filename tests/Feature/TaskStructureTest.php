@@ -54,31 +54,19 @@ class TaskStructureTest extends TestCase
             ->where('selected.project.dueDate', '2026-11-20'));
     }
 
-    public function test_a_task_still_waiting_asks_before_it_is_done_and_the_tasks_after_it_hear_about_it(): void
+    public function test_no_task_holds_another_back(): void
     {
         $data = $this->task(['title' => 'Get the data']);
         $chart = $this->task(['title' => 'Make the chart']);
-        $this->post(route('tasks.blocks', $data), ['add' => $chart->id])->assertSessionHas('toast', '“Make the chart” now starts after this one');
-        $this->get(route('tasks.index', ['task' => $data->id]))->assertInertia(fn ($page) => $page->where('selected.blocks.0.title', 'Make the chart'));
+        // A "starts after" link made before it was taken out changes nothing, and none can be made now.
+        $chart->dependencies()->attach($data->id);
+        $this->patch(route('tasks.update', $data), ['depends_on' => [$chart->id]]);
+        $this->assertSame(0, $data->dependencies()->count());
 
-        // A loop is refused.
-        $this->post(route('tasks.blocks', $chart), ['add' => $data->id])->assertSessionHasErrors('depends_on');
-
-        // "Make the chart" still waits: ticking it only says so, unless "anyway".
-        $this->post(route('tasks.complete', $chart))->assertSessionHas('toast', '“Make the chart” is still waiting on “Get the data”. Open it to complete it anyway.');
-        $this->assertSame(Task::TODO, $chart->fresh()->status);
-
-        // Done: what waited on it can start. Opened again: it waits again.
-        $this->post(route('tasks.complete', $data))->assertSessionHas('toast', 'Done: “Get the data” · “Make the chart” can start now');
-        $this->post(route('tasks.reopen', $data))->assertSessionHas('toast', 'Not done: “Get the data” · “Make the chart” waits on it again')
-            ->assertSessionHas('undo.data.anyway', true);
-        $this->post(route('tasks.complete', $chart), ['anyway' => true])->assertSessionHas('toast', 'Done: “Make the chart”');
-
-        // Taken off the Blocks list, with Undo.
-        $this->post(route('tasks.blocks', $data), ['remove' => $chart->id]);
-        $this->assertSame(0, $chart->dependencies()->count());
-        $this->post(route('tasks.revert', $chart), session('undo')['data']);
-        $this->assertSame([$data->id], $chart->dependencies()->pluck('tasks.id')->all());
+        $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->has('tasks', 2));
+        $this->get(route('tasks.index', ['task' => $chart->id]))->assertInertia(fn ($page) => $page->missing('selected.dependsOn')->missing('selected.blocks'));
+        $this->post(route('tasks.complete', $chart))->assertSessionHas('toast', 'Done: “Make the chart”');
+        $this->assertSame(Task::DONE, $chart->fresh()->status);
     }
 
     public function test_the_activity_list_says_what_happened_in_plain_words(): void

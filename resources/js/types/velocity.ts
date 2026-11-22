@@ -90,13 +90,9 @@ export type TaskDetail = BaseTask &
     Partial<Omit<RankedTask, keyof BaseTask>> & {
         total: number;
         children: { id: number; title: string; status: Status; dueAt: string | null; rank: number | null; score: number | null }[];
-        dependsOn: { id: number; title: string; status: Status }[];
-        /** Tasks that wait on this one. */
-        blocks?: { id: number; title: string; status: Status }[];
         events: { type: string; at: string | null; via?: string | null }[];
         /** Its history in plain words, newest first. */
         activity?: { text: string; at: string | null; via: string | null }[];
-        candidates: { id: number; title: string }[];
         /** The task's own files (files on a log entry are with the entry). */
         files: TaskFileInfo[];
         /** Its log: entries the user wrote, newest first, each with its files. */
