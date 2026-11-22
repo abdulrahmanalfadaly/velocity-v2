@@ -1520,24 +1520,18 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* Board and timeline: columns of cards. Cards keep the formula's order inside each column. */
 /* Columns never get narrower than a readable card (the task panel takes room on a laptop): the board scrolls sideways instead. */
 .vboard { display: grid; grid-template-columns: repeat(4, minmax(210px, 1fr)); gap: 12px; align-items: start; margin-top: 4px; overflow-x: auto; padding-bottom: 8px; }
-.vtimeline { display: grid; grid-auto-flow: column; grid-auto-columns: 230px; gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 12px; margin-top: 4px; scroll-snap-type: x proximity; }
 .vcol { display: flex; flex-direction: column; min-height: 120px; border-radius: 14px; background: var(--surface-2, var(--surface-3)); border: 1px solid var(--line); transition: border-color .12s, background .12s; scroll-snap-align: start; }
 .vcol.is-over { border-color: var(--violet); background: var(--violet-soft); }
 .vcol-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 11px 12px 6px; }
 .vcol-head b { font-size: 13px; font-weight: 700; }
 .vcol-head span { font-size: 12px; color: var(--text-3); white-space: nowrap; }
-.vcol.is-today .vcol-head b { color: var(--violet-ink); }
-.vcol.is-late-col .vcol-head b { color: var(--critical-ink); }
-.vcol.is-weekend { background: transparent; }
 .vcol-body { display: grid; gap: 8px; padding: 4px 8px 10px; }
-.vt-span { margin: 0 0 10px; }
 .p-file-task { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; text-decoration: none; }
 .p-file-task:hover { color: var(--text); text-decoration: underline; }
 .pfiles { padding: 4px 18px 14px; }
 .is-files { display: inline-flex; align-items: center; gap: 3px; }
 .pviews { padding: 4px 16px 16px; overflow-x: auto; }
 .pviews .vboard { min-width: 720px; }
-.vtimeline.is-weeks .vcol-head { flex-direction: column; gap: 2px; }
 .vcol-empty { padding: 4px 12px 12px; font-size: 12.5px; color: var(--text-3); }
 .vcard { display: grid; gap: 6px; padding: 10px 11px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-xs); cursor: grab; user-select: none; }
 .vcard:hover { border-color: var(--line-strong); }
@@ -1555,7 +1549,6 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 767px) {
     .vboard { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 82%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 12px; }
     .vboard .vcol { scroll-snap-align: start; }
-    .vtimeline { grid-auto-columns: 82%; scroll-snap-type: x mandatory; }
     .layout-seg .btn-label { display: none; }
 }
 
@@ -2777,3 +2770,292 @@ button.tot-card:focus-visible { outline: 2px solid var(--violet); outline-offset
 .app[data-wall] .vcol .vcard { -webkit-backdrop-filter: none; backdrop-filter: none; } /* the column already blurs */
 .app[data-wall] .rank-list .row:hover { background: var(--hover); }
 .app[data-wall] .rank-list .row.is-selected { background: color-mix(in srgb, var(--selected) 85%, transparent); }
+
+/* ——— Timeline (Tasks › Timeline, and a project's Timeline) ———
+   The Goals map's look laid along time: the map's dotted ground, a line per goal with dots flowing on it,
+   a glowing violet Now line, the #1 task glowing. Every task sits in its own grid cell and stacks there,
+   and landmark labels take the first free row, so nothing overlaps. */
+.vt-wrap { margin-top: 4px; }
+.vt-spans { max-width: 100%; margin: 0 0 12px; overflow-x: auto; scrollbar-width: none; }
+.vt-spans button { flex: none; white-space: nowrap; } /* on a phone the spans scroll sideways, never wrap */
+.vt {
+    --tl-label: 128px; --tl-pad: 12px; --tl-solid: var(--map-bg);
+    position: relative; overflow: hidden; border-radius: 16px; border: 1px solid var(--line);
+    background-color: var(--map-bg);
+    background-image: radial-gradient(circle, var(--map-dot) 1.15px, transparent 1.4px);
+    background-size: 22px 22px;
+}
+.app[data-wall] .vt {
+    --tl-solid: rgb(var(--task-card-rgb) / 0.92);
+    background-color: rgb(var(--task-card-rgb) / calc(1 - var(--card-clear, 0.06)));
+    -webkit-backdrop-filter: blur(var(--card-blur, 8px)) saturate(1.1); backdrop-filter: blur(var(--card-blur, 8px)) saturate(1.1);
+}
+.vt.is-2w { --tl-lane: 82px; }
+.vt.is-2m, .vt.is-3m { --tl-lane: 56px; }
+.vt.is-6m { --tl-lane: 48px; }
+.vt-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.vt-grid { position: relative; display: grid; padding-bottom: 6px; }
+.vt-grid > * { min-width: 0; }
+
+/* Backgrounds: overdue, weekends, every other month, today, and where a dragged task would land. */
+.vt-band { z-index: 0; pointer-events: none; }
+.vt-band.is-late { background: color-mix(in srgb, var(--critical) 6%, transparent); }
+.vt-band.is-weekend, .vt-band.is-alt { background: color-mix(in srgb, var(--text) 3.5%, transparent); }
+.vt-band.is-today { background: color-mix(in srgb, var(--violet) 7%, transparent); }
+.vt-band.is-over {
+    z-index: 1; margin: 3px; border-radius: 10px;
+    background: color-mix(in srgb, var(--violet) 14%, transparent); outline: 1.5px dashed var(--violet); outline-offset: -1.5px;
+}
+
+/* The names column stays put while the days scroll. */
+.vt-side-cell { position: sticky; left: 0; z-index: 5; background: var(--tl-solid); border-right: 1px solid var(--line); }
+.vt-corner { border-bottom: 1px solid var(--line); }
+.vt-side-label { display: flex; align-items: center; padding: 0 12px 0 16px; font-size: 11.5px; font-weight: 700; color: var(--text-3); }
+.vt-side-label.is-hills { flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; }
+.vt-side-label small { font-size: 11px; font-weight: 500; }
+
+/* Headers: months (3 and 6 months), then the days or weeks with the work due. */
+.vt-head, .vt-month { position: relative; z-index: 3; }
+.vt-head {
+    display: grid; align-content: start; gap: 2px; padding: 12px 8px 10px; border-bottom: 1px solid var(--line);
+    font-size: 11.5px; color: var(--text-3); white-space: nowrap;
+}
+.vt-head b { overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 700; color: var(--text); }
+.vt-head span { overflow: hidden; text-overflow: ellipsis; }
+.vt-head.is-now b { color: var(--violet-ink); }
+.vt-head.is-late b { color: var(--critical-ink); }
+.vt-head.is-tight { padding: 4px 0 8px; text-align: center; }
+.vt-head.is-tight b { font-size: 11.5px; font-weight: 650; color: var(--text-3); }
+.vt-head.is-tight.is-now b { font-weight: 800; color: var(--violet-ink); }
+.vt-month {
+    padding: 12px 8px 2px; border-left: 1px solid var(--line);
+    font-size: 12.5px; font-weight: 750; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vt-load { display: block; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.vt-load i { display: block; height: 100%; border-radius: inherit; background: var(--violet); }
+.vt-load.is-heavy i { background: var(--violet-ink); }
+
+/* Landmarks: milestones (a diamond), project due dates (a flag), goal targets (a target). */
+.vt-mark {
+    position: relative; z-index: 3; align-self: center; display: flex; align-items: center; gap: 6px; min-width: 0; height: 24px;
+    margin: 4px 3px; padding: 0 8px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--g, var(--goal-0)) 14%, transparent);
+    color: var(--text); font-size: 12px; font-weight: 650; text-decoration: none; white-space: nowrap;
+}
+.vt-mark:hover { background: color-mix(in srgb, var(--g, var(--goal-0)) 26%, transparent); }
+.vt-mark > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vt-mark .ic { flex: none; color: var(--g, var(--goal-0)); }
+.vt-mark.is-more { background: var(--hover); color: var(--text-2); cursor: pointer; }
+.vt-mark.is-more .ic { color: var(--text-3); }
+.vt-mi { flex: none; width: 8px; height: 8px; margin: 0 2px; border-radius: 1.5px; background: var(--g, var(--goal-0)); transform: rotate(45deg); }
+
+/* A goal's line: the track, the dots flowing from now on, and its name. */
+.vt-lane-sep { z-index: 0; border-top: 1px solid var(--line); pointer-events: none; }
+.vt-track, .vt-flow { position: relative; z-index: 1; align-self: start; height: 0; margin-top: var(--tl-track); pointer-events: none; }
+.vt-track::before { content: ""; position: absolute; left: 0; right: 0; top: -1.5px; height: 3px; border-radius: 2px; background: var(--g); opacity: 0.34; }
+.vt-flow i {
+    position: absolute; top: -3px; left: 0; width: 6px; height: 6px; border-radius: 50%; opacity: 0;
+    background: var(--g); box-shadow: 0 0 6px 1px var(--g); animation: vt-flow var(--dur, 20s) linear infinite;
+}
+@keyframes vt-flow { 0% { left: 0; opacity: 0; } 6%, 94% { opacity: 0.9; } 100% { left: calc(100% - 6px); opacity: 0; } }
+.vt-lane { display: flex; align-items: flex-start; gap: 8px; min-height: var(--tl-lane, 72px); padding: calc(var(--tl-track) - 8px) 12px 12px 16px; }
+.vt-lane > i { flex: none; width: 9px; height: 9px; margin-top: 3.5px; border-radius: 50%; background: var(--g); box-shadow: 0 0 0 3px color-mix(in srgb, var(--g) 22%, transparent); }
+.vt-lane > span { display: grid; gap: 2px; min-width: 0; font-size: 12.5px; font-weight: 700; line-height: 16px; color: var(--text); }
+.vt-lane-t { color: inherit; text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+a.vt-lane-t:hover { text-decoration: underline; }
+.vt-lane small { font-size: 11px; font-weight: 600; color: var(--text-3); }
+
+/* Now: a glowing violet line with sparks running down it. */
+.vt-now { position: relative; z-index: 2; pointer-events: none; }
+.vt-now > i {
+    position: absolute; top: 0; bottom: 0; left: var(--x); width: 2px; margin-left: -1px; background: var(--violet);
+    box-shadow: 0 0 6px var(--violet), 0 0 14px color-mix(in srgb, var(--violet) 55%, transparent);
+}
+.vt-now > i::before { content: ""; position: absolute; top: -4px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 8px var(--violet); }
+.vt-now b {
+    position: absolute; top: 0; left: -1.5px; width: 5px; height: 5px; border-radius: 50%; opacity: 0;
+    background: #fff; box-shadow: 0 0 4px var(--violet), 0 0 8px var(--violet); animation: vt-spark 3.2s linear infinite;
+}
+.vt-now b + b { animation-delay: -1.6s; }
+@keyframes vt-spark { 0% { top: 0; opacity: 0; } 10%, 90% { opacity: 1; } 100% { top: calc(100% - 5px); opacity: 0; } }
+
+/* One lane's tasks in one day or week. */
+.vt-cell { position: relative; z-index: 3; display: flex; flex-direction: column; gap: 6px; padding: var(--tl-pad) 5px; }
+.vt-cell.is-beads { flex-direction: row; flex-wrap: wrap; align-content: flex-start; justify-content: center; gap: 6px; padding: var(--tl-pad) 2px; }
+.vt-cell.is-branch::before {
+    content: ""; position: absolute; left: 15.5px; top: calc(var(--tl-pad) + 12px); bottom: calc(var(--tl-pad) + 12px);
+    width: 3px; border-radius: 2px; background: var(--g); opacity: 0.34;
+}
+.vt-rank {
+    flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px;
+    background: var(--g, var(--goal-0)); color: #fff; font-size: 11px; font-weight: 750; font-variant-numeric: tabular-nums;
+}
+.vt-rank.is-icon { background: var(--surface-3); color: var(--text-3); }
+.vt-rank.is-icon .ic { width: 12px; height: 12px; }
+
+/* 2 weeks: cards. */
+.vt-card {
+    display: grid; gap: 6px; padding: 8px 9px 8px 8px; border-radius: 10px; border: 1px solid var(--line);
+    background: rgb(var(--task-card-rgb) / calc(1 - var(--card-clear, 0.06))); box-shadow: var(--sh-xs);
+    cursor: grab; user-select: none; transition: border-color .12s, box-shadow .12s;
+}
+.vt-card:hover { border-color: var(--line-strong); }
+.vt-card:active { cursor: grabbing; }
+.vt-card:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
+.vt-card.is-selected { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
+.vt-card.is-first { border-color: color-mix(in srgb, var(--violet) 60%, var(--line)); animation: vt-glow 2.8s ease-in-out infinite; }
+.vt-card.is-quiet { border-style: dashed; }
+.vt-card.is-quiet .vt-card-title { color: var(--text-2); }
+.vt-card-top { display: flex; align-items: flex-start; gap: 7px; }
+.vt-card-title {
+    min-width: 0; padding-top: 1px; font-size: 12.5px; font-weight: 650; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+}
+.vt-card-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--text-3); }
+.vt-card-meta span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vt-card-meta span:last-child { flex: none; }
+@keyframes vt-glow {
+    0%, 100% { box-shadow: 0 0 0 1px var(--violet-ring), 0 0 10px -2px var(--violet); }
+    50% { box-shadow: 0 0 0 1px var(--violet-ring), 0 0 18px 0 var(--violet); }
+}
+
+/* 2 and 3 months: stations on the line, with a name tag. */
+.vt-stop {
+    display: flex; align-items: center; gap: 6px; max-width: 100%; height: 24px; padding: 0; border: 0;
+    background: none; color: var(--text); text-align: left; cursor: grab;
+}
+.vt-stop:active { cursor: grabbing; }
+.vt-stop:focus-visible { outline: none; }
+.vt-dot {
+    flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 2.5px solid var(--g);
+    background: var(--surface); color: var(--text); font-size: 10.5px; font-weight: 750; font-variant-numeric: tabular-nums; transition: transform .12s;
+}
+.vt-dot .ic { width: 11px; height: 11px; color: var(--text-3); }
+.vt-stop:hover .vt-dot, .vt-stop:focus-visible .vt-dot { transform: scale(1.12); }
+.vt-stop:focus-visible .vt-dot { box-shadow: 0 0 0 3px var(--violet-ring); }
+.vt-stop.is-quiet .vt-dot { border-style: dashed; }
+.vt-stop.is-selected .vt-dot { box-shadow: 0 0 0 3px var(--violet); }
+.vt-stop.is-first .vt-dot { background: var(--violet); color: #fff; animation: vt-pulse 2.8s ease-in-out infinite; }
+.vt-name {
+    min-width: 0; padding: 2px 7px; border-radius: 6px; background: rgb(var(--task-card-rgb) / 0.92); box-shadow: 0 0 0 1px var(--line);
+    font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vt-stop.is-quiet .vt-name { color: var(--text-2); }
+.vt-dots { display: flex; flex-wrap: wrap; gap: 4px; }
+@keyframes vt-pulse { 0%, 100% { box-shadow: 0 0 6px var(--violet); } 50% { box-shadow: 0 0 14px 2px var(--violet); } }
+
+/* 6 months: beads, and hills of the work due. */
+.vt-bead {
+    flex: none; width: 14px; height: 14px; padding: 0; border-radius: 50%; border: 2px solid var(--g);
+    background: var(--g); cursor: grab; transition: transform .12s;
+}
+.vt-bead:hover, .vt-bead:focus-visible { transform: scale(1.3); outline: none; }
+.vt-bead.is-quiet { background: var(--surface); border-style: dashed; }
+.vt-bead.is-selected { box-shadow: 0 0 0 1.5px var(--tl-solid), 0 0 0 3px var(--violet); }
+.vt-bead.is-first { box-shadow: 0 0 0 1.5px var(--tl-solid), 0 0 0 3px var(--violet), 0 0 10px var(--violet); }
+.vt-hills { position: relative; z-index: 3; padding: 10px 0 8px; }
+.vt-hills svg { display: block; width: 100%; height: 52px; overflow: visible; }
+.vt-hill-area { fill: color-mix(in srgb, var(--violet) 16%, transparent); }
+.vt-hill-line { fill: none; stroke: var(--violet); stroke-width: 1.6; }
+.vt-hill-hit { fill: transparent; }
+.vt-hill-hit:hover { fill: color-mix(in srgb, var(--violet) 10%, transparent); }
+
+/* No date: drag a task from here onto a day, or a dated one here to clear its date. */
+.vt-dock { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px 12px 16px; border-top: 1px solid var(--line); transition: background .12s; }
+.vt-dock.is-over { background: color-mix(in srgb, var(--violet) 10%, transparent); box-shadow: inset 0 0 0 1.5px var(--violet); }
+.vt-dock-label { flex: none; width: calc(var(--tl-label) - 28px); padding-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--text); }
+.vt-dock-list { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.vt-dock-empty { padding-top: 6px; font-size: 12.5px; color: var(--text-3); }
+.vt-chip {
+    display: inline-flex; align-items: center; gap: 7px; max-width: 260px; height: 30px; padding: 0 11px 0 5px;
+    border-radius: 15px; border: 1px dashed var(--line-strong); background: rgb(var(--task-card-rgb) / calc(1 - var(--card-clear, 0.06)));
+    color: var(--text); font-size: 12.5px; font-weight: 600; cursor: grab;
+}
+.vt-chip:hover { border-color: var(--text-3); }
+.vt-chip .vt-rank { border-radius: 50%; }
+.vt-chip > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vt-chip.is-quiet { color: var(--text-2); }
+.vt-chip.is-selected { border: 1px solid var(--violet); box-shadow: 0 0 0 3px var(--violet-soft); }
+
+/* The card shown on hover over a station, bead or dot. */
+.vt-tip {
+    position: fixed; z-index: 90; display: grid; gap: 3px; max-width: 260px; padding: 9px 11px; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--sh-md);
+    font-size: 12px; color: var(--text-2); pointer-events: none;
+}
+.vt-tip b { font-size: 13px; font-weight: 700; line-height: 1.3; color: var(--text); }
+.vt-tip .is-late { font-weight: 650; color: var(--critical-ink); }
+.vt-tip-proj { display: flex; align-items: center; gap: 6px; }
+.vt-tip-proj i { width: 7px; height: 7px; border-radius: 50%; background: var(--g); }
+
+/* 1 year: a ring, today at the top, a ring per goal; the list beside it. */
+.vt-year { display: grid; grid-template-columns: minmax(0, 560px) minmax(240px, 1fr); gap: 12px 28px; align-items: start; padding: 18px 20px 12px; }
+@media (max-width: 980px) { .vt-year { grid-template-columns: minmax(0, 1fr); } }
+.vt-ring-box { min-width: 0; }
+.vt-ring { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; overflow: visible; }
+.vt-sector { fill: transparent; cursor: pointer; transition: fill .12s; }
+.vt-sector:hover { fill: color-mix(in srgb, var(--violet) 5%, transparent); }
+.vt-sector.is-sel { fill: color-mix(in srgb, var(--violet) 10%, transparent); }
+.vt-sector.is-over { fill: color-mix(in srgb, var(--violet) 18%, transparent); }
+.vt-mline { stroke: var(--line-strong); stroke-width: 1; pointer-events: none; }
+.vt-mname { fill: var(--text-2); font-size: 12.5px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.vt-rring { fill: none; stroke: var(--g); stroke-width: 3; opacity: 0.34; pointer-events: none; }
+.vt-orbit { transform-origin: 270px 270px; transform-box: view-box; animation: vt-spin 72s linear infinite; pointer-events: none; }
+.vt-orbit-dot { fill: var(--g); filter: drop-shadow(0 0 3px var(--g)); }
+@keyframes vt-spin { to { transform: rotate(360deg); } }
+.vt-hand { stroke: var(--violet); stroke-width: 2.5; stroke-linecap: round; filter: drop-shadow(0 0 4px var(--violet)); pointer-events: none; }
+.vt-hub { fill: var(--violet); filter: drop-shadow(0 0 4px var(--violet)); pointer-events: none; }
+.vt-spark { fill: #fff; filter: drop-shadow(0 0 3px var(--violet)); pointer-events: none; }
+.vt-rdot { cursor: pointer; outline: none; }
+.vt-rdot circle { fill: var(--g); stroke: var(--tl-solid); stroke-width: 2; }
+.vt-rdot.is-quiet circle { fill: var(--tl-solid); stroke: var(--g); stroke-dasharray: 3 2; }
+.vt-rdot:hover circle, .vt-rdot:focus-visible circle { stroke: var(--text); }
+.vt-rdot.is-selected circle { stroke: var(--violet); stroke-width: 3; }
+.vt-rdot .vt-rglow { fill: none; stroke: var(--violet); stroke-width: 2; filter: drop-shadow(0 0 4px var(--violet)); animation: vt-blink 2.8s ease-in-out infinite; }
+.vt-rdot text { fill: #fff; font-size: 10.5px; font-weight: 750; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+@keyframes vt-blink { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.vt-rmark :is(rect, path, circle) { fill: var(--g); stroke: var(--tl-solid); stroke-width: 1.5; }
+.vt-rmark .vt-rmark-ring { fill: var(--tl-solid); stroke: var(--g); stroke-width: 2; }
+.vt-rmark text { fill: #fff; font-size: 10px; font-weight: 750; text-anchor: middle; dominant-baseline: central; }
+.vt-ring-c { fill: var(--text); font-size: 15px; font-weight: 750; text-anchor: middle; }
+.vt-ring-s { fill: var(--text-3); font-size: 12px; text-anchor: middle; }
+.vt-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.vt-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.vt-legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--g); }
+.vt-side { display: grid; gap: 16px; align-content: start; min-width: 0; padding-top: 6px; }
+.vt-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; padding: 0 0 0 8px; }
+.vt-side-head b { font-family: var(--font-display); font-size: 16px; font-weight: 750; }
+.vt-side-sec { display: grid; gap: 2px; }
+.vt-side-sec h4 { margin: 0 0 4px; padding: 0 8px; font-size: 11.5px; font-weight: 700; color: var(--text-3); }
+.vt-side-sec h4.is-late { color: var(--critical-ink); }
+.vt-side-empty { margin: 0; padding: 4px 8px; font-size: 12.5px; color: var(--text-3); }
+.vt-row {
+    display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0; padding: 6px 8px; border: 0; border-radius: 8px;
+    background: none; color: var(--text); font-size: 13px; text-align: left; text-decoration: none; cursor: grab;
+}
+.vt-row.is-mark { cursor: pointer; }
+.vt-row:hover { background: var(--hover); }
+.vt-row.is-selected { background: var(--selected); }
+.vt-row-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.vt-row.is-quiet .vt-row-t { color: var(--text-2); }
+.vt-row-d { flex: none; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.vt-row-d.is-late { font-weight: 650; color: var(--critical-ink); }
+.vt-row-ic { flex: none; display: grid; place-items: center; width: 20px; height: 20px; color: var(--g, var(--goal-0)); }
+.vt-mrow {
+    display: grid; grid-template-columns: 70px minmax(0, 1fr) 76px; align-items: center; gap: 10px; width: 100%;
+    padding: 5px 8px; border: 0; border-radius: 8px; background: none; color: var(--text); font-size: 12.5px; text-align: left;
+}
+.vt-mrow:hover { background: var(--hover); }
+.vt-mrow-n { font-weight: 650; white-space: nowrap; }
+.vt-mrow-bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.vt-mrow-bar i { display: block; height: 100%; border-radius: inherit; background: var(--violet); }
+.vt-mrow-c { font-size: 12px; color: var(--text-3); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+    .vt { --tl-label: 96px; }
+    .vt-lane { padding-left: 10px; padding-right: 8px; }
+    .vt-year { padding: 12px 10px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .vt-flow i, .vt-now b { display: none; }
+    .vt-orbit, .vt-card.is-first, .vt-stop.is-first .vt-dot, .vt-rdot .vt-rglow { animation: none; }
+}

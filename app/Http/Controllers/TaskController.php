@@ -15,6 +15,7 @@ use App\Services\NextActions;
 use App\Services\RankingService;
 use App\Services\StudyLogger;
 use App\Services\TaskPresenter;
+use App\Services\TimelineMarks;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -77,6 +78,8 @@ class TaskController extends Controller
                 ->with('project.goal')->latest('completed_at')->get()->map(fn ($t) => TaskPresenter::base($t)),
             'selected' => fn () => $this->detail($request),
             'projects' => $user->projects()->whereNull('archived_at')->get(['id', 'name']),
+            // The Timeline's goal lines and the next year's landmarks (milestones, project due dates, goal targets).
+            'timeline' => fn () => TimelineMarks::for($user, $now->startOfDay()),
             // Captured only, waiting to be sorted (the Inbox's "To sort"), newest first.
             'captured' => $user->tasks()->whereIn('status', Task::OPEN)->whereNotNull('captured_at')->with('project.goal')->latest('captured_at')->get()
                 ->map(fn ($t) => TaskPresenter::base($t)),

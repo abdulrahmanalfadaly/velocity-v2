@@ -8,7 +8,8 @@ import { Picker } from '@/components/velocity/pick';
 import { Select } from '@/components/velocity/select';
 import { FileBox } from '@/components/velocity/task-files';
 import { TaskPanel } from '@/components/velocity/task-panel';
-import { Board, Timeline } from '@/components/velocity/task-views';
+import { Board } from '@/components/velocity/task-views';
+import { Timeline, type TimelineData } from '@/components/velocity/timeline';
 import { Check, HabitButton, Ring } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmt1, fmtHours, goalVar } from '@/lib/velocity';
@@ -65,6 +66,8 @@ interface Props extends VelocityShared {
     github: { repo: string | null } | null;
     selected: TaskDetail | null;
     projects: { id: number; name: string }[];
+    /** The Timeline's landmarks: this project's milestones and due date. */
+    timeline?: TimelineData;
 }
 
 type View = 'overview' | 'tasks' | 'notes' | 'habits' | 'files';
@@ -440,24 +443,32 @@ export default function ProjectShow() {
                                         <kbd>Enter</kbd>
                                     </label>
                                 </form>
-                                {wide &&
-                                    (() => {
-                                        const View = layout === 'board' ? Board : Timeline;
-                                        return (
-                                            <div className="pviews">
-                                                <View
-                                                    tasks={props.tasks}
-                                                    notReady={props.notReady}
-                                                    doneToday={props.done.filter(
-                                                        (t) => t.status === 'done' && t.completedAt && clock.dayDiff(t.completedAt) === 0,
-                                                    )}
-                                                    clock={clock}
-                                                    selectedId={props.selected?.id ?? null}
-                                                    onOpen={(id) => select(props.selected?.id === id ? null : id)}
-                                                />
-                                            </div>
-                                        );
-                                    })()}
+                                {wide && (
+                                    <div className="pviews">
+                                        {layout === 'board' ? (
+                                            <Board
+                                                tasks={props.tasks}
+                                                notReady={props.notReady}
+                                                doneToday={props.done.filter(
+                                                    (t) => t.status === 'done' && t.completedAt && clock.dayDiff(t.completedAt) === 0,
+                                                )}
+                                                clock={clock}
+                                                selectedId={props.selected?.id ?? null}
+                                                onOpen={(id) => select(props.selected?.id === id ? null : id)}
+                                            />
+                                        ) : (
+                                            <Timeline
+                                                tasks={props.tasks}
+                                                notReady={props.notReady}
+                                                clock={clock}
+                                                data={props.timeline}
+                                                single={{ name: project.name, color: project.goal?.color ?? null }}
+                                                selectedId={props.selected?.id ?? null}
+                                                onOpen={(id) => select(props.selected?.id === id ? null : id)}
+                                            />
+                                        )}
+                                    </div>
+                                )}
                                 <ul className="ptree" hidden={wide}>
                                     {topLevel.length === 0 && <li className="pt-empty">No open tasks. Add one above.</li>}
                                     {topLevel.map((t) => {

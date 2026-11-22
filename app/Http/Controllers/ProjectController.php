@@ -12,6 +12,7 @@ use App\Services\AutoArchive;
 use App\Services\HabitStats;
 use App\Services\RankingService;
 use App\Services\TaskPresenter;
+use App\Services\TimelineMarks;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -230,6 +231,8 @@ class ProjectController extends Controller
                 'id' => $m->id, 'title' => $m->title, 'dueDate' => $m->due_date?->toDateString(), 'done' => $m->done_at !== null,
             ])->values(),
             'tasks' => $open,
+            // The Timeline's landmarks: this project's milestones and due date in the next year.
+            'timeline' => fn () => TimelineMarks::for($user, $todayLocal, $project),
             'totalRanked' => count($list),
             'notReady' => $notReady,
             'done' => $done->map(fn ($t) => TaskPresenter::base($t))->values(),

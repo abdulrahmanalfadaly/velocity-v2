@@ -3,10 +3,11 @@ import { DatePick } from '@/components/velocity/date-pick';
 import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
-import { Board, Timeline } from '@/components/velocity/task-views';
+import { Board } from '@/components/velocity/task-views';
 import { type Layout, TasksHead } from '@/components/velocity/tasks-head';
 import { type Template, TemplatePick } from '@/components/velocity/template-use';
 import { ThisOrThat } from '@/components/velocity/this-or-that';
+import { Timeline, type TimelineData } from '@/components/velocity/timeline';
 import { Check } from '@/components/velocity/ui';
 import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, dueInfo, fmt1, fmtHours, repeatText } from '@/lib/velocity';
@@ -30,6 +31,8 @@ interface Props extends VelocityShared {
     captured?: BaseTask[];
     /** Loaded when the template button in "Add a task" is first pressed. */
     templates?: Template[];
+    /** The Timeline's goal lines and the next year's landmarks. */
+    timeline?: TimelineData;
 }
 
 const VIEWS: Record<View, { title: string; href: string }> = {
@@ -362,20 +365,24 @@ export default function TasksIndex() {
                             </div>
                         </div>
 
-                        {layout !== 'list' ? (
-                            (() => {
-                                const View = layout === 'board' ? Board : Timeline;
-                                return (
-                                    <View
-                                        tasks={shown}
-                                        notReady={notReady}
-                                        doneToday={doneToday}
-                                        clock={clock}
-                                        selectedId={props.selected?.id ?? null}
-                                        onOpen={(id) => open(props.selected?.id === id ? null : id)}
-                                    />
-                                );
-                            })()
+                        {layout === 'board' ? (
+                            <Board
+                                tasks={shown}
+                                notReady={notReady}
+                                doneToday={doneToday}
+                                clock={clock}
+                                selectedId={props.selected?.id ?? null}
+                                onOpen={(id) => open(props.selected?.id === id ? null : id)}
+                            />
+                        ) : layout === 'timeline' ? (
+                            <Timeline
+                                tasks={shown}
+                                notReady={notReady}
+                                clock={clock}
+                                data={props.timeline}
+                                selectedId={props.selected?.id ?? null}
+                                onOpen={(id) => open(props.selected?.id === id ? null : id)}
+                            />
                         ) : (
                             <>
                                 <ol className={`rank-list is-ranked${picked ? ' is-picking' : ''}`} aria-label="Tasks in priority order">

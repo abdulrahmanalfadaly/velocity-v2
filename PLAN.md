@@ -170,6 +170,21 @@ organised. Left for the very end, after the backlog (user, 16 Nov).
       time). Cards keep the formula's order in every column; filters still
       apply; every drop has Undo. Phones: columns scroll sideways; tap a card
       to change it in the panel. `components/velocity/task-views.tsx`
+- [x] Timeline redesign (23 Nov 2026, the user's request: "the timeline tab looks
+      like the board one"): the Goals map's look along time — its dotted ground,
+      one line per goal with dots flowing on it, a glowing violet Now line, the
+      #1 task glowing, landmarks above the lines (milestones, project due dates,
+      goal targets of the next 12 months, `TimelineMarks`). Five spans, each
+      drawn its own way: 2 weeks = cards by day with a load bar per day;
+      2 months = stations by week with name tags; 3 months = stations only
+      (name on hover); 6 months = beads by week plus hills of the work due each
+      week; 1 year = a ring (today at the top, a ring per goal, click a month
+      for its list; drop on a month keeps the day of the month, no date = its
+      last day). Every task sits in its own cell and stacks, landmark labels
+      take the first free row: nothing overlaps (user: "mind the spacings and
+      overlappings"). Overdue column, Later, No date dock (drop there clears
+      the date). `components/velocity/timeline.tsx`, classes `vt-*` (Home owns
+      `tl-*`)
 - [x] Reminders: a Reminder row in the task panel (any time, or 15 min / 1 h /
       3 h / 1 day before the due time). While Velocity is open it checks every
       30 s and when its window comes back into view; a due reminder shows a card
@@ -590,9 +605,10 @@ too, and finished ones go newest first.
       out of the archive or delete (each with Undo)
 - [x] The selection bar also sets importance, urgency, status and a
       follow-up date on several tasks (Undo puts each one's old value back)
-- [x] A project's Tasks tab: List / Board / Timeline; the Timeline shows 2
-      weeks by day, or 2 or 3 months by week (a card dropped on a week keeps
-      its weekday; no date: that week's Friday)
+- [x] A project's Tasks tab: List / Board / Timeline; the Timeline has the
+      same five spans with one line for the project and its own milestones
+      and due date (a card dropped on a week keeps its weekday; no date: that
+      week's Friday)
 - [x] Templates with dates counted from the day they are used ("due 3 days
       after use, 17:00", "can start 1 day after"); saving a task as a
       template turns its dates into days from today
