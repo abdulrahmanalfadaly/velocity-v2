@@ -41,7 +41,7 @@ interface Entry {
     node: ReactNode;
 }
 
-const MAX = 3; // lines in one day box before "+2 more"
+const MAX = 3; // things shown in one day box; the rest are "+2 more" next to the day number
 const shift = (day: string, n: number) => {
     const d = new Date(`${day}T12:00:00Z`);
     d.setUTCDate(d.getUTCDate() + n);
@@ -194,7 +194,7 @@ export function MonthGrid<E extends MonthEvent>({
             <div className="mg-body" style={{ ['--weeks' as string]: days.length / 7 }}>
                 {days.map((d) => {
                     const list = byDay[d].sort((a, b) => a.sort - b.sort);
-                    const shown = list.length > MAX ? list.slice(0, MAX - 1) : list;
+                    const shown = list.slice(0, MAX);
                     const label = clock.date(at(d), { weekday: 'long', day: 'numeric', month: 'long' });
                     return (
                         <div
@@ -203,20 +203,26 @@ export function MonthGrid<E extends MonthEvent>({
                             className={`mg-day${d.slice(0, 7) !== month ? ' is-out' : ''}${d === today ? ' is-today' : ''}`}
                             onClick={(e) => e.target === e.currentTarget && onDay(d)}
                         >
-                            <button className="mg-num" onClick={() => onDay(d)} aria-label={`${label}${list.length ? `, ${list.length} on` : ''}`}>
-                                {Number(d.slice(8))}
-                            </button>
+                            <div className="mg-top">
+                                <button
+                                    className="mg-num"
+                                    onClick={() => onDay(d)}
+                                    aria-label={`${label}${list.length ? `, ${list.length} on` : ''}`}
+                                >
+                                    {Number(d.slice(8))}
+                                </button>
+                                {list.length > shown.length && (
+                                    <button className="mg-more" onClick={() => onDay(d)}>
+                                        +{list.length - shown.length} more
+                                    </button>
+                                )}
+                            </div>
                             {shown.length > 0 && (
                                 <ul className="mg-items">
                                     {shown.map((en) => (
                                         <li key={en.key}>{en.node}</li>
                                     ))}
                                 </ul>
-                            )}
-                            {list.length > shown.length && (
-                                <button className="mg-more" onClick={() => onDay(d)}>
-                                    +{list.length - shown.length} more
-                                </button>
                             )}
                         </div>
                     );

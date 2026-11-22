@@ -8,7 +8,7 @@ import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, fmtHours, round1 } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
-import { type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Occurrence {
     id: number;
@@ -94,7 +94,7 @@ interface PlanHabit {
     target: number;
 }
 
-const HOUR = 48; // px for one hour in the grid
+const HOUR = 64; // px for one hour in the grid (CSS reads it as --hour)
 const SNAP = 15; // minutes a dragged block snaps to
 const ICON: Record<CalendarKey, string> = { class: 'cap', work: 'briefcase', personal: 'heart' };
 const LABEL: Record<CalendarKey, string> = { class: 'Class', work: 'Work', personal: 'Personal' };
@@ -729,7 +729,7 @@ export default function Planner() {
                             </div>
                         )}
                         <div className="pg-scroll" ref={scroller}>
-                            <div className="pg-body" style={{ height: 24 * HOUR }}>
+                            <div className="pg-body" style={{ height: 24 * HOUR, ['--hour' as string]: `${HOUR}px` }}>
                                 <div className="pg-gutter pg-hours" aria-hidden="true">
                                     {Array.from({ length: 24 }, (_, h) => (
                                         <span key={h} style={{ top: h * HOUR }}>
@@ -749,25 +749,32 @@ export default function Planner() {
                                         title="Click to add an event"
                                     >
                                         {pieces[d].map((p) => {
+                                            // Its size on screen decides its layout: a tall block shows as many title lines
+                                            // as fit above the time (never a half-cut line), a short one puts the title and
+                                            // time side by side, a tiny one (15–25 min) shows the title alone.
+                                            const h = Math.max(24, ((p.bottom - p.top) / 60) * HOUR - 3);
+                                            const next = p.it.kind === 'block' && p.it.bl.kind === 'project' ? 15 : 0;
                                             const style = {
-                                                top: (p.top / 60) * HOUR,
-                                                height: Math.max(20, ((p.bottom - p.top) / 60) * HOUR - 2),
-                                                left: `calc(${(p.lane / p.lanes) * 100}% + 2px)`,
-                                                width: `calc(${100 / p.lanes}% - 4px)`,
-                                            };
-                                            const short = p.bottom - p.top < 45;
+                                                top: (p.top / 60) * HOUR + 1,
+                                                height: h,
+                                                left: `calc(${(p.lane / p.lanes) * 100}% + 3px)`,
+                                                width: `calc(${100 / p.lanes}% - 6px)`,
+                                                ['--lines' as string]: Math.max(1, Math.min(3, Math.floor((h - 27 - next) / 16.25))),
+                                            } as CSSProperties;
+                                            const short = h < 47;
+                                            const tiny = h < 30;
                                             if (p.it.kind === 'block') {
                                                 const { bl, s, e } = p.it;
                                                 const when = `${minLabel(s.min)}–${minLabel(e.min)}`;
                                                 return (
                                                     <button
                                                         key={p.it.key}
-                                                        className={`pblock is-${bl.kind}${short ? ' is-short' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}${bl.blocked ? ' is-blocked' : ''}`}
+                                                        className={`pblock is-${bl.kind}${short ? ' is-short' : ''}${tiny ? ' is-tiny' : ''}${drag?.blockId === bl.id ? ' is-moving' : ''}${bl.id < 0 ? ' is-saving' : ''}${clashes.has(bl.id) ? ' is-clash' : ''}${bl.blocked ? ' is-blocked' : ''}`}
                                                         style={style}
                                                         onPointerDown={(ev) => bl.id > 0 && grabBlock(ev, bl, s)}
                                                         onClick={(ev) => openBlock(ev, bl, s, e)}
                                                         onContextMenu={(ev) => ev.preventDefault()}
-                                                        title={[bl.title, bl.blocked?.why, clashes.has(bl.id) ? 'overlaps something' : '']
+                                                        title={[bl.title, when, bl.blocked?.why, clashes.has(bl.id) ? 'overlaps something' : '']
                                                             .filter(Boolean)
                                                             .join(' · ')}
                                                         aria-label={`${bl.title}, ${when}${bl.blocked ? `, ${bl.blocked.why}` : ''}${clashes.has(bl.id) ? ', overlaps something' : ''}`}
@@ -815,7 +822,7 @@ export default function Planner() {
                                                 return (
                                                     <button
                                                         key={p.it.key}
-                                                        className={`pev is-habit${hb.done ? ' is-done' : ''}${short ? ' is-short' : ''}`}
+                                                        className={`pev is-habit${hb.done ? ' is-done' : ''}${short ? ' is-short' : ''}${tiny ? ' is-tiny' : ''}`}
                                                         style={style}
                                                         onClick={(ev) => {
                                                             const r = ev.currentTarget.getBoundingClientRect();
@@ -840,11 +847,12 @@ export default function Planner() {
                                             return (
                                                 <button
                                                     key={p.it.key}
-                                                    className={`pev is-${ev.calendar}${short ? ' is-short' : ''}${ev.cancelled ? ' is-cancelled' : ''}${movable ? ' is-movable' : ''}${drag?.eventKey === ev.key ? ' is-moving' : ''}`}
+                                                    className={`pev is-${ev.calendar}${short ? ' is-short' : ''}${tiny ? ' is-tiny' : ''}${ev.cancelled ? ' is-cancelled' : ''}${movable ? ' is-movable' : ''}${drag?.eventKey === ev.key ? ' is-moving' : ''}`}
                                                     style={style}
                                                     onPointerDown={(e2) => movable && grabEvent(e2, ev, evS, evE)}
                                                     onClick={() => !justDragged.current && openEvent(ev)}
                                                     onContextMenu={(e2) => movable && e2.preventDefault()}
+                                                    title={`${ev.title} · ${minLabel(evS.min)}–${minLabel(evE.min)}`}
                                                     aria-label={`${LABEL[ev.calendar]}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}${ev.cancelled ? ', cancelled' : ''}${ev.locked ? ', locked' : ''}`}
                                                 >
                                                     <span className="pev-title">
@@ -879,7 +887,7 @@ export default function Planner() {
                                                         key={t.id}
                                                         className={`pg-due${over ? ' is-compact' : ''}`}
                                                         href={`/tasks?task=${t.id}`}
-                                                        style={{ top: (m / 60) * HOUR - 9 }}
+                                                        style={{ top: (m / 60) * HOUR - 10 }}
                                                         title={`Due: ${t.title}`}
                                                         aria-label={`Due: ${t.title}`}
                                                     >
@@ -892,10 +900,10 @@ export default function Planner() {
                                             <span
                                                 className={`pblock is-ghost${drag.eventKey ? ' is-event' : ''}`}
                                                 style={{
-                                                    top: (drag.to.min / 60) * HOUR,
-                                                    height: Math.max(20, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 2),
-                                                    left: 2,
-                                                    right: 2,
+                                                    top: (drag.to.min / 60) * HOUR + 1,
+                                                    height: Math.max(24, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 3),
+                                                    left: 3,
+                                                    right: 3,
                                                 }}
                                                 aria-hidden="true"
                                             >
