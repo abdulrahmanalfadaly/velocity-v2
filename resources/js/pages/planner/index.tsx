@@ -8,7 +8,16 @@ import VelocityShell from '@/layouts/velocity-shell';
 import { Clock, fmtHours, round1 } from '@/lib/velocity';
 import type { VelocityShared } from '@/types/velocity';
 import { Link, router, usePage } from '@inertiajs/react';
-import { type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    type CSSProperties,
+    type MouseEvent,
+    type PointerEvent as ReactPointerEvent,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 
 interface Occurrence {
     id: number;
@@ -50,7 +59,8 @@ interface Props extends VelocityShared {
     blocks: PlanBlock[];
     unbooked: Unbooked[];
     hours: Hours;
-    dayLimit: number;
+    /** Hours of task work "Plan" books a day at most (Settings → Planner); null = all the working hours. */
+    dayLimit: number | null;
     busy: string[];
     calendars: Record<CalendarKey, number>;
     dueTasks: { id: number; title: string; dueAt: string }[];
@@ -94,7 +104,10 @@ interface PlanHabit {
     target: number;
 }
 
-const HOUR = 80; // px for one hour in the grid (CSS reads it as --hour)
+/** One hour in the grid: sized so the working day fits the screen, between these (px). */
+const HOUR_MIN = 60;
+const HOUR_MAX = 76;
+const toMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 const SNAP = 15; // minutes a dragged block snaps to
 const ICON: Record<CalendarKey, string> = { class: 'cap', work: 'briefcase', personal: 'heart' };
 const LABEL: Record<CalendarKey, string> = { class: 'Class', work: 'Work', personal: 'Personal' };
@@ -140,6 +153,18 @@ interface Piece {
     bottom: number;
     lane: number;
     lanes: number;
+}
+
+/** Minutes from a piece's start to the next piece below it that shares some of its width (Infinity: none). */
+function roomBelow(list: Piece[], p: Piece): number {
+    const a0 = p.lane / p.lanes;
+    const a1 = (p.lane + 1) / p.lanes;
+    let room = Infinity;
+    for (const q of list) {
+        if (q === p || q.top <= p.top) continue;
+        if (q.lane / q.lanes < a1 && (q.lane + 1) / q.lanes > a0) room = Math.min(room, q.top - p.top);
+    }
+    return room;
 }
 
 /** The parts of events and blocks that fall on one day, side by side where they overlap. */
@@ -261,6 +286,17 @@ export default function Planner() {
         go(props.view === 'month' ? `${shift(firstOfMonth, dir < 0 ? -1 : 32).slice(0, 8)}01` : shift(props.date, dir * step));
     const unit = props.view === 'month' ? 'month' : props.view === 'week' ? 'week' : 'day';
     const plan = (taskId?: number) => router.post(route('planner.plan'), { date: props.date, span: props.view, task_id: taskId ?? null }, keep);
+    // The Plan button's second press: the planner's own blocks still ahead in the days shown go (Undo brings them back).
+    const planned = props.blocks.some(
+        (b) => !b.pinned && !b.locked && Date.parse(b.start) >= clock.now.getTime() && props.days.includes(local(clock, b.start).date),
+    );
+    const clearPlan = () => router.post(route('planner.clear'), { date: props.date, span: props.view }, keep);
+    // A day's hours of task work at most: the limit in Settings → Planner, or else its working hours.
+    const capOf = (d: string) => {
+        if (props.dayLimit) return props.dayLimit;
+        const h = props.hours[(new Date(at(d)).getUTCDay() + 6) % 7];
+        return h ? (toMin(h.end) - toMin(h.start)) / 60 : 0;
+    };
 
     // Phones show one day at a time. (A moment later: on the first draw Inertia isn't ready to move yet.)
     useEffect(() => {
@@ -270,16 +306,41 @@ export default function Planner() {
         return () => clearTimeout(t);
     }, [props.view, props.date]);
 
-    // Start the grid at 7 am (or just before the first thing on), once.
+    // The working day of the week (earliest start to latest end): the grid is sized so it fits the screen.
+    const workDays = props.hours.filter((h): h is { start: string; end: string } => h !== null);
+    const workFrom = workDays.length ? Math.min(...workDays.map((h) => toMin(h.start))) : 8 * 60;
+    const workTo = workDays.length ? Math.max(...workDays.map((h) => toMin(h.end))) : 18 * 60;
+
+    // One scroll only: the grid takes the height left on the screen (the page itself doesn't scroll), and an
+    // hour is as tall as lets the working day fill it, within HOUR_MIN–HOUR_MAX.
     const scroller = useRef<HTMLDivElement>(null);
-    useEffect(() => {
+    const [HOUR, setHour] = useState(64);
+    useLayoutEffect(() => {
+        const el = scroller.current;
+        if (!el) return;
+        const fit = () => {
+            el.style.maxHeight = '';
+            const room = Math.max(300, window.innerHeight - el.getBoundingClientRect().top - window.scrollY - 18);
+            el.style.maxHeight = `${room}px`;
+            const over = document.documentElement.scrollHeight - window.innerHeight;
+            if (over > 0) el.style.maxHeight = `${Math.max(300, room - over)}px`;
+            const h = el.clientHeight || room;
+            setHour(Math.max(HOUR_MIN, Math.min(HOUR_MAX, Math.floor(h / Math.max(6, (workTo - workFrom) / 60)))));
+        };
+        fit();
+        window.addEventListener('resize', fit);
+        return () => window.removeEventListener('resize', fit);
+    }, [props.view, props.date, workFrom, workTo, hidden.length]);
+
+    // Start the grid at the working day's start (or just before the first thing on).
+    useLayoutEffect(() => {
         const first = Math.min(
-            7 * 60,
+            workFrom,
             ...events.filter((e) => !e.allDay).map((e) => local(clock, e.start).min),
             ...props.blocks.map((b) => local(clock, b.start).min),
         );
-        scroller.current?.scrollTo({ top: Math.max(0, (first / 60) * HOUR - 12) });
-    }, [props.date, props.view]); // eslint-disable-line react-hooks/exhaustive-deps
+        scroller.current?.scrollTo({ top: Math.max(0, (first / 60) * HOUR - 10) });
+    }, [props.date, props.view, HOUR]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // The "now" line, moved every minute.
     const [nowMin, setNowMin] = useState(() => local(clock, clock.now.toISOString()).min);
@@ -607,12 +668,18 @@ export default function Planner() {
                             <Icon name="plus" />
                             <span className="btn-label">Event</span>
                         </button>
-                        {props.view !== 'month' && (
-                            <button className="btn btn-primary" onClick={() => plan()}>
-                                <Icon name="wand" />
-                                <span className="btn-label">{props.view === 'week' ? 'Plan week' : 'Plan day'}</span>
-                            </button>
-                        )}
+                        {props.view !== 'month' &&
+                            (planned ? (
+                                <button className="btn btn-secondary" onClick={clearPlan} title="Remove the time the planner booked (yours stays)">
+                                    <Icon name="eraser" />
+                                    <span className="btn-label">Clear plan</span>
+                                </button>
+                            ) : (
+                                <button className="btn btn-primary" onClick={() => plan()}>
+                                    <Icon name="wand" />
+                                    <span className="btn-label">{props.view === 'week' ? 'Plan week' : 'Plan day'}</span>
+                                </button>
+                            ))}
                     </div>
                 </header>
 
@@ -644,8 +711,12 @@ export default function Planner() {
                                 >
                                     <span>{clock.weekday(at(d))}</span>
                                     <b>{clock.date(at(d), { day: 'numeric' })}</b>
-                                    <i className={`pg-load${(load[d] ?? 0) > props.dayLimit * 60 ? ' is-over' : ''}`}>
-                                        {load[d] ? `${round1(load[d] / 60)} / ${round1(props.dayLimit)} h` : ''}
+                                    <i className={`pg-load${capOf(d) > 0 && (load[d] ?? 0) > capOf(d) * 60 ? ' is-over' : ''}`}>
+                                        {load[d]
+                                            ? capOf(d) > 0
+                                                ? `${round1(load[d] / 60)} / ${round1(capOf(d))} h`
+                                                : `${round1(load[d] / 60)} h`
+                                            : ''}
                                     </i>
                                 </button>
                             ))}
@@ -751,19 +822,23 @@ export default function Planner() {
                                         {pieces[d].map((p) => {
                                             // Its size on screen decides its layout: a tall block shows as many title lines
                                             // as fit above the time (never a half-cut line), a short one puts the title and
-                                            // time side by side, a tiny one (15–25 min) shows the title alone.
-                                            const h = Math.max(28, ((p.bottom - p.top) / 60) * HOUR - 3);
-                                            const next = p.it.kind === 'block' && p.it.bl.kind === 'project' ? 17 : 0;
+                                            // time side by side, a tiny one (15–25 min) shows the title alone. A short one is
+                                            // drawn at least 26 px tall, but never into the next thing below it.
+                                            const h = Math.min(
+                                                Math.max(26, ((p.bottom - p.top) / 60) * HOUR - 3),
+                                                (roomBelow(pieces[d], p) / 60) * HOUR - 3,
+                                            );
+                                            const next = p.it.kind === 'block' && p.it.bl.kind === 'project' ? 16 : 0;
                                             const style = {
                                                 top: (p.top / 60) * HOUR + 1,
                                                 height: h,
                                                 left: `calc(${(p.lane / p.lanes) * 100}% + 3px)`,
                                                 width: `calc(${100 / p.lanes}% - 6px)`,
-                                                // 14 px padding, the 13 px time line (16) and 2 px gap; a 14 px title line is 18.2 px.
-                                                ['--lines' as string]: Math.max(1, Math.min(4, Math.floor((h - 32 - next) / 18.2))),
+                                                // 12 px padding, the 12.5 px time line (15.6) and 1 px gap; a 13.5 px title line is 17.55 px.
+                                                ['--lines' as string]: Math.max(1, Math.min(4, Math.floor((h - 29 - next) / 17.55))),
                                             } as CSSProperties;
-                                            const short = h < 52;
-                                            const tiny = h < 36;
+                                            const short = h < 47;
+                                            const tiny = h < 32;
                                             if (p.it.kind === 'block') {
                                                 const { bl, s, e } = p.it;
                                                 const when = `${minLabel(s.min)}–${minLabel(e.min)}`;
@@ -888,7 +963,7 @@ export default function Planner() {
                                                         key={t.id}
                                                         className={`pg-due${over ? ' is-compact' : ''}`}
                                                         href={`/tasks?task=${t.id}`}
-                                                        style={{ top: (m / 60) * HOUR - 11 }}
+                                                        style={{ top: (m / 60) * HOUR - 10 }}
                                                         title={`Due: ${t.title}`}
                                                         aria-label={`Due: ${t.title}`}
                                                     >
@@ -902,7 +977,7 @@ export default function Planner() {
                                                 className={`pblock is-ghost${drag.eventKey ? ' is-event' : ''}`}
                                                 style={{
                                                     top: (drag.to.min / 60) * HOUR + 1,
-                                                    height: Math.max(28, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 3),
+                                                    height: Math.max(26, (Math.min(drag.minutes, 1440 - drag.to.min) / 60) * HOUR - 3),
                                                     left: 3,
                                                     right: 3,
                                                 }}

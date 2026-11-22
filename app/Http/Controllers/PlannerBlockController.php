@@ -58,6 +58,29 @@ class PlannerBlockController extends Controller
         return $r['added'] || $r['removed'] ? $back->with('undo', $this->undo('unplan', 0, ['added' => $r['added'], 'removed' => $r['removed']])) : $back;
     }
 
+    /**
+     * "Clear plan" (the Plan button's second press): the blocks the planner placed from now on in the day or
+     * week shown go. Blocks you placed or locked stay. Undo brings them back.
+     */
+    public function clear(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $d = $request->validate(['date' => ['required', 'date_format:Y-m-d'], 'span' => ['required', Rule::in(['day', 'week'])]]);
+        $date = CarbonImmutable::parse($d['date'], $user->timezone);
+        $first = $d['span'] === 'week' ? $date->startOfWeek(CarbonImmutable::MONDAY) : $date;
+        [$start, $end] = PlanBuilder::period([$first->toDateString(), $first->addDays($d['span'] === 'week' ? 6 : 0)->toDateString()], $user->timezone);
+        $blocks = $user->plannerBlocks()->where('pinned', false)->where('locked', false)
+            ->where('starts_at', '>=', $start->max(app(Clock::class)->now()))->where('starts_at', '<', $end)->get();
+        if ($blocks->isEmpty()) {
+            return back()->with('toast', 'Nothing planned to clear');
+        }
+        $minutes = $blocks->sum(fn (PlannerBlock $b) => $b->minutes());
+        $blocks->each->delete();
+
+        return back()->with('toast', 'Cleared '.self::dur($minutes).' of planned time')
+            ->with('undo', $this->undo('unplan', 0, ['added' => [], 'removed' => $blocks->pluck('id')->all()]));
+    }
+
     /** Undo of planning: the blocks it placed go, the ones it replaced come back. */
     public function unplan(Request $request): RedirectResponse
     {

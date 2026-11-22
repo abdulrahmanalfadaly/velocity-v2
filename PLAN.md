@@ -244,9 +244,13 @@ huge screens, tangled timer), never a source of code or design.
       later in the period), each up to its hours of work, only in working hours
       (per weekday, days off allowed), around events with a 10-minute gap, never
       in the past, ending before each due time (overdue: as soon as possible),
-      at most H hours a day (the formula's own H), in blocks of 30 min to 2 h
+      as much as the working hours hold (or at most Settings → Planner → Task
+      time a day; it used to stop at the formula's H, 4 h — changed 23 Nov 2026
+      on the user's request), in blocks of 30 min to 2 h
       with a break after each. Blocks the user placed or moved are pinned and
-      kept; planning again replaces only the planner's own. "Not booked yet" in
+      kept; planning again replaces only the planner's own. Once the days shown
+      hold planned time the Plan button becomes "Clear plan" (the planner's own
+      blocks ahead go, Undo brings them back). "Not booked yet" in
       the side menu (with Book, or drag onto the grid); drag a block to move it
       (mouse at once, touch after a short hold); click a block to focus on it,
       open its task or remove it. Booked hours per day in the grid's header.

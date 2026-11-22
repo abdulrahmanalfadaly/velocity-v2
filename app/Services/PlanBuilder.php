@@ -16,7 +16,8 @@ use Illuminate\Support\Collection;
  *     later in the period, from their start date, earliest due first.
  *  2. Each task gets its hours of work, minus the time already booked for it.
  *  3. Only inside working hours, around classes and events (with a gap), never in the past.
- *  4. At most H hours of tasks a day: the same H the formula's workload score uses.
+ *  4. As much as the working hours hold, or at most the hours a day set in Settings → Planner (user, 23 Nov
+ *     2026: it used to stop at the formula's H, 4 h, even with longer working hours).
  *  5. Only in time that ends before the task is due (an overdue task: as soon as possible).
  *  6. Blocks of 30 min to 2 h, with a short break after each.
  *  7. Pinned blocks (placed by the user) stay; blocks the planner placed are replaced.
@@ -65,8 +66,8 @@ class PlanBuilder
             $d = $b->starts_at->timezone($tz)->toDateString();
             $perDay[$d] = ($perDay[$d] ?? 0) + $b->minutes();
         }
-        $limit = (int) round($user->weights()->hours_per_day * 60);
         $set = PlannerSettings::of($user);
+        $limit = $set['daily'] > 0 ? $set['daily'] * 60 : 24 * 60;
         $free = $this->freeTime($user, $days, $this->busy($user, $blocks, $start, $end), $now, $tz);
 
         $added = [];
@@ -110,9 +111,9 @@ class PlanBuilder
             }
         }
 
-        // Whether every one of these days already holds its hours of work for a day (Weights › Hours a day):
+        // Whether every one of these days already holds its hours of work a day (Settings → Planner):
         // then that, and not a lack of free time, is why something didn't fit.
-        $full = collect($days)->every(fn ($day) => $limit - ($perDay[$day] ?? 0) < $set['shortest']);
+        $full = $set['daily'] > 0 && collect($days)->every(fn ($day) => $limit - ($perDay[$day] ?? 0) < $set['shortest']);
 
         return ['added' => $added, 'removed' => $old->pluck('id')->all(), 'short' => $short, 'minutes' => $minutes, 'full' => $full, 'limit' => $limit];
     }

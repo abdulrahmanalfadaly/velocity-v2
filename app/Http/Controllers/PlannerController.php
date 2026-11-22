@@ -12,6 +12,7 @@ use App\Services\PeopleInfo;
 use App\Services\PlanBuilder;
 use App\Services\RankedList;
 use App\Services\RankingService;
+use App\Support\PlannerSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -88,7 +89,8 @@ class PlannerController extends Controller
                 array_slice($list->scored, 0, 150)),
             'free' => $month ? [] : $this->builder->free($user, $days->all()),
             'hours' => PlanBuilder::hours($user),
-            'dayLimit' => $user->weights()->hours_per_day,
+            // Hours of task work "Plan" books a day at most (Settings → Planner); null = all the working hours.
+            'dayLimit' => PlannerSettings::of($user)['daily'] ?: null,
             'busy' => $busy,
             'calendars' => collect(Event::CALENDARS)->mapWithKeys(fn ($c) => [$c => $events->where('calendar', $c)->count()]),
             'dueTasks' => $user->tasks()->open()->whereBetween('due_at', [$first->utc(), $first->addDays($count)->utc()])

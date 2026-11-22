@@ -7,12 +7,15 @@ interface PlannerSettings {
     gap: number;
     shortest: number;
     longest: number;
+    /** Hours of task work "Plan" books a day at most; 0 = all the working hours. */
+    daily: number;
 }
 
-const FIELDS: [keyof PlannerSettings, string, number, number][] = [
-    ['gap', 'Gap around blocks and events', 0, 60],
-    ['shortest', 'Shortest block', 15, 120],
-    ['longest', 'Longest block', 30, 240],
+const FIELDS: [keyof PlannerSettings, string, number, number, string, number][] = [
+    ['daily', 'Task time a day', 0, 16, 'h', 1],
+    ['gap', 'Gap around blocks and events', 0, 60, 'min', 5],
+    ['shortest', 'Shortest block', 15, 120, 'min', 5],
+    ['longest', 'Longest block', 30, 240, 'min', 5],
 ];
 
 /** Settings → Planner: what "Plan my day / week" keeps to (working hours are set on the Planner itself). */
@@ -30,7 +33,7 @@ export default function PlannerSettingsPage() {
             <SettingsLayout>
                 <SettingsCard title="Planning">
                     <div className="settings-form fs-grid">
-                        {FIELDS.map(([key, label, min, max]) => (
+                        {FIELDS.map(([key, label, min, max, unit, step]) => (
                             <div className="field" key={key}>
                                 <div className="field-label">
                                     <label htmlFor={`ps-${key}`}>{label}</label>
@@ -42,7 +45,7 @@ export default function PlannerSettingsPage() {
                                         type="number"
                                         min={min}
                                         max={max}
-                                        step={5}
+                                        step={step}
                                         defaultValue={s[key]}
                                         key={`${key}-${s[key]}`}
                                         aria-invalid={props.errors?.[key] ? true : undefined}
@@ -53,8 +56,9 @@ export default function PlannerSettingsPage() {
                                         }}
                                         onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                                     />
-                                    min
+                                    {unit}
                                 </span>
+                                {key === 'daily' && <p className="field-hint">0 = all your working hours</p>}
                                 {props.errors?.[key] && <p className="field-error">{props.errors[key]}</p>}
                             </div>
                         ))}

@@ -23,7 +23,7 @@ class PlannerBlocksTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // Wednesday 11 Nov 2026, 10:00 in Kuala Lumpur. Working hours 08:00–22:00, H = 4 hours a day.
+        // Wednesday 11 Nov 2026, 10:00 in Kuala Lumpur. Working hours 08:00–22:00.
         config(['velocity.fixed_now' => '2026-11-11 10:00', 'velocity.study_log' => false]);
         $this->user = User::factory()->create(['timezone' => self::TZ]);
         $this->actingAs($this->user);
@@ -103,22 +103,54 @@ class PlannerBlocksTest extends TestCase
         $this->assertSame(['Late: Wed 10:00–11:00'], $this->booked());
     }
 
-    public function test_no_more_than_h_hours_a_day_and_the_rest_goes_to_the_next_days(): void
+    public function test_it_fills_the_working_hours_unless_a_daily_limit_is_set(): void
     {
         $this->task('Thesis', ['est_hours' => 6]);
 
+        // By default as much as the working hours hold (it used to stop at the formula's H, 4 h).
         $this->plan('week');
+        $this->assertSame(['Thesis: Wed 10:00–12:00', 'Thesis: Wed 12:10–14:10', 'Thesis: Wed 14:20–16:20'], $this->booked());
 
-        $this->assertSame(['Thesis: Wed 10:00–12:00', 'Thesis: Wed 12:10–14:10', 'Thesis: Thu 08:00–10:00'], $this->booked());
-
-        // H is the same "hours a day" the formula uses: lower it and planning again books less a day.
+        // The formula's H no longer limits the planner.
         $this->user->weights()->update(['hours_per_day' => 1.5]);
         $this->plan('week');
-        $this->assertSame(['Thesis: Wed 10:00–11:30', 'Thesis: Thu 08:00–09:30', 'Thesis: Fri 08:00–09:30', 'Thesis: Sat 08:00–09:30'], $this->booked());
+        $this->assertSame(['Thesis: Wed 10:00–12:00', 'Thesis: Wed 12:10–14:10', 'Thesis: Wed 14:20–16:20'], $this->booked());
+
+        // Settings → Planner → hours a day: planning again books at most that a day, the rest on the next days.
+        $this->put(route('planner-settings.update'), ['gap' => 10, 'shortest' => 30, 'longest' => 120, 'daily' => 2])->assertSessionHasNoErrors();
+        $this->plan('week');
+        $this->assertSame(['Thesis: Wed 10:00–12:00', 'Thesis: Thu 08:00–10:00', 'Thesis: Fri 08:00–10:00'], $this->booked());
+    }
+
+    public function test_clear_plan_removes_only_the_planners_own_blocks_ahead_and_undo_brings_them_back(): void
+    {
+        $this->task('Thesis', ['est_hours' => 3]);
+        $this->plan('week');
+        $planned = $this->booked();
+        $this->assertNotEmpty($planned);
+
+        // A block you placed yourself stays.
+        $mine = $this->task('Email', ['est_hours' => 0.5]);
+        $this->post(route('blocks.store'), ['task_id' => $mine->id, 'date' => '2026-11-13', 'start' => '09:00', 'minutes' => 30])->assertSessionHasNoErrors();
+
+        $this->post(route('planner.clear'), ['date' => '2026-11-11', 'span' => 'week'])->assertSessionHasNoErrors();
+        $this->assertSame('Cleared 3 h of planned time', session('toast'));
+        $this->assertSame(['Email: Fri 09:00–09:30'], $this->booked());
+
+        // Undo puts the planner's blocks back.
+        $undo = session('undo');
+        $this->post(route('planner.unplan'), $undo['data'])->assertSessionHasNoErrors();
+        $this->assertEqualsCanonicalizing([...$planned, 'Email: Fri 09:00–09:30'], $this->booked());
+
+        // Nothing of the planner's left: says so.
+        $this->post(route('planner.clear'), ['date' => '2026-11-11', 'span' => 'day']);
+        $this->post(route('planner.clear'), ['date' => '2026-11-11', 'span' => 'day']);
+        $this->assertSame('Nothing planned to clear', session('toast'));
     }
 
     public function test_a_day_that_holds_its_hours_says_so_instead_of_no_free_time(): void
     {
+        $this->user->forceFill(['planner_settings' => ['daily' => 4]])->save();
         $this->task('Thesis', ['est_hours' => 4]);
         $email = $this->task('Email', ['est_hours' => 0.25, 'importance' => 1]);
         $this->plan('day');

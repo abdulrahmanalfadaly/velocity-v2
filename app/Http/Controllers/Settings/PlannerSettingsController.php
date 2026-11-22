@@ -20,7 +20,8 @@ class PlannerSettingsController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $data = $request->validate(PlannerSettings::rules());
-        $request->user()->forceFill(['planner_settings' => array_map('intval', $data)])->save();
+        $user = $request->user();
+        $user->forceFill(['planner_settings' => array_map('intval', array_merge(PlannerSettings::of($user), $data))])->save();
 
         return back()->with('toast', 'Saved');
     }

@@ -193,6 +193,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('planner', [PlannerController::class, 'index'])->name('planner.index');
         Route::post('planner/plan', [PlannerBlockController::class, 'plan'])->name('planner.plan');
         Route::post('planner/unplan', [PlannerBlockController::class, 'unplan'])->name('planner.unplan');
+        Route::post('planner/clear', [PlannerBlockController::class, 'clear'])->name('planner.clear');
         Route::put('planner/hours', [PlannerBlockController::class, 'hours'])->name('planner.hours');
         Route::post('planner/blocks', [PlannerBlockController::class, 'store'])->name('blocks.store');
         Route::patch('planner/blocks/{block}', [PlannerBlockController::class, 'update'])->name('blocks.update');

@@ -4,13 +4,17 @@ namespace App\Support;
 
 use App\Models\User;
 
-/** Settings → Planner: the gap kept around blocks and events, and how short or long a booked block may be. */
+/**
+ * Settings → Planner: the gap kept around blocks and events, how short or long a booked block may be, and how
+ * many hours of task work "Plan" books a day (0 = as much as the working hours hold).
+ */
 class PlannerSettings
 {
     public const DEFAULTS = [
         'gap' => 10,       // minutes kept free around events and habit times, and after each block
         'shortest' => 30,  // a booked block is at least this long (unless less is left to do)
         'longest' => 120,  // … and at most this long, so a break comes in between
+        'daily' => 0,      // hours of task work booked a day at most; 0 = all the working hours
     ];
 
     public static function of(User $user): array
@@ -24,6 +28,7 @@ class PlannerSettings
             'gap' => ['required', 'integer', 'between:0,60'],
             'shortest' => ['required', 'integer', 'between:15,120'],
             'longest' => ['required', 'integer', 'between:30,240', 'gte:shortest'],
+            'daily' => ['sometimes', 'integer', 'between:0,16'],
         ];
     }
 }
