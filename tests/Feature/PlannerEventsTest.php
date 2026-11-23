@@ -59,7 +59,7 @@ class PlannerEventsTest extends TestCase
         $this->get(route('planner.index', ['date' => '2026-11-11']))->assertInertia(fn ($page) => $page
             ->where('days', ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15'])
             ->where('busy', ['2026-11-12'])
-            ->where('calendars.class', 1));
+            ->missing('calendars'));  // the calendar filters (and their counts) left the side menu, 23 Nov 2026
     }
 
     public function test_a_weekly_class_repeats_until_its_last_week_and_one_week_can_be_skipped(): void

@@ -1,6 +1,6 @@
-import { CALENDARS, type CalendarKey, EventDialog, type EventForm } from '@/components/velocity/event-dialog';
+import { type CalendarKey, EventDialog, type EventForm } from '@/components/velocity/event-dialog';
 import { Modal } from '@/components/velocity/forms';
-import { DayEditor } from '@/components/velocity/habit-parts';
+import { DayEditor, Pop } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
 import { MARKER_ICON, type Marker, MonthGrid } from '@/components/velocity/planner-month';
 import { BlockMenu, type Hours, HoursDialog, KindSeg, type NewKind, type PlanBlock, TimeDialog } from '@/components/velocity/planner-parts';
@@ -62,7 +62,6 @@ interface Props extends VelocityShared {
     /** Hours of task work "Plan" books a day at most (Settings → Planner); null = all the working hours. */
     dayLimit: number | null;
     busy: string[];
-    calendars: Record<CalendarKey, number>;
     dueTasks: { id: number; title: string; dueAt: string }[];
     habitTimes: PlanHabit[];
     personDates: { key: string; date: string; title: string; kind: 'birthday' | 'anniversary' | 'other'; personId: number }[];
@@ -139,6 +138,14 @@ function local(clock: Clock, iso: string): Spot {
 }
 const later = (s: Spot, minutes: number): Spot => ({ date: shift(s.date, Math.floor((s.min + minutes) / 1440)), min: (s.min + minutes) % 1440 });
 const lengthOf = (b: PlanBlock) => Math.round((Date.parse(b.end) - Date.parse(b.start)) / 60000);
+/** "23–29 Nov 2026", "30 Nov – 6 Dec 2026" or "29 Dec 2026 – 4 Jan 2027": short, so the header keeps one line. */
+function weekRange(a: string, b: string, clock: Clock): string {
+    const end = clock.date(at(b), { day: 'numeric', month: 'short', year: 'numeric' });
+    if (a.slice(0, 7) === b.slice(0, 7)) return `${Number(a.slice(8))}–${end}`;
+    if (a.slice(0, 4) === b.slice(0, 4)) return `${clock.date(at(a), { day: 'numeric', month: 'short' })} – ${end}`;
+    return `${clock.date(at(a), { day: 'numeric', month: 'short', year: 'numeric' })} – ${end}`;
+}
+
 /** Minutes from one spot to a later one. */
 const between = (a: Spot, b: Spot) => Math.round((Date.parse(b.date) - Date.parse(a.date)) / 60000) + b.min - a.min;
 
@@ -246,19 +253,16 @@ export default function Planner() {
     const [hoursOpen, setHoursOpen] = useState(false);
     const [habitSlot, setHabitSlot] = useState<null | { hb: PlanHabit; x: number; y: number }>(null);
     const [menu, setMenu] = useState<null | { bl: PlanBlock; x: number; y: number; s: Spot; e: Spot }>(null);
-    const [hidden, setHidden] = useState<CalendarKey[]>(() => {
-        try {
-            return JSON.parse(localStorage.getItem('velocity.hiddenCalendars') ?? '[]');
-        } catch {
-            return [];
-        }
-    });
-    const toggleCalendar = (k: CalendarKey) => {
-        const next = hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k];
-        setHidden(next);
-        localStorage.setItem('velocity.hiddenCalendars', JSON.stringify(next));
+    // Every calendar shows (the calendar filters were removed from the side menu, 23 Nov 2026).
+    const events = props.events;
+    // The Show and Free time drop-downs in the page's header.
+    const [pop, setPop] = useState<null | { kind: 'show' | 'free'; x: number; y: number }>(null);
+    const openPop = (kind: 'show' | 'free', e: MouseEvent<HTMLElement>, width: number) => {
+        if (pop?.kind === kind) return setPop(null);
+        const r = e.currentTarget.getBoundingClientRect();
+        setPop({ kind, x: r.right - width, y: r.bottom + 6 });
     };
-    const events = props.events.filter((e) => !hidden.includes(e.calendar));
+    const freeTotal = (props.free ?? []).reduce((n, d) => n + d.minutes, 0);
     // "Show": which kinds of markers and times are on the grid (kept on this computer).
     const [off, setOff] = useState<ShowKey[]>(() => {
         try {
@@ -330,7 +334,7 @@ export default function Planner() {
         fit();
         window.addEventListener('resize', fit);
         return () => window.removeEventListener('resize', fit);
-    }, [props.view, props.date, workFrom, workTo, hidden.length]);
+    }, [props.view, props.date, workFrom, workTo]);
 
     // Start the grid at the working day's start (or just before the first thing on).
     useLayoutEffect(() => {
@@ -392,7 +396,7 @@ export default function Planner() {
             e: local(clock, hb.end),
         }));
         return [...evs, ...hbs, ...bls, ...mine.added];
-    }, [props.events, props.blocks, props.habitTimes, hidden, off, mine, evPending]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [props.events, props.blocks, props.habitTimes, off, mine, evPending]); // eslint-disable-line react-hooks/exhaustive-deps
     const pieces = useMemo(() => Object.fromEntries(props.days.map((d) => [d, layoutDay(items, d)])), [items, props.days]);
     // Blocks that share their time with something shown (an event, a habit time, another block): marked, never moved.
     const clashes = useMemo(() => {
@@ -606,7 +610,7 @@ export default function Planner() {
         props.view === 'month'
             ? clock.date(at(firstOfMonth), { month: 'long', year: 'numeric' })
             : props.view === 'week'
-              ? `${clock.date(at(props.days[0]), { day: 'numeric', month: 'short' })} – ${clock.date(at(props.days[6]), { day: 'numeric', month: 'short', year: 'numeric' })}`
+              ? weekRange(props.days[0], props.days[6], clock)
               : clock.date(at(props.date), { weekday: 'long', day: 'numeric', month: 'long' });
     const showsToday = props.view === 'month' ? props.date.slice(0, 7) === props.today.slice(0, 7) : props.days.includes(props.today);
     const allDay = events.filter((e) => e.allDay);
@@ -625,12 +629,7 @@ export default function Planner() {
         <PlannerMenu
             props={props}
             clock={clock}
-            hidden={hidden}
-            onToggle={toggleCalendar}
-            off={off}
-            onShow={toggleShow}
             onNew={() => setDialog({ initial: blank(props.date) })}
-            onHours={() => setHoursOpen(true)}
             onBook={plan}
             onGrab={grabUnbooked}
             go={go}
@@ -664,7 +663,40 @@ export default function Planner() {
                                 </button>
                             ))}
                         </div>
-                        <button className="btn btn-secondary" onClick={() => setDialog({ initial: blank(props.date) })} aria-label="New event">
+                        <button
+                            className={`btn btn-secondary pl-drop pl-show${pop?.kind === 'show' ? ' is-open' : ''}`}
+                            onClick={(e) => openPop('show', e, 270)}
+                            aria-haspopup="dialog"
+                            aria-expanded={pop?.kind === 'show'}
+                            title="What shows on the planner"
+                        >
+                            <Icon name="eye" />
+                            <span className="btn-label">Show</span>
+                            {off.length > 0 && <span className="pl-drop-off">{off.length} off</span>}
+                            <Icon name="chevD" className="ic-sm pl-drop-chev" />
+                        </button>
+                        {props.view !== 'month' && (
+                            <button
+                                className={`btn btn-secondary pl-drop${pop?.kind === 'free' ? ' is-open' : ''}`}
+                                onClick={(e) => openPop('free', e, 310)}
+                                aria-haspopup="dialog"
+                                aria-expanded={pop?.kind === 'free'}
+                                title="Free time in working hours"
+                            >
+                                <Icon name="clock" />
+                                <span className="btn-label">
+                                    {freeTotal ? fmtHours(freeTotal / 60) : 'Free time'}
+                                    {freeTotal > 0 && <span className="pl-free-word"> free</span>}
+                                </span>
+                                <Icon name="chevD" className="ic-sm pl-drop-chev" />
+                            </button>
+                        )}
+                        <button
+                            className="btn btn-secondary pl-new"
+                            onClick={() => setDialog({ initial: blank(props.date) })}
+                            aria-label="New event"
+                            title="New event"
+                        >
                             <Icon name="plus" />
                             <span className="btn-label">Event</span>
                         </button>
@@ -1019,6 +1051,46 @@ export default function Planner() {
                     />
                 ))}
             {hoursOpen && <HoursDialog hours={props.hours} onClose={() => setHoursOpen(false)} />}
+            {pop?.kind === 'show' && (
+                <Pop x={pop.x} y={pop.y} label="Show on the planner" onClose={() => setPop(null)} width={270}>
+                    <div className="bmenu-head">
+                        <b>Show</b>
+                    </div>
+                    {SHOW.map(([k, label, icon]) => (
+                        <button
+                            key={k}
+                            type="button"
+                            className="bmenu-item pl-check"
+                            role="menuitemcheckbox"
+                            aria-checked={on(k)}
+                            onClick={() => toggleShow(k)}
+                        >
+                            <Icon name={icon} />
+                            <span className="bmenu-grow">{label}</span>
+                            <span className="pl-check-box" aria-hidden="true">
+                                {on(k) && <Icon name="check" className="ic-xs" />}
+                            </span>
+                        </button>
+                    ))}
+                    <div className="bmenu-sep" />
+                    <button
+                        type="button"
+                        className="bmenu-item"
+                        onClick={() => {
+                            setPop(null);
+                            setHoursOpen(true);
+                        }}
+                    >
+                        <Icon name="calClock" />
+                        <span className="bmenu-grow">Working hours</span>
+                    </button>
+                </Pop>
+            )}
+            {pop?.kind === 'free' && (
+                <Pop x={pop.x} y={pop.y} label="Free time" onClose={() => setPop(null)} width={310}>
+                    <FreeTime free={props.free ?? []} clock={clock} />
+                </Pop>
+            )}
             {habitSlot && (
                 <DayEditor
                     habit={{ id: habitSlot.hb.id, name: habitSlot.hb.title, target: habitSlot.hb.target, unit: null }}
@@ -1135,11 +1207,11 @@ function FreeTime({ free, clock }: { free: Props['free']; clock: Clock }) {
     };
     return (
         <>
-            <div className="nav-label">
-                Free time
-                <span className="count">{total ? fmtHours(total / 60) : ''}</span>
+            <div className="bmenu-head">
+                <b>Free time</b>
+                <span>{total ? `${fmtHours(total / 60)} in working hours` : 'None in working hours'}</span>
             </div>
-            <ul className="free-list">
+            <ul className="free-list pl-free">
                 {free.map((d) => (
                     <li key={d.date}>
                         <b>{dayName(d.date)}</b>
@@ -1147,36 +1219,30 @@ function FreeTime({ free, clock }: { free: Props['free']; clock: Clock }) {
                     </li>
                 ))}
             </ul>
-            <button className="nav-item" onClick={copy}>
-                <Icon name="copy" />
-                <span className="label">{copied ? 'Copied' : 'Copy free time'}</span>
+            <div className="bmenu-sep" />
+            <button type="button" className="bmenu-item" onClick={copy}>
+                <Icon name={copied ? 'check' : 'copy'} />
+                <span className="bmenu-grow">{copied ? 'Copied' : 'Copy free time'}</span>
             </button>
         </>
     );
 }
 
-/** The Planner's side menu: New event, a month calendar, Day / Week / Month, calendars, working hours and what is not booked yet. */
+/**
+ * The Planner's side menu: New event, a month calendar and what is not booked yet. (Day / Week / Month are on the
+ * page; Show, working hours and free time are drop-downs in its header; the calendar filters went, 23 Nov 2026.)
+ */
 function PlannerMenu({
     props,
     clock,
-    hidden,
-    onToggle,
-    off,
-    onShow,
     onNew,
-    onHours,
     onBook,
     onGrab,
     go,
 }: {
     props: Props;
     clock: Clock;
-    hidden: CalendarKey[];
-    onToggle: (k: CalendarKey) => void;
-    off: ShowKey[];
-    onShow: (k: ShowKey) => void;
     onNew: () => void;
-    onHours: () => void;
     onBook: (taskId: number) => void;
     onGrab: (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => void;
     go: (date: string, view?: View) => void;
@@ -1228,48 +1294,6 @@ function PlannerMenu({
                 </div>
             </div>
             <nav className="nav" aria-label="Planner">
-                {VIEWS.map(([v, label, icon]) => (
-                    <button
-                        key={v}
-                        className={`nav-item${props.view === v ? ' is-active' : ''}`}
-                        aria-current={props.view === v ? 'page' : undefined}
-                        onClick={() => go(props.date, v)}
-                    >
-                        <Icon name={icon} />
-                        <span className="label">{label}</span>
-                    </button>
-                ))}
-                <div className="nav-label">Calendars</div>
-                {CALENDARS.map(([k, label, icon]) => (
-                    <button
-                        key={k}
-                        className={`nav-item${hidden.includes(k) ? ' is-off' : ''}`}
-                        aria-pressed={!hidden.includes(k)}
-                        onClick={() => onToggle(k)}
-                    >
-                        <Icon name={icon} />
-                        <span className="label">{label}</span>
-                        <span className="count">{hidden.includes(k) ? 'hidden' : props.calendars[k] || ''}</span>
-                    </button>
-                ))}
-                <div className="nav-label">Show</div>
-                {SHOW.map(([k, label, icon]) => (
-                    <button
-                        key={k}
-                        className={`nav-item${off.includes(k) ? ' is-off' : ''}`}
-                        aria-pressed={!off.includes(k)}
-                        onClick={() => onShow(k)}
-                    >
-                        <Icon name={icon} />
-                        <span className="label">{label}</span>
-                        <span className="count">{off.includes(k) ? 'hidden' : ''}</span>
-                    </button>
-                ))}
-                <button className="nav-item" onClick={onHours}>
-                    <Icon name="calClock" />
-                    <span className="label">Working hours</span>
-                </button>
-                {props.view !== 'month' && <FreeTime free={props.free ?? []} clock={clock} />}
                 {props.unbooked.length > 0 && (
                     <>
                         <div className="nav-label">

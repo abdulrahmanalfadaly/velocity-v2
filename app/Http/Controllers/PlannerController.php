@@ -92,7 +92,6 @@ class PlannerController extends Controller
             // Hours of task work "Plan" books a day at most: H when Settings → Planner says so; null = fill the working hours.
             'dayLimit' => PlannerSettings::of($user)['cap'] ? (float) $user->weights()->hours_per_day : null,
             'busy' => $busy,
-            'calendars' => collect(Event::CALENDARS)->mapWithKeys(fn ($c) => [$c => $events->where('calendar', $c)->count()]),
             'dueTasks' => $user->tasks()->open()->whereBetween('due_at', [$first->utc(), $first->addDays($count)->utc()])
                 ->get(['id', 'title', 'due_at'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'dueAt' => $t->due_at->toIso8601ZuluString()])->values(),
         ]);

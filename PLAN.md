@@ -779,8 +779,15 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
       dropped or pasted anywhere while a task is open goes on the task
       (on an entry when dropped on it, or on the new one when dropped or
       pasted into its box)
-- [ ] The other sections' side menus (Planner, Notes, Habits, People,
-      Review), when the user gives their changes
+- [x] Planner side menu (user, 23 Nov 2026): only New event, the month
+      calendar and Not booked yet. Day / Week / Month were already on the
+      page; the calendar filters (Classes, Work, Personal) were removed on
+      the user's request (every calendar shows); Show (with Working hours)
+      and Free time (with Copy) are drop-downs in the page's header. The
+      week title is short ("23–29 Nov 2026") and on narrower screens Show
+      and Event become icons, so the header stays one line
+- [ ] The other sections' side menus (Notes, Habits, People, Review), when
+      the user gives their changes
 
 ## Run it
 
