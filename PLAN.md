@@ -740,8 +740,9 @@ covers it, and Review is about what happened).
 The user's rule (18 Nov): a side menu holds only areas and projects; every
 other view stays, moved onto its page as tabs and chips, or into Settings.
 
-- [x] Tasks menu: each area with its projects, and a bar fixed at the
-      bottom with "New area" and New project (no title row).
+- [x] Tasks menu: a bar fixed at the top with "New area" and New project
+      (moved from the bottom, user 23 Nov 2026; no title row), then each
+      area with its projects.
       An area's name opens its projects; the arrow folds it; areas move by
       dragging their name, or Move up / down in their menu (with Undo)
 - [x] Tasks page tabs: Up next · Not ready · Next actions · All
@@ -779,13 +780,14 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
       dropped or pasted anywhere while a task is open goes on the task
       (on an entry when dropped on it, or on the new one when dropped or
       pasted into its box)
-- [x] Planner side menu (user, 23 Nov 2026): only New event, the month
-      calendar and Not booked yet. Day / Week / Month were already on the
+- [x] Planner side menu (user, 23 Nov 2026): only the month calendar and
+      Not booked yet (no title row; its + for a new event is in the page's
+      header, beside Plan). Day / Week / Month were already on the
       page; the calendar filters (Classes, Work, Personal) were removed on
       the user's request (every calendar shows). The page's header: Show
       and Free time (with Copy) as plain drop-downs ("Show", "Free time"),
-      a Working hours button of its own, and Plan / Clear plan; no Event
-      button (the side menu's + and a click on the grid add events). The
+      a Working hours button of its own, + (new event) and Plan / Clear
+      plan. The
       week title is short ("23–29 Nov 2026") and below 1460 px Show and
       Working hours are icons, so the header stays one line
 - [ ] The other sections' side menus (Notes, Habits, People, Review), when

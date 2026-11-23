@@ -474,7 +474,7 @@ function AreaHead({
     );
 }
 
-/** "New area" in the bar at the bottom of the Tasks menu: the button becomes a name box; Enter adds it. */
+/** "New area" in the bar at the top of the Tasks menu: the button becomes a name box; Enter adds it. */
 function NewArea() {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
@@ -568,6 +568,13 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
     const looseKey = nav.areas.length ? 'area:none' : 'projects';
     return (
         <div className="side-col">
+            {/* Always at the top of the menu (user, 23 Nov 2026: it used to sit at the bottom): a new area, or a new project. */}
+            <div className="side-top">
+                <NewArea />
+                <button type="button" className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
+                    <Icon name="folderPlus" />
+                </button>
+            </div>
             <nav ref={list} className="nav nav-areas" aria-label="Areas and projects">
                 {nav.areas.map((a, i) => {
                     const over = drag && drag.over === a.id && drag.id !== a.id;
@@ -625,13 +632,6 @@ function TasksMenu({ active, onNewProject, autoFocus = false }: { active?: strin
                     </div>
                 )}
             </nav>
-            {/* Always at the bottom of the menu: a new area, or a new project. */}
-            <div className="side-foot">
-                <NewArea />
-                <button type="button" className="icon-btn" onClick={() => onNewProject()} aria-label="New project" title="New project">
-                    <Icon name="folderPlus" />
-                </button>
-            </div>
         </div>
     );
 }

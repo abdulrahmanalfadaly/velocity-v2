@@ -624,16 +624,7 @@ export default function Planner() {
     const openEvent = (ev: Occurrence) =>
         setDialog({ initial: ev.form, id: ev.id, occurrence: ev.repeats ? ev.date : undefined, day: ev.date, cancelled: ev.cancelled });
 
-    const sideMenu = () => (
-        <PlannerMenu
-            props={props}
-            clock={clock}
-            onNew={() => setDialog({ initial: blank(props.date) })}
-            onBook={plan}
-            onGrab={grabUnbooked}
-            go={go}
-        />
-    );
+    const sideMenu = () => <PlannerMenu props={props} clock={clock} onBook={plan} onGrab={grabUnbooked} go={go} />;
 
     return (
         <VelocityShell title="Planner" section="planner" active={props.view} menu={sideMenu}>
@@ -675,7 +666,7 @@ export default function Planner() {
                         </button>
                         {props.view !== 'month' && (
                             <button
-                                className={`btn btn-secondary pl-drop${pop?.kind === 'free' ? ' is-open' : ''}`}
+                                className={`btn btn-secondary pl-drop pl-freebtn${pop?.kind === 'free' ? ' is-open' : ''}`}
                                 onClick={(e) => openPop('free', e, 310)}
                                 aria-haspopup="dialog"
                                 aria-expanded={pop?.kind === 'free'}
@@ -689,6 +680,14 @@ export default function Planner() {
                         <button className="btn btn-secondary pl-hours" onClick={() => setHoursOpen(true)} title="Working hours">
                             <Icon name="calClock" />
                             <span className="btn-label">Working hours</span>
+                        </button>
+                        <button
+                            className="btn btn-secondary pl-new"
+                            onClick={() => setDialog({ initial: blank(props.date) })}
+                            aria-label="New event"
+                            title="New event"
+                        >
+                            <Icon name="plus" />
                         </button>
                         {props.view !== 'month' &&
                             (planned ? (
@@ -1207,20 +1206,18 @@ function FreeTime({ free, clock }: { free: Props['free']; clock: Clock }) {
 }
 
 /**
- * The Planner's side menu: New event, a month calendar and what is not booked yet. (Day / Week / Month are on the
- * page; Show, working hours and free time are drop-downs in its header; the calendar filters went, 23 Nov 2026.)
+ * The Planner's side menu: a month calendar and what is not booked yet. (Day / Week / Month, Show, Free time,
+ * Working hours and New event are in the page's header; the calendar filters went, 23 Nov 2026.)
  */
 function PlannerMenu({
     props,
     clock,
-    onNew,
     onBook,
     onGrab,
     go,
 }: {
     props: Props;
     clock: Clock;
-    onNew: () => void;
     onBook: (taskId: number) => void;
     onGrab: (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => void;
     go: (date: string, view?: View) => void;
@@ -1235,12 +1232,6 @@ function PlannerMenu({
     const inView = new Set(props.view === 'month' ? [] : props.days);
     return (
         <>
-            <div className="side-head">
-                <span className="side-title">Planner</span>
-                <button className="icon-btn" onClick={onNew} aria-label="New event" title="New event">
-                    <Icon name="plus" />
-                </button>
-            </div>
             <div className="mcal" aria-label={clock.date(at(first), { month: 'long', year: 'numeric' })}>
                 <div className="mcal-head">
                     <b>{clock.date(at(first), { month: 'long', year: 'numeric' })}</b>
