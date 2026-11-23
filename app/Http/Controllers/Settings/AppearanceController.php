@@ -40,7 +40,7 @@ class AppearanceController extends Controller
         return back()->with('toast', $name ? 'Wallpaper set' : 'No wallpaper')->with('undo', $this->undo('put-wallpaper', 0, ['wallpaper' => $before]));
     }
 
-    /** Task cards: how see-through (percent) and how blurred (pixels) they are over the wallpaper. */
+    /** Cards (every card on the pages): how see-through (percent) and how blurred (pixels) they are over the wallpaper. */
     public function cards(Request $request): RedirectResponse
     {
         $data = $request->validate(['clear' => ['required', 'integer', 'between:0,80'], 'blur' => ['required', 'integer', 'between:0,30']]);

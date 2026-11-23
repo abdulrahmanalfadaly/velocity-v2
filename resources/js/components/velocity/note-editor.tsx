@@ -626,6 +626,21 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
     });
     const [linking, setLinking] = useState(false);
     const picture = useRef<HTMLInputElement>(null);
+    // Filled only while it sticks to the top with the note scrolling under it; at rest it's part of the note
+    // (a fill there shows as a darker band when the cards are see-through).
+    const bar = useRef<HTMLDivElement>(null);
+    const [stuck, setStuck] = useState(false);
+    useEffect(() => {
+        const el = bar.current;
+        if (!el) return;
+        const top = parseFloat(getComputedStyle(el).top) || 0;
+        const io = new IntersectionObserver(([en]) => setStuck(en.intersectionRatio < 1 && en.boundingClientRect.top <= top + 0.5), {
+            rootMargin: `${-(top + 1)}px 0px 0px 0px`,
+            threshold: [1],
+        });
+        io.observe(el);
+        return () => io.disconnect();
+    }, []);
     const c = () => editor.chain().focus();
     const b = (on: boolean, icon: string, label: string, run: () => void) => (
         <button
@@ -641,7 +656,7 @@ function Toolbar({ editor, onPicture, busy }: { editor: Editor; onPicture: (file
         </button>
     );
     return (
-        <div className="ntb" role="toolbar" aria-label="Text style">
+        <div ref={bar} className={`ntb${stuck ? ' is-stuck' : ''}`} role="toolbar" aria-label="Text style">
             {b(s.h2, 'h2', 'Heading', () => c().toggleHeading({ level: 2 }).run())}
             {b(s.h3, 'h3', 'Small heading', () => c().toggleHeading({ level: 3 }).run())}
             <i className="ntb-gap" />

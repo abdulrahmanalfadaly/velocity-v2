@@ -154,7 +154,7 @@ const SAMPLE: [string, string, number][] = [
 ];
 
 /**
- * Task cards: how much of the wallpaper shows through them, and how blurred it is. The whole app follows as
+ * Cards (every card on the pages, task cards first): how much of the wallpaper shows through them, and how blurred it is. The whole app follows as
  * you slide, and the sample shows it over your wallpaper; saved on your account a moment after you stop.
  */
 function TaskCards({ cards, wall }: { cards: { clear: number; blur: number }; wall: { name: string; url: string | null } | null }) {
@@ -174,7 +174,7 @@ function TaskCards({ cards, wall }: { cards: { clear: number; blur: number }; wa
     const atStart = look.clear === CARDS_START.clear && look.blur === CARDS_START.blur;
 
     return (
-        <SettingsCard title="Task cards">
+        <SettingsCard title="Cards">
             <div className="settings-form cards-look">
                 <div className="cards-sliders">
                     <div className="cards-slider">

@@ -725,6 +725,10 @@ covers it, and Review is about what happened).
 - [x] Wallpapers (Settings → Appearance): none, five gradients with a light
       and a dark look, four photos, or your own picture; on the account;
       not in FYP mode
+- [x] Cards (Settings → Appearance → Cards): See-through and Blur, first for
+      the task cards, since 23 Nov for every card on the pages (Home, Habits,
+      Planner, Notes, Review, People, projects, Settings); the task panel,
+      menus and dialogs stay solid; not in FYP mode
 - [x] "Skip to content", and an accessibility pass: a script over every main
       screen and dialog (names, labels, picture text, ids, references),
       contrast of 4.5:1 or more for text, focus back to the opener when a

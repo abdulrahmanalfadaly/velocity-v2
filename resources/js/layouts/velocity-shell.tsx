@@ -157,7 +157,7 @@ export default function VelocityShell({ title, section, active, children, panel,
                 style={
                     {
                         ...(props.wallpaper?.url ? { ['--wall-img' as string]: `url("${props.wallpaper.url}")` } : {}),
-                        // Task cards' see-through and blur (Settings → Appearance).
+                        // The cards' see-through and blur (Settings → Appearance → Cards).
                         ...(props.cards
                             ? { ['--card-clear' as string]: props.cards.clear / 100, ['--card-blur' as string]: `${props.cards.blur}px` }
                             : {}),
