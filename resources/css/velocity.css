@@ -1614,15 +1614,14 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* Planner header: the Show and Free time drop-downs (they used to fill the side menu). */
 .planner-head h1 { white-space: nowrap; }
 .pl-drop { gap: 6px; }
-/* Narrower screens: Show and Event as icons, the free time without "free", so the header stays one line. */
+/* Narrower screens: Show and Working hours as icons, so the header stays one line. */
 @media (max-width: 1460px) {
-    .planner-head :is(.pl-show, .pl-new) .btn-label, .pl-free-word { display: none; }
+    .planner-head :is(.pl-show, .pl-hours) .btn-label { display: none; }
 }
 @media (max-width: 767px) { .pl-drop .pl-drop-chev { display: none; } }
 .pl-drop .pl-drop-chev { color: var(--text-3); transition: transform .15s var(--ease); }
 .pl-drop.is-open { background: var(--hover); }
 .pl-drop.is-open .pl-drop-chev { transform: rotate(180deg); }
-.pl-drop-off { padding: 1px 6px; border-radius: 999px; background: var(--violet-soft); color: var(--violet-ink); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .pl-check-box { display: grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--line-strong); color: var(--on-accent); }
 .pl-check[aria-checked="true"] .pl-check-box { background: var(--violet); border-color: var(--violet); }
 .pl-check[aria-checked="false"] { color: var(--text-2); }

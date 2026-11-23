@@ -262,7 +262,6 @@ export default function Planner() {
         const r = e.currentTarget.getBoundingClientRect();
         setPop({ kind, x: r.right - width, y: r.bottom + 6 });
     };
-    const freeTotal = (props.free ?? []).reduce((n, d) => n + d.minutes, 0);
     // "Show": which kinds of markers and times are on the grid (kept on this computer).
     const [off, setOff] = useState<ShowKey[]>(() => {
         try {
@@ -672,7 +671,6 @@ export default function Planner() {
                         >
                             <Icon name="eye" />
                             <span className="btn-label">Show</span>
-                            {off.length > 0 && <span className="pl-drop-off">{off.length} off</span>}
                             <Icon name="chevD" className="ic-sm pl-drop-chev" />
                         </button>
                         {props.view !== 'month' && (
@@ -684,21 +682,13 @@ export default function Planner() {
                                 title="Free time in working hours"
                             >
                                 <Icon name="clock" />
-                                <span className="btn-label">
-                                    {freeTotal ? fmtHours(freeTotal / 60) : 'Free time'}
-                                    {freeTotal > 0 && <span className="pl-free-word"> free</span>}
-                                </span>
+                                <span className="btn-label">Free time</span>
                                 <Icon name="chevD" className="ic-sm pl-drop-chev" />
                             </button>
                         )}
-                        <button
-                            className="btn btn-secondary pl-new"
-                            onClick={() => setDialog({ initial: blank(props.date) })}
-                            aria-label="New event"
-                            title="New event"
-                        >
-                            <Icon name="plus" />
-                            <span className="btn-label">Event</span>
+                        <button className="btn btn-secondary pl-hours" onClick={() => setHoursOpen(true)} title="Working hours">
+                            <Icon name="calClock" />
+                            <span className="btn-label">Working hours</span>
                         </button>
                         {props.view !== 'month' &&
                             (planned ? (
@@ -1072,18 +1062,6 @@ export default function Planner() {
                             </span>
                         </button>
                     ))}
-                    <div className="bmenu-sep" />
-                    <button
-                        type="button"
-                        className="bmenu-item"
-                        onClick={() => {
-                            setPop(null);
-                            setHoursOpen(true);
-                        }}
-                    >
-                        <Icon name="calClock" />
-                        <span className="bmenu-grow">Working hours</span>
-                    </button>
                 </Pop>
             )}
             {pop?.kind === 'free' && (

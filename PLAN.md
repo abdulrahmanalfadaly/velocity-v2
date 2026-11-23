@@ -782,10 +782,12 @@ other view stays, moved onto its page as tabs and chips, or into Settings.
 - [x] Planner side menu (user, 23 Nov 2026): only New event, the month
       calendar and Not booked yet. Day / Week / Month were already on the
       page; the calendar filters (Classes, Work, Personal) were removed on
-      the user's request (every calendar shows); Show (with Working hours)
-      and Free time (with Copy) are drop-downs in the page's header. The
-      week title is short ("23–29 Nov 2026") and on narrower screens Show
-      and Event become icons, so the header stays one line
+      the user's request (every calendar shows). The page's header: Show
+      and Free time (with Copy) as plain drop-downs ("Show", "Free time"),
+      a Working hours button of its own, and Plan / Clear plan; no Event
+      button (the side menu's + and a click on the grid add events). The
+      week title is short ("23–29 Nov 2026") and below 1460 px Show and
+      Working hours are icons, so the header stays one line
 - [ ] The other sections' side menus (Notes, Habits, People, Review), when
       the user gives their changes
 
