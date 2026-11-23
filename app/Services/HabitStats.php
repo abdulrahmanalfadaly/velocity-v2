@@ -99,7 +99,10 @@ class HabitStats
     public function detail(): array
     {
         $h = $this->habit;
-        $monday = $this->today->startOfWeek(CarbonImmutable::MONDAY);
+        // The month calendar: whole months, from the month the habit began (its first day or check-in, at most
+        // a year back) to the end of this month (the days still to come shown as such).
+        $from = $this->start->startOfMonth()->max($this->today->startOfMonth()->subMonths(11));
+        $to = $this->today->endOfMonth()->startOfDay();
         $notes = array_filter($this->days, fn ($d) => $d['note'] !== null && $d['note'] !== '');
         krsort($notes);
 
@@ -107,8 +110,7 @@ class HabitStats
             'best' => $h->flexible() ? $this->bestPeriodStreak() : $this->bestDayStreak(),
             'rate' => $this->rate(),
             'total' => count(array_filter($this->days, fn ($d) => ! $d['skipped'] && ! $h->less() && $h->achieved($d['count']))),
-            // Sixteen weeks, Monday first, ending with this week.
-            'history' => $this->span($monday->subWeeks(15), 16 * 7),
+            'history' => $this->span($from, (int) round($from->diffInDays($to)) + 1),
             'since' => $this->start->toDateString(),
             'form' => self::form($h),
             'routines' => $h->routines->map(fn ($r) => ['id' => $r->id, 'name' => $r->name])->values(),

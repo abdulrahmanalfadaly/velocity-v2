@@ -31,6 +31,23 @@ class HabitsPhase12Test extends TestCase
         return Habit::latest('id')->first();
     }
 
+    public function test_the_panel_calendar_gets_whole_months_from_the_habits_first_day_up_to_a_year(): void
+    {
+        $read = $this->add(['name' => 'Read']);
+        $read->entries()->create(['day' => '2026-08-20', 'count' => 1, 'skipped' => false]);
+        $this->get(route('habits.index', ['view' => 'all', 'habit' => $read->id]))->assertInertia(fn (Assert $p) => $p
+            ->where('habit.history.0.date', '2026-08-01')
+            ->where('habit.history', fn ($days) => count($days) === 31 + 30 + 31 + 30
+                && collect($days)->last()['date'] === '2026-11-30'
+                && collect($days)->firstWhere('date', '2026-08-20')['state'] === 'done'
+                && collect($days)->firstWhere('date', '2026-11-12')['state'] === 'future'));
+
+        // Never more than a year: this month and the eleven before it.
+        $read->entries()->create(['day' => '2025-03-02', 'count' => 1, 'skipped' => false]);
+        $this->get(route('habits.index', ['view' => 'all', 'habit' => $read->id]))->assertInertia(fn (Assert $p) => $p
+            ->where('habit.history.0.date', '2025-12-01'));
+    }
+
     public function test_start_and_end_dates_set_when_it_is_due_and_its_status(): void
     {
         $later = $this->add(['name' => 'Gym', 'starts_on' => '2026-11-16']);

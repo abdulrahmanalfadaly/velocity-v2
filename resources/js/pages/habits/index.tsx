@@ -12,6 +12,7 @@ import {
     type HabitRow,
     habitSub,
     keep,
+    MonthCalendar,
     Streak,
 } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
@@ -790,19 +791,8 @@ function HabitPanel({
                     )}
                 </dl>
                 {h.stats && <HabitStatsCard s={h.stats} id={h.id} clock={clock} less={less} />}
-                <section className="p-section">
-                    <div className="p-section-head">
-                        <h3 className="p-section-title">Last 16 weeks</h3>
-                    </div>
-                    <div className="hb-cal" role="group" aria-label="Last 16 weeks, Monday first">
-                        {h.history.map((d) => (
-                            <DayMark key={d.date} day={d} target={h.target} clock={clock} onClick={(el) => onCell(h, d, el)} />
-                        ))}
-                    </div>
-                    <div className="hb-cal-foot">
-                        <span>{dayName(h.history[0].date, clock, { day: 'numeric', month: 'short' })}</span>
-                        <span>Today</span>
-                    </div>
+                <section className="p-section" aria-label="Calendar">
+                    <MonthCalendar key={h.id} days={h.history} target={h.target} clock={clock} onDay={(d, el) => onCell(h, d, el)} />
                 </section>
                 {h.notes.length > 0 && (
                     <section className="p-section">

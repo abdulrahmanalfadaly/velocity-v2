@@ -316,8 +316,10 @@ every check-in and three Planner modes are left out on purpose.
       is still going; part of a target doesn't count), weeks in a row for
       weekly habits (skipped days lower a week's need when fewer days are left
       than it asks for; the first week is never held against it), best streak,
-      done in the last 30 days (8 weeks), times done, and 16 weeks of days in
-      the habit's panel. Counted in the user's own days. `HabitStats`
+      done in the last 30 days (8 weeks), times done, and a month calendar in
+      the habit's panel (since 23 Nov; it was a 16-week grid): each day with
+      its date, ‹ › back to the habit's first month, at most a year. Counted
+      in the user's own days. `HabitStats`
 - [x] Routines: a name and habits in order (drag, or Up / Down); a routine
       page with numbered steps; "Morning 2 / 3" on Home. `RoutineController`
 - [x] Planner times: a habit can have a time and length ("Gym 18:00, 45 min");

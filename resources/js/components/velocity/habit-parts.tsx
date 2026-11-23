@@ -152,6 +152,114 @@ export function DayMark({
 }
 
 /**
+ * The habit's days as a month calendar (user, 23 Nov 2026: the 16-week grid didn't say "which day is which"):
+ * Monday first, each day with its date; ‹ › go month by month over the days the server sent (from the month
+ * the habit started, at most a year back). Done is filled, part done a ring with the count, missed a plain
+ * box, skipped crossed out, days off the schedule / before the start / still to come faint; today has a ring.
+ */
+export function MonthCalendar({
+    days,
+    target,
+    clock,
+    onDay,
+}: {
+    days: HabitDay[];
+    target: number;
+    clock: Clock;
+    onDay: (d: HabitDay, el: HTMLElement) => void;
+}) {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: clock.tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(clock.now);
+    const months = [...new Set(days.map((d) => d.date.slice(0, 7)))];
+    const [month, setMonth] = useState(() => (months.includes(today.slice(0, 7)) ? today.slice(0, 7) : months[months.length - 1]));
+    const i = months.indexOf(month);
+    const shown = days.filter((d) => d.date.startsWith(month));
+    if (!shown.length) return null;
+    // Blank boxes before the 1st, so it falls under its weekday (Monday first).
+    const lead = (at(shown[0].date).getUTCDay() + 6) % 7;
+    const title = dayName(`${month}-01`, clock, { month: 'long', year: 'numeric' });
+
+    return (
+        <div className="hc">
+            <div className="hc-top">
+                <button type="button" className="icon-btn" aria-label="Month before" disabled={i <= 0} onClick={() => setMonth(months[i - 1])}>
+                    <Icon name="chevL" />
+                </button>
+                <h4 className="hc-title" aria-live="polite">
+                    {title}
+                </h4>
+                <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label="Month after"
+                    disabled={i >= months.length - 1}
+                    onClick={() => setMonth(months[i + 1])}
+                >
+                    <Icon name="chevR" />
+                </button>
+            </div>
+            <div className="hc-grid" role="group" aria-label={title}>
+                {WEEKDAYS.map((w) => (
+                    <span key={w} className="hc-wd" aria-hidden="true">
+                        {w}
+                    </span>
+                ))}
+                {Array.from({ length: lead }, (_, n) => (
+                    <span key={`b${n}`} />
+                ))}
+                {shown.map((d) => {
+                    const label = `${dayName(d.date, clock, { weekday: 'long', day: 'numeric', month: 'long' })}: ${STATE_TEXT[d.state]}${
+                        d.state === 'partial' ? ` (${d.count} of ${target})` : ''
+                    }`;
+                    return (
+                        <button
+                            key={d.date}
+                            type="button"
+                            className={`hc-day is-${d.state}${d.date === today ? ' is-today' : ''}`}
+                            title={label}
+                            aria-label={label}
+                            onClick={(e) => onDay(d, e.currentTarget)}
+                        >
+                            <span className="hc-num">{Number(d.date.slice(8))}</span>
+                            {d.state === 'partial' && (
+                                <small className="hc-count">
+                                    {d.count}/{target}
+                                </small>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+            <ul className="hc-key" aria-label="Key">
+                <li>
+                    <span className="hc-day is-done" aria-hidden="true" />
+                    Done
+                </li>
+                <li>
+                    <span className="hc-day is-partial" aria-hidden="true" />
+                    Part done
+                </li>
+                <li>
+                    <span className="hc-day is-missed" aria-hidden="true" />
+                    Missed
+                </li>
+                <li>
+                    <span className="hc-day is-skipped" aria-hidden="true">
+                        <span className="hc-num">7</span>
+                    </span>
+                    Skipped
+                </li>
+                <li>
+                    <span className="hc-day is-off" aria-hidden="true">
+                        <span className="hc-num">7</span>
+                    </span>
+                    Not planned
+                </li>
+            </ul>
+        </div>
+    );
+}
+
+/**
  * A small popover in a fixed place, closed by a click outside or Escape. Drawn at the top of the page, so a
  * see-through (blurred) card it opens from can't shift or clip it.
  */
