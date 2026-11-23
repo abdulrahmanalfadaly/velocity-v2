@@ -160,7 +160,6 @@ export default function Notes() {
                                             <span className={`ni-title${n.untitled ? ' is-untitled' : ''}`}>{n.title}</span>
                                             {n.pinned && <Icon name="pin" className="ic-xs ni-pin" />}
                                         </span>
-                                        {n.preview && <span className="ni-preview">{n.preview}</span>}
                                         <span className="ni-meta">
                                             {n.calendar && <Icon name={CAL_ICON[n.calendar]} className="ic-xs" />}
                                             <span>{itemDate(n, clock)}</span>
