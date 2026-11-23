@@ -175,7 +175,8 @@ export function Pop({
     useEffect(() => {
         const onDown = (e: PointerEvent) => {
             const t = e.target as Element;
-            if (!box.current?.contains(t) && !t.closest?.('.dp-pop, .sel-pop')) onClose();
+            // A press on the button that opened it (.pop-anchor) is left to that button, so it can close it again.
+            if (!box.current?.contains(t) && !t.closest?.('.dp-pop, .sel-pop, .pop-anchor')) onClose();
         };
         const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
         document.addEventListener('pointerdown', onDown, true);

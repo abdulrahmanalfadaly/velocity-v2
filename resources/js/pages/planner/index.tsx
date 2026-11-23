@@ -654,7 +654,7 @@ export default function Planner() {
                             ))}
                         </div>
                         <button
-                            className={`btn btn-secondary pl-drop pl-show${pop?.kind === 'show' ? ' is-open' : ''}`}
+                            className={`btn btn-secondary pl-drop pop-anchor pl-show${pop?.kind === 'show' ? ' is-open' : ''}`}
                             onClick={(e) => openPop('show', e, 270)}
                             aria-haspopup="dialog"
                             aria-expanded={pop?.kind === 'show'}
@@ -666,7 +666,7 @@ export default function Planner() {
                         </button>
                         {props.view !== 'month' && (
                             <button
-                                className={`btn btn-secondary pl-drop pl-freebtn${pop?.kind === 'free' ? ' is-open' : ''}`}
+                                className={`btn btn-secondary pl-drop pop-anchor pl-freebtn${pop?.kind === 'free' ? ' is-open' : ''}`}
                                 onClick={(e) => openPop('free', e, 310)}
                                 aria-haspopup="dialog"
                                 aria-expanded={pop?.kind === 'free'}

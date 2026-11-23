@@ -1,6 +1,7 @@
 import { Clock } from '@/lib/velocity';
 import { Link } from '@inertiajs/react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
+import { Pop } from './habit-parts';
 import { Icon } from './icon';
 import type { PlanBlock } from './planner-parts';
 
@@ -41,7 +42,8 @@ interface Entry {
     node: ReactNode;
 }
 
-const MAX = 3; // things shown in one day box; the rest are "+2 more" next to the day number
+const MAX = 3; // things shown in one day box; the rest behind "+2 more" next to the day number (opens the whole day)
+const POP_W = 320;
 const shift = (day: string, n: number) => {
     const d = new Date(`${day}T12:00:00Z`);
     d.setUTCDate(d.getUTCDate() + n);
@@ -88,6 +90,8 @@ export function MonthGrid<E extends MonthEvent>({
         return { date: v.slice(0, 10), min: Number(v.slice(11, 13)) * 60 + Number(v.slice(14, 16)) };
     };
     const byDay: Record<string, Entry[]> = Object.fromEntries(days.map((d) => [d, []]));
+    // "+2 more": the whole day in a pop-up, beside its box (full titles, times; Open the day for the day view).
+    const [pop, setPop] = useState<null | { d: string; x: number; y: number }>(null);
     const add = (day: string, e: Entry) => byDay[day]?.push(e);
     const now = clock.now.getTime();
 
@@ -212,7 +216,20 @@ export function MonthGrid<E extends MonthEvent>({
                                     {Number(d.slice(8))}
                                 </button>
                                 {list.length > shown.length && (
-                                    <button className="mg-more" onClick={() => onDay(d)}>
+                                    <button
+                                        className={`mg-more pop-anchor${pop?.d === d ? ' is-open' : ''}`}
+                                        aria-haspopup="dialog"
+                                        aria-expanded={pop?.d === d}
+                                        title="See the whole day"
+                                        onClick={(e) => {
+                                            if (pop?.d === d) return setPop(null);
+                                            const box = e.currentTarget.closest('.mg-day')!.getBoundingClientRect();
+                                            const tall = Math.min(470, 116 + list.length * 34);
+                                            // Beside the box when there's room on its right, else on its left; never off the screen.
+                                            const x = box.right + 8 + POP_W < window.innerWidth ? box.right + 8 : box.left - POP_W - 8;
+                                            setPop({ d, x: Math.max(8, x), y: Math.max(8, Math.min(box.top, window.innerHeight - tall - 8)) });
+                                        }}
+                                    >
                                         +{list.length - shown.length} more
                                     </button>
                                 )}
@@ -228,6 +245,42 @@ export function MonthGrid<E extends MonthEvent>({
                     );
                 })}
             </div>
+            {pop &&
+                (() => {
+                    const list = byDay[pop.d] ?? [];
+                    return (
+                        <Pop
+                            x={pop.x}
+                            y={pop.y}
+                            label={clock.date(at(pop.d), { weekday: 'long', day: 'numeric', month: 'long' })}
+                            onClose={() => setPop(null)}
+                            width={POP_W}
+                        >
+                            <div className="bmenu-head">
+                                <b>{clock.date(at(pop.d), { weekday: 'long', day: 'numeric', month: 'long' })}</b>
+                                <span>{list.length} on this day</span>
+                            </div>
+                            {/* Opening one of them closes this first (an event's dialog opens over the page). */}
+                            <ul className="mg-pop-list" onClick={() => setPop(null)}>
+                                {list.map((en) => (
+                                    <li key={en.key}>{en.node}</li>
+                                ))}
+                            </ul>
+                            <div className="bmenu-sep" />
+                            <button
+                                type="button"
+                                className="bmenu-item"
+                                onClick={() => {
+                                    setPop(null);
+                                    onDay(pop.d);
+                                }}
+                            >
+                                <Icon name="calendar" />
+                                <span className="bmenu-grow">Open the day</span>
+                            </button>
+                        </Pop>
+                    );
+                })()}
         </div>
     );
 }
