@@ -1954,20 +1954,28 @@ button.pp-history-day:hover { text-decoration: underline; }
 .tl-item.is-past .tl-block { opacity: .6; }
 
 /* ---------- Notes ---------- */
-.notes { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; max-width: 1240px; margin: 0 auto; align-items: start; }
-.notes-list { position: sticky; top: calc(var(--topbar-h) + 24px); display: flex; flex-direction: column; gap: 10px; min-height: 0; max-height: calc(100vh - var(--topbar-h) - 48px); }
-.notes-head { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+/* Notes: the list as a panel on the left, the open note filling all the rest of the screen (user, 23 Nov 2026:
+   "the notes canvas to take as much space as pos"). */
+.notes { --notes-h: calc(100svh - var(--topbar-h) - 36px); display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (min-width: 1101px) { .main:has(.notes) { padding: 18px 20px 18px; } }
+.notes-list {
+    position: sticky; top: calc(var(--topbar-h) + 18px); display: flex; flex-direction: column; gap: 10px; min-height: 0; height: var(--notes-h);
+    padding: 14px 10px 4px; border-radius: 16px; border: 1px solid var(--line); background: rgb(var(--task-card-rgb) / calc(1 - var(--card-clear, 0.06)));
+}
+.app[data-wall] .notes-list { -webkit-backdrop-filter: blur(var(--card-blur, 8px)) saturate(1.1); backdrop-filter: blur(var(--card-blur, 8px)) saturate(1.1); }
+.notes-head { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 2px 0 6px; }
 .notes-h { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.015em; }
 .notes-count { margin-right: auto; font-size: 13px; font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .notes-search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; flex: none; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-xs); color: var(--text-3); }
 .notes-search:focus-within { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-ring); }
 .notes-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); font-size: 13.5px; }
-.notes-items { display: grid; gap: 2px; min-height: 0; margin: 0 -4px; padding: 0 4px 12px; overflow-y: auto; scrollbar-width: thin; }
-.ni { display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px; color: var(--text); }
+.notes-items { display: grid; align-content: start; gap: 2px; flex: 1; min-height: 0; margin: 0; padding: 2px 0 10px; overflow-y: auto; scrollbar-width: thin; }
+.ni { position: relative; display: grid; gap: 4px; padding: 11px 12px 11px 16px; border-radius: 11px; color: var(--text); transition: background .12s; }
 .ni:hover { background: var(--hover); }
-.ni.is-active { background: var(--surface); box-shadow: var(--sh-xs), inset 0 0 0 1px var(--line); }
+.ni.is-active { background: var(--selected); }
+.ni.is-active::before { content: ""; position: absolute; left: 5px; top: 11px; bottom: 11px; width: 3px; border-radius: 2px; background: var(--violet); }
 .ni-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ni-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 650; }
+.ni-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
 .ni-title.is-untitled { color: var(--text-3); font-weight: 550; }
 .ni-pin { color: var(--violet-ink); }
 .ni-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.4; color: var(--text-2); overflow-wrap: anywhere; }
@@ -1977,11 +1985,20 @@ button.pp-history-day:hover { text-decoration: underline; }
 .notes-empty { padding: 18px 12px; font-size: 13px; color: var(--text-3); }
 
 .notes-pane { min-width: 0; }
-.notes-none { display: grid; justify-items: center; gap: 14px; padding: 90px 20px; border: 1px dashed var(--line-strong); border-radius: var(--r-lg); color: var(--text-3); }
-.notes-none > .ic { width: 28px; height: 28px; }
+.notes-none {
+    display: grid; place-content: center; justify-items: center; gap: 18px; min-height: var(--notes-h); padding: 40px 20px;
+    border: 1px dashed var(--line-strong); border-radius: 16px; background: rgb(var(--task-card-rgb) / calc(0.55 - var(--card-clear, 0.06) / 2));
+}
+.notes-none-ic { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 20px; background: var(--violet-soft); color: var(--violet-ink); }
+.notes-none-ic .ic { width: 28px; height: 28px; }
+.notes-none-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 
-.note { display: flex; flex-direction: column; min-height: calc(100vh - var(--topbar-h) - 60px); padding: 12px 44px 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-sm); }
-.note-top { display: flex; align-items: center; gap: 4px; margin: 0 -30px 4px; }
+.note {
+    --note-pad: clamp(32px, 4vw, 72px);
+    display: flex; flex-direction: column; min-height: var(--notes-h, calc(100vh - var(--topbar-h) - 60px)); padding: 14px var(--note-pad) 28px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--sh-sm);
+}
+.note-top { display: flex; align-items: center; gap: 4px; margin: 0 calc(14px - var(--note-pad)) 4px; }
 .note-back { display: none; }
 .note-status { margin-right: auto; padding-left: 6px; font-size: 12.5px; color: var(--text-3); }
 .note-retry { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 0; border-radius: 999px; background: var(--surface-3); color: var(--text); font-size: 12.5px; font-weight: 650; }
@@ -2075,7 +2092,8 @@ button.pp-history-day:hover { text-decoration: underline; }
 /* One column: the list, or the open note with a way back. */
 @media (max-width: 1100px) {
     .notes { grid-template-columns: minmax(0, 1fr); }
-    .notes-list { position: static; max-height: none; }
+    .notes-list { position: static; height: auto; max-height: none; }
+    .notes-none { min-height: 0; }
     .notes-items { overflow: visible; }
     .notes.has-note .notes-list { display: none; }
     .notes:not(.has-note) .notes-pane { display: none; }

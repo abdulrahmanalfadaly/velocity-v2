@@ -194,16 +194,28 @@ export default function Notes() {
                         />
                     ) : (
                         <div className="notes-none">
-                            <Icon name={view === 'journal' ? 'journal' : 'notes'} />
-                            {view === 'journal' ? (
-                                <button className="btn btn-secondary" onClick={writeToday}>
-                                    Write today’s entry
-                                </button>
-                            ) : (
-                                <button className="btn btn-secondary" onClick={newNote}>
-                                    New note
-                                </button>
-                            )}
+                            <span className="notes-none-ic">
+                                <Icon name={view === 'journal' ? 'journal' : 'notes'} />
+                            </span>
+                            <div className="notes-none-actions">
+                                {view === 'journal' ? (
+                                    <button className="btn btn-primary" onClick={writeToday}>
+                                        <Icon name="journal" />
+                                        Write today’s entry
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button className="btn btn-primary" onClick={newNote}>
+                                            <Icon name="plus" />
+                                            New note
+                                        </button>
+                                        <button className="btn btn-secondary" onClick={writeToday}>
+                                            <Icon name="journal" />
+                                            Today’s journal
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     )}
                 </section>
