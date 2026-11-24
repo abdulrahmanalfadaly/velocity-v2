@@ -456,6 +456,17 @@ leave Up next; only finished or cancelled tasks can be archived.
       comes the task heads Not ready yet ("Follow up · 1 day late · waiting for
       Dr. Lim, 3 days", rank kept, "Followed up" clears it), Home's Needs
       attention, and the Planner's all-day row. Never changes the order.
+      Since 24 Nov (user: "i really need it alot"): Home has its own
+      Follow-ups card between Habits today and Needs attention (today and
+      late, waiting with no day, the coming week; + adds one), and Needs
+      attention no longer lists them. "Done" (Home, Not ready, task panel)
+      asks what's next: again in 2 days / a week / a day picked, no next
+      day, or "Got a reply" (back to To do, ranked); each "Followed up" is
+      counted ("followed up 2×", in the history) and has Undo. "Later" only
+      moves the day. Starting to wait sets a follow-up day by itself
+      (Settings → Tasks → Follow-ups, 3 days at first, can be off). Waiting
+      for someone in People links them; their row says "2 waiting" and their
+      panel each one's follow-up day. `FollowUpController`, `FollowUps`
       Waiting tasks remember since when ("Waiting for Dr. Lim · 3 days";
       personal mode only). Cancel task (panel ⊘, selection bar): optional
       reason, shown in the panel and the project's Finished list; its focus

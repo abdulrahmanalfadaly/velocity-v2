@@ -96,10 +96,12 @@ class HomeController extends Controller
                 'done' => $r->habits->filter(fn ($h) => ($groups[$h->id] ?? null) === 'done')->count(),
                 'of' => $r->habits->filter(fn ($h) => in_array($groups[$h->id] ?? 'off', ['todo', 'done'], true))->count(),
             ])->filter(fn ($r) => $r['of'] > 0)->values(),
+            // Follow-ups: their own card (user, 24 Nov 2026: "i really need it alot"), so not in Needs attention.
+            'followUps' => FollowUps::card($user, $today, $list),
             'attention' => [
-                'followUps' => FollowUps::due($user, $today)->map(fn (Task $t) => FollowUps::present($t, $today, $list->rankOf($t->id)))->values(),
                 'overdue' => collect($all)->filter(fn ($t) => $t['days'] !== null && $t['days'] <= 0)->values(),
-                'notReady' => $ranking->notReady($user)->map(fn ($r) => TaskPresenter::notReady($r))->values(),
+                'notReady' => $ranking->notReady($user)->reject(fn ($r) => $r['kind'] === 'waiting' || ($r['task']->follow_up_on && $r['task']->follow_up_on->toDateString() <= $today->toDateString()))
+                    ->map(fn ($r) => TaskPresenter::notReady($r))->values(),
                 'milestones' => $user->projects()->whereNull('archived_at')->with(['milestones' => fn ($q) => $q->whereNull('done_at')->whereBetween('due_date', [$today->toDateString(), $today->addDays(3)->toDateString()])])->get()
                     ->flatMap(fn ($p) => $p->milestones->map(fn ($m) => ['title' => $m->title, 'project' => $p->name, 'projectId' => $p->id, 'dueDate' => $m->due_date->toDateString()]))->values(),
             ],

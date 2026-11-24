@@ -106,6 +106,8 @@ class TaskPresenter
                 'deleted' => 'Deleted',
                 'restored' => 'Restored',
                 'reverted' => 'A change was undone',
+                'followed_up' => 'Followed up'.(! empty($snap['after']['follow_up_on']) ? ' · again '.CarbonImmutable::parse($snap['after']['follow_up_on'])->format('D j M') : ''),
+                'replied' => 'Got a reply',
                 'updated' => implode(' · ', array_values(array_unique(array_filter([
                     ...array_map(fn ($k) => $change($k, $snap['before'][$k] ?? null, $snap['after'][$k] ?? null), array_keys($snap['after'] ?? [])),
                     ! empty($snap['depends_on']) ? 'Starts after changed' : null,

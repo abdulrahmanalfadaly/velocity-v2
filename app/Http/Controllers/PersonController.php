@@ -34,6 +34,7 @@ class PersonController extends Controller
             ->when($view === 'archived', fn ($b) => $b->whereNotNull('archived_at'), fn ($b) => $b->whereNull('archived_at'))
             ->when($group, fn ($b) => $b->whereHas('groups', fn ($g) => $g->whereKey($group->id)))
             ->with(['dates', 'groups', 'catchUps', 'contacts'])
+            ->withCount(['tasks as waiting_count' => fn ($q) => $q->where('status', 'waiting')])
             ->orderBy('name')->get();
         $rows = $people->map(fn (Person $p) => PeopleInfo::row($p, $today));
         if ($view === 'attention') {

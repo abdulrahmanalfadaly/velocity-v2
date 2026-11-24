@@ -4,6 +4,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { StartFocus } from './focus';
+import { FollowedUp } from './follow-ups';
 import { Modal } from './forms';
 import { TaskGitHub } from './github-parts';
 import { Icon } from './icon';
@@ -416,6 +417,7 @@ export function TaskPanel({
                                     aria-label="Waiting for"
                                     placeholder="Who or what?"
                                     maxLength={160}
+                                    list={`wf-people-${task.id}`}
                                     defaultValue={task.waitingFor ?? ''}
                                     key={`${task.id}-w-${task.waitingFor}`}
                                     onBlur={(e) =>
@@ -424,6 +426,11 @@ export function TaskPanel({
                                     }
                                     onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                                 />
+                                <datalist id={`wf-people-${task.id}`}>
+                                    {(task.peopleChoices ?? []).map((p) => (
+                                        <option key={p.id} value={p.name} />
+                                    ))}
+                                </datalist>
                             </div>
                         </>
                     )}
@@ -441,6 +448,8 @@ export function TaskPanel({
                                     value={task.followUpOn ?? ''}
                                     onChange={(v) => patch(task.id, { follow_up_on: v || null })}
                                 />
+                                {task.followUpOn && <FollowedUp task={task} clock={clock} />}
+                                {(task.nudges ?? 0) > 0 && <span className="fu-times">{task.nudges}×</span>}
                             </div>
                         </>
                     )}

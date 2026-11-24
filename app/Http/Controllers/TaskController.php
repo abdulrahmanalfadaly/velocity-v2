@@ -199,6 +199,8 @@ class TaskController extends Controller
             'focused' => ['seconds' => (int) $task->focusSessions()->whereNotNull('ended_at')->sum('seconds'), 'sessions' => $task->focusSessions()->whereNotNull('ended_at')->count()],
             'candidates' => $user->tasks()->open()->whereKeyNot($task->id)->orderBy('title')->limit(300)->get(['id', 'title'])->values(),
             'events' => $task->events->map(fn ($e) => ['type' => $e->type, 'at' => $e->created_at?->toIso8601ZuluString(), 'via' => $e->via])->values(),
+            // Times it was followed up ("Followed up 2×").
+            'nudges' => $task->events()->where('type', 'followed_up')->count(),
             // Its history in plain words, newest first.
             'activity' => TaskPresenter::activity($task, $user),
             // Linked GitHub issues and pull requests (as last read; the panel asks for a fresh look when they are old).
@@ -350,10 +352,16 @@ class TaskController extends Controller
     {
         $user = $request->user();
         $this->own($task, $user);
-        $event = $task->events()->where('type', 'updated')->findOrFail($request->integer('event'));
+        $event = $task->events()->whereIn('type', ['updated', 'followed_up', 'replied'])->findOrFail($request->integer('event'));
         $snap = $event->snapshot;
         if (! empty($snap['before'])) {
             $task->update($snap['before']);
+        }
+        // "Followed up" / "Got a reply" taken back: as if it never happened (not counted, not in the history).
+        if ($event->type !== 'updated') {
+            $event->delete();
+
+            return back()->with('toast', 'Change undone');
         }
         $task->events()->create(['user_id' => $user->id, 'type' => 'reverted', 'snapshot' => ['event' => $event->id]]);
         // Taken back: Review no longer counts it (a due date moved later is not "postponed").
@@ -532,7 +540,7 @@ class TaskController extends Controller
                 $value = $data[$field] ?? null;
                 foreach ($tasks as $t) {
                     $before[$t->id] = [$field => $field === 'follow_up_on' ? $t->follow_up_on?->toDateString() : $t->{$field}]
-                        + ($field === 'status' ? ['waiting_since' => $t->waiting_since?->toIso8601ZuluString()] : []);
+                        + ($field === 'status' ? ['waiting_since' => $t->waiting_since?->toIso8601ZuluString(), 'follow_up_on' => $t->follow_up_on?->toDateString()] : []);
                     $this->actions->update($t, $user, [$field => $value]);
                 }
                 $toast = match ($field) {
@@ -615,7 +623,9 @@ class TaskController extends Controller
                     $moved->update(['snapshot' => [...$moved->snapshot, 'undone' => true]]);
                 }
             } elseif ($data['action'] === 'status' && $t->isOpen() && in_array($data['before'][$t->id]['status'] ?? null, Task::OPEN, true)) {
-                $t->update(['status' => $data['before'][$t->id]['status'], 'waiting_since' => $data['before'][$t->id]['waiting_since'] ?? null]);
+                $t->update(['status' => $data['before'][$t->id]['status'], 'waiting_since' => $data['before'][$t->id]['waiting_since'] ?? null]
+                    // The follow-up day it had (one set by itself on starting to wait goes again).
+                    + (array_key_exists('follow_up_on', $data['before'][$t->id]) ? ['follow_up_on' => $data['before'][$t->id]['follow_up_on']] : []));
             }
         }
 

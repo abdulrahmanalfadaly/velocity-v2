@@ -1,3 +1,4 @@
+import { dayLabel as followDay, localToday } from '@/components/velocity/follow-ups';
 import { Icon } from '@/components/velocity/icon';
 import {
     Avatar,
@@ -180,6 +181,12 @@ export default function People() {
                                                 {next.text}
                                             </span>
                                         )}
+                                        {(p.waiting ?? 0) > 0 && (
+                                            <span className="pp-next" title={`Waiting on ${p.name} for ${p.waiting}`}>
+                                                <Icon name="hourglass" className="ic-xs" />
+                                                {p.waiting} waiting
+                                            </span>
+                                        )}
                                     </button>
                                     {view === 'archived' && (
                                         <button
@@ -325,17 +332,35 @@ function PersonPanel({
         if (!newTask.trim()) return;
         router.post(route('people.new-task', p.id), { title: newTask }, { ...keep, onSuccess: () => setNewTask('') });
     };
-    const taskRow = (t: PersonDetail['tasks'][number]) => (
-        <li key={t.id} className={`pp-task${t.status === 'done' ? ' is-done' : ''}`}>
-            <Link href={`/tasks?task=${t.id}`}>
-                {t.status === 'done' ? <Icon name="check" className="ic-xs" /> : t.rank ? <b>#{t.rank}</b> : <Icon name="tasks" className="ic-xs" />}
-                <span>{t.title}</span>
-            </Link>
-            <button className="note-task-x" aria-label={`Unlink “${t.title}”`} onClick={() => unlink('task', t.id)}>
-                <Icon name="x" className="ic-xs" />
-            </button>
-        </li>
-    );
+    const today = localToday(clock);
+    const taskRow = (t: PersonDetail['tasks'][number]) => {
+        // Waiting on them: when you'll follow up.
+        const w = p.waitingOn?.find((x) => x.id === t.id);
+        return (
+            <li key={t.id} className={`pp-task${t.status === 'done' ? ' is-done' : ''}`}>
+                <Link href={`/tasks?task=${t.id}`}>
+                    {t.status === 'done' ? (
+                        <Icon name="check" className="ic-xs" />
+                    ) : t.rank ? (
+                        <b>#{t.rank}</b>
+                    ) : (
+                        <Icon name="tasks" className="ic-xs" />
+                    )}
+                    <span>{t.title}</span>
+                    {w && (
+                        <small className="pp-task-when">
+                            {w.followUpOn
+                                ? `Follow up ${followDay(w.followUpOn, today).replace(/^(Today|Tomorrow)$/, (m) => m.toLowerCase())}`
+                                : 'No follow-up day'}
+                        </small>
+                    )}
+                </Link>
+                <button className="note-task-x" aria-label={`Unlink “${t.title}”`} onClick={() => unlink('task', t.id)}>
+                    <Icon name="x" className="ic-xs" />
+                </button>
+            </li>
+        );
+    };
 
     return (
         <>

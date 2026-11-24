@@ -12,8 +12,19 @@ const CHOICES = [
     { value: '30', label: 'After 30 days' },
 ];
 
+const FOLLOW = [
+    { value: '0', label: 'Off' },
+    { value: '1', label: 'After 1 day' },
+    { value: '2', label: 'After 2 days' },
+    { value: '3', label: 'After 3 days' },
+    { value: '5', label: 'After 5 days' },
+    { value: '7', label: 'After a week' },
+    { value: '14', label: 'After 2 weeks' },
+];
+
 type Props = {
     autoArchiveDays: number | null;
+    followUpDays: number;
     weights: WeightSet;
     isDefault: boolean;
     horizonDays: number;
@@ -30,6 +41,21 @@ export default function TaskSettings() {
             <SettingsLayout>
                 <SettingsCard title="Weights">
                     <WeightsForm {...props} />
+                </SettingsCard>
+                <SettingsCard title="Follow-ups">
+                    <div className="settings-form">
+                        <div className="field">
+                            <div className="field-label">
+                                <label htmlFor="follow-up-days">When a task starts waiting, follow up</label>
+                            </div>
+                            <Select
+                                id="follow-up-days"
+                                value={String(props.followUpDays)}
+                                options={FOLLOW}
+                                onChange={(v) => router.patch(route('task-settings.update'), { follow_up_days: Number(v) }, { preserveScroll: true })}
+                            />
+                        </div>
+                    </div>
                 </SettingsCard>
                 <SettingsCard title="Finished tasks">
                     <div className="settings-form">

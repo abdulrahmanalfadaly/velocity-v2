@@ -86,6 +86,15 @@ export interface NotReadyTask extends BaseTask {
 export interface FollowUpTask extends BaseTask {
     rank: number | null;
     why: string;
+    /** Days past its follow-up day (0 = today, below 0 = still to come, null = no day). */
+    late: number | null;
+    waitingDays: number | null;
+    /** Who it waits for, and their initials ("Dr. Lim" → "DL"). */
+    who: string | null;
+    initials: string | null;
+    personId: number | null;
+    /** Times it was followed up. */
+    nudges: number;
 }
 
 export type TaskDetail = BaseTask &
@@ -105,6 +114,8 @@ export type TaskDetail = BaseTask &
         /** People the task is about or waiting on. */
         people?: { id: number; name: string }[];
         peopleChoices?: { id: number; name: string }[];
+        /** Times it was followed up ("Followed up 2×"). */
+        nudges?: number;
         focused: { seconds: number; sessions: number };
         /** Linked GitHub issues and pull requests; null when GitHub isn't connected and nothing is linked. */
         github?: {

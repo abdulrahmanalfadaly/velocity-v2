@@ -44,6 +44,8 @@ class PeopleInfo
             'date' => $date,
             'catchUp' => $catch ? ['next' => $catch->toDateString(), 'late' => $late] : null,
             'attention' => ($late !== null && $late >= 0) || ($date && $date['days'] <= self::SOON),
+            // Open tasks waiting on them (when counted with the list).
+            'waiting' => (int) ($p->waiting_count ?? 0),
             'archived' => $p->archived_at !== null,
         ];
     }
@@ -69,6 +71,13 @@ class PeopleInfo
             ],
             'tasks' => $p->tasks->sortBy(fn ($t) => [$t->status === 'done' ? 1 : 0, $list->rankOf($t->id) ?? 9999, $t->title])
                 ->map(fn ($t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status, 'rank' => $list->rankOf($t->id)])->values(),
+            // What you are waiting on them for: open waiting tasks linked to them, the next follow-up first.
+            'waitingOn' => $p->tasks->where('status', 'waiting')
+                ->sortBy(fn ($t) => [$t->follow_up_on?->toDateString() ?? '9999', $t->id])
+                ->map(fn ($t) => [
+                    'id' => $t->id, 'title' => $t->title, 'followUpOn' => $t->follow_up_on?->toDateString(),
+                    'waitingDays' => FollowUps::waitingDays($t, $today),
+                ])->values(),
             'notes' => $p->notes->sortByDesc('updated_at')->map(fn ($n) => ['id' => $n->id, 'title' => $n->displayTitle()])->values(),
             'projects' => $p->projects->map(fn ($pr) => ['id' => $pr->id, 'name' => $pr->name])->values(),
             'memories' => $p->memories->map(fn ($m) => $m->present())->values(),

@@ -5,6 +5,7 @@ use App\Http\Controllers\AreaController;
 use App\Http\Controllers\CatchUpController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FocusController;
+use App\Http\Controllers\FollowUpController;
 use App\Http\Controllers\FypController;
 use App\Http\Controllers\GitHubController;
 use App\Http\Controllers\GoalController;
@@ -72,6 +73,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('tasks/waiting', [TaskController::class, 'waiting'])->name('tasks.waiting');
         Route::get('tasks/next', [TaskController::class, 'next'])->name('tasks.next');
         Route::get('tasks/all', [TaskController::class, 'all'])->name('tasks.all');
+        Route::post('follow-ups', [FollowUpController::class, 'store'])->name('follow-ups.store');
+        Route::post('tasks/{task}/followed-up', [FollowUpController::class, 'done'])->name('follow-ups.done');
+        Route::post('tasks/{task}/replied', [FollowUpController::class, 'replied'])->name('follow-ups.replied');
 
         Route::post('tasks/{task}/steps', [TaskStepController::class, 'store'])->name('steps.store');
         Route::patch('steps/{step}', [TaskStepController::class, 'update'])->name('steps.update');

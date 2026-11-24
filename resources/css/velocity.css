@@ -13329,3 +13329,130 @@ a.vt-lane-t:hover {
         animation: none;
     }
 }
+
+/* Follow-ups (user, 24 Nov 2026): Home's own card between Habits today and Needs attention, and the
+   Done / Later buttons it shares with Not ready and the task panel. */
+.fu-head-end {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.fu-group + .fu-group {
+    margin-top: 4px;
+}
+.fu-group-title {
+    margin: 0;
+    padding: 6px 18px 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-3);
+}
+.fu-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: start;
+    padding: 10px 18px;
+}
+.fu-row > .fu-when {
+    padding-top: 2px;
+}
+.fu-row + .fu-row {
+    border-top: 1px solid var(--line);
+}
+.fu-av {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--violet-soft);
+    color: var(--violet-ink);
+    font-size: 11.5px;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+}
+.fu-av .ic {
+    width: 15px;
+    height: 15px;
+}
+.fu-main {
+    min-width: 0;
+}
+.fu-title {
+    display: block;
+    overflow-wrap: anywhere;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text);
+}
+.fu-title:hover {
+    color: var(--violet-ink);
+}
+.fu-sub {
+    margin-top: 1px;
+    font-size: 12px;
+    color: var(--text-3);
+}
+.fu-late {
+    color: var(--critical-ink);
+    font-weight: 600;
+}
+.fu-acts {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.fu-main > .fu-acts {
+    margin-top: 8px;
+}
+.fu-when {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-2);
+    white-space: nowrap;
+}
+.fu-card .card-foot {
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 8px;
+}
+.fu-card .card-foot .card-link {
+    margin-left: auto;
+}
+.fu-pick {
+    padding: 2px 4px 4px;
+}
+.fu-pick .input {
+    width: 100%;
+}
+.fu-new {
+    display: grid;
+    gap: 8px;
+    padding: 0 4px 4px;
+}
+.fu-new .bmenu-head {
+    margin: 0 -4px;
+}
+.fu-new .btn {
+    justify-self: end;
+}
+.fu-times {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--violet-soft);
+    color: var(--violet-ink);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.pp-task-when {
+    margin-left: auto;
+    padding-left: 8px;
+    font-size: 11.5px;
+    color: var(--text-3);
+    white-space: nowrap;
+}

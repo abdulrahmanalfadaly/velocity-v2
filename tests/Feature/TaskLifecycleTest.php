@@ -152,7 +152,7 @@ class TaskLifecycleTest extends TestCase
         $this->get(route('tasks.waiting'))->assertInertia(fn ($page) => $page->count('followUps', 2)
             ->where('followUps.1.why', 'Follow up · 1 day late · waiting for Dr. Lim, 3 days')
             ->where('notReady.0.why', 'Waiting for Dr. Lim · 3 days'));
-        $this->get(route('home'))->assertInertia(fn ($page) => $page->count('attention.followUps', 2));
+        $this->get(route('home'))->assertInertia(fn ($page) => $page->count('followUps.due', 2)->missing('attention.followUps'));
         $this->get(route('tasks.index'))->assertInertia(fn ($page) => $page->where('tasks.0.id', $ranked->id)->count('tasks', 1));
         $this->get(route('planner.index', ['view' => 'week', 'date' => '2026-11-09']))
             ->assertInertia(fn ($page) => $page->count('followUps', 2)->where('followUps.0.date', '2026-11-11'));

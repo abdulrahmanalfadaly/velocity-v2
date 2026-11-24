@@ -48,6 +48,8 @@ export interface PersonRow {
     catchUp: { next: string; late: number } | null;
     attention: boolean;
     archived: boolean;
+    /** Open tasks waiting on them. */
+    waiting?: number;
 }
 
 export interface PersonForm {
@@ -72,6 +74,8 @@ export interface PersonDetail extends PersonRow {
         history: { id: number; on: string; at?: string | null; kind: CatchUpKind; note: string | null; counts?: boolean }[];
     };
     tasks: { id: number; title: string; status: string; rank: number | null }[];
+    /** What you wait on them for, with each follow-up day. */
+    waitingOn?: { id: number; title: string; followUpOn: string | null; waitingDays: number | null }[];
     notes: { id: number; title: string }[];
     projects: { id: number; name: string }[];
     /** Things to remember about them, the latest first. */

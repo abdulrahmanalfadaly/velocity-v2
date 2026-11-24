@@ -1,5 +1,6 @@
 import { BulkSet } from '@/components/velocity/bulk-set';
 import { DatePick } from '@/components/velocity/date-pick';
+import { FollowedUp, MoveDay } from '@/components/velocity/follow-ups';
 import { Icon } from '@/components/velocity/icon';
 import { Select } from '@/components/velocity/select';
 import { TaskPanel } from '@/components/velocity/task-panel';
@@ -193,21 +194,18 @@ export default function TasksIndex() {
                                                 <span>{f.project?.name ?? 'No project'}</span>
                                                 <span className="dotsep" />
                                                 <span>{f.why}</span>
+                                                {f.nudges > 0 && (
+                                                    <>
+                                                        <span className="dotsep" />
+                                                        <span>followed up {f.nudges}×</span>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
-                                        <button
-                                            className="btn btn-secondary btn-sm"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                router.patch(
-                                                    route('tasks.update', f.id),
-                                                    { follow_up_on: null },
-                                                    { preserveScroll: true, preserveState: true },
-                                                );
-                                            }}
-                                        >
-                                            Followed up
-                                        </button>
+                                        <div className="fu-acts" onClick={(e) => e.stopPropagation()}>
+                                            <FollowedUp task={f} clock={clock} />
+                                            <MoveDay task={f} clock={clock} />
+                                        </div>
                                     </div>
                                 ))}
                             </details>

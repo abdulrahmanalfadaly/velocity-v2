@@ -8,6 +8,7 @@ use App\Domain\Prioritization\TaskInput;
 use App\Models\Task;
 use App\Models\TaskEvent;
 use App\Models\User;
+use App\Services\FollowUps;
 use App\Services\QuickAddParser;
 use App\Services\RankingService;
 use App\Services\Reminders;
@@ -154,12 +155,21 @@ class TaskActions
         // Waiting from now ("waiting for Dr. Lim · 5 days"); any other status forgets it.
         if (isset($data['status']) && $data['status'] !== $task->status) {
             $data['waiting_since'] = $data['status'] === Task::WAITING ? $this->ranking->now() : null;
+            // Starting to wait sets a follow-up day by itself (Settings → Tasks → Follow-ups), unless it has one.
+            if ($data['status'] === Task::WAITING && ! $user->fyp_mode && $user->follow_up_days > 0
+                && ! array_key_exists('follow_up_on', $data) && ! $task->follow_up_on) {
+                $data['follow_up_on'] = $this->ranking->now()->timezone($user->timezone)->addDays($user->follow_up_days)->toDateString();
+            }
         }
         if (! $data && ! $deps) {
             return null;
         }
         $before = $task->only(array_keys($data));
         $task->update($data);
+        // Waiting for someone in People: the task is linked to them (their page lists what you wait on them for).
+        if (! empty($data['waiting_for']) && ! $user->fyp_mode) {
+            FollowUps::linkPerson($task, $user, $data['waiting_for']);
+        }
 
         return $task->events()->create(['user_id' => $user->id, 'type' => 'updated', 'snapshot' => [
             'before' => $before, 'after' => $task->only(array_keys($data)),
