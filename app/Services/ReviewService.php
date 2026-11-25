@@ -115,6 +115,32 @@ class ReviewService
             'activity' => $this->activity($user, $p['start'], $p['until'], true),
             'activityBefore' => array_map(fn ($a) => $a['count'], $this->activity($user, $p['prevStart'], $p['prevUntil'], false)),
             'events' => $this->eventTime($user, $p['start'], $p['until']),
+            'followUps' => $this->followUps($user, $p['start'], $p['until'], $today),
+        ];
+    }
+
+    /**
+     * Follow-ups: times followed up and replies in [from, to), how long the replies took (from "waiting
+     * since" to the reply), and what still waits now: how many, how many late, the longest wait.
+     */
+    private function followUps(User $user, CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $today): array
+    {
+        $events = TaskEvent::where('user_id', $user->id)->whereIn('type', ['followed_up', 'replied'])
+            ->where('created_at', '>=', $from->utc())->where('created_at', '<', $to->utc())->get();
+        $waits = $events->where('type', 'replied')
+            ->map(fn (TaskEvent $e) => ! empty($e->snapshot['before']['waiting_since'])
+                ? CarbonImmutable::parse($e->snapshot['before']['waiting_since'])->diffInDays($e->created_at) : null)
+            ->filter(fn ($d) => $d !== null);
+        $waiting = $user->tasks()->where('status', Task::WAITING)->get();
+        $longest = $waiting->filter(fn (Task $t) => $t->waiting_since)->sortBy('waiting_since')->first();
+
+        return [
+            'nudges' => $events->where('type', 'followed_up')->count(),
+            'replies' => $events->where('type', 'replied')->count(),
+            'avgWait' => $waits->count() ? round($waits->avg(), 1) : null,
+            'waiting' => $waiting->count(),
+            'late' => $user->tasks()->open()->whereNotNull('follow_up_on')->whereDate('follow_up_on', '<', $today->toDateString())->count(),
+            'longest' => $longest ? ['id' => $longest->id, 'title' => $longest->title, 'who' => $longest->waiting_for, 'days' => FollowUps::waitingDays($longest, $today)] : null,
         ];
     }
 

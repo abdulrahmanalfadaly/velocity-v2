@@ -31,9 +31,9 @@ class QuickAddParser
      * @param  list<string>  $plain
      * @return array{title: string, due: ?CarbonImmutable, hours: ?float, projectId: ?int, repeat: ?array{unit: string, every: int}, start: ?CarbonImmutable, remind: ?array, importance: ?int, picked: list<array{kind: string, text: string}>}
      */
-    public function parse(string $text, CarbonImmutable $nowLocal, array $projects = [], array $plain = []): array
+    public function parse(string $text, CarbonImmutable $nowLocal, array $projects = [], array $plain = [], array $people = []): array
     {
-        $s = $this->scan($text, $nowLocal, $projects, false, $plain);
+        $s = $this->scan($text, $nowLocal, $projects, false, $plain, $people);
         $day = $s['day'];
         $time = $s['time'];
 
@@ -63,7 +63,8 @@ class QuickAddParser
         }
 
         return ['title' => $s['title'], 'due' => $due, 'hours' => $s['hours'], 'projectId' => $s['projectId'], 'repeat' => $s['repeat'],
-            'start' => $s['start'], 'remind' => $remind, 'importance' => $s['importance'], 'energy' => $s['energy'], 'picked' => $s['picked']];
+            'start' => $s['start'], 'remind' => $remind, 'importance' => $s['importance'], 'energy' => $s['energy'],
+            'waiting' => $s['waiting'], 'followUp' => $s['followUp'], 'picked' => $s['picked']];
     }
 
     /**
@@ -115,7 +116,7 @@ class QuickAddParser
      * @param  list<string>  $plain
      * @return array{title: string, day: ?CarbonImmutable, time: ?string, end: ?string, hours: ?float, projectId: ?int, calendar: ?string, repeat: ?array{unit: string, every: int}, repeatDay: ?int, start: ?CarbonImmutable, remind: ?array, importance: ?int, picked: list<array{kind: string, text: string}>}
      */
-    private function scan(string $text, CarbonImmutable $nowLocal, array $projects, bool $event, array $plain = []): array
+    private function scan(string $text, CarbonImmutable $nowLocal, array $projects, bool $event, array $plain = [], array $people = []): array
     {
         $words = preg_split('/\s+/u', trim($text)) ?: [];
         $keep = [];
@@ -133,6 +134,8 @@ class QuickAddParser
         $remind = null;
         $importance = null;
         $energy = null;
+        $waiting = null;
+        $followUp = null;
         $picked = [];
 
         for ($i = 0; $i < count($words); $i++) {
@@ -148,6 +151,24 @@ class QuickAddParser
             // A chip that was taken off: the word stays in the title.
             if ($plain && in_array($lw, $plain, true)) {
                 $keep[] = $w;
+
+                continue;
+            }
+            // Follow-ups: "follow up fri", "f/u tomorrow" (a day to check on it); "waiting Dr Lim", "waiting for HR", "wait for Aisha".
+            $fuAt = $lw === 'follow' && $w1 === 'up' ? $i + 2 : (in_array($lw, ['f/u', 'followup', 'follow-up'], true) ? $i + 1 : null);
+            if (! $event && $fuAt !== null && ($fu = $this->dateAt($words, $fuAt, $nowLocal, $plain)) !== null) {
+                $followUp = $fu[0];
+                $used = $fuAt - $i + $fu[1];
+                $picked[] = ['kind' => 'followUp', 'text' => implode(' ', array_slice($words, $i, $used))];
+                $i += $used - 1;
+
+                continue;
+            }
+            if (! $event && $waiting === null && ($lw === 'waiting' || ($lw === 'wait' && in_array($w1, ['for', 'on'], true)))
+                && ($wf = $this->waitingFor($words, $i + 1, $nowLocal, $people)) !== null) {
+                $waiting = $wf['who'];
+                $picked[] = ['kind' => 'waiting', 'text' => implode(' ', array_slice($words, $i, $wf['n'] + 1))];
+                $i += $wf['n'];
 
                 continue;
             }
@@ -285,7 +306,65 @@ class QuickAddParser
 
         return ['title' => trim(implode(' ', $keep)), 'day' => $day, 'time' => $time, 'end' => $end, 'hours' => $hours, 'projectId' => $projectId,
             'calendar' => $calendar, 'repeat' => $repeat && $until ? $repeat + ['until' => $until->toDateString()] : $repeat, 'repeatDay' => $repeatDay,
-            'start' => $start, 'remind' => $remind, 'importance' => $importance, 'energy' => $energy, 'picked' => $picked];
+            'start' => $start, 'remind' => $remind, 'importance' => $importance, 'energy' => $energy,
+            'waiting' => $waiting, 'followUp' => $followUp, 'picked' => $picked];
+    }
+
+    /**
+     * Who follows "waiting" ("for"/"on" skipped): someone in People when the words spell their name or
+     * nickname (the longest one wins; their full name comes back), else the next word and the capitalised
+     * ones after it ("Dr Lim", "HR"), up to four, never a date.
+     *
+     * @param  list<array{name: string, nickname: ?string}>  $people
+     * @return array{who: string, n: int}|null n = words used
+     */
+    private function waitingFor(array $words, int $j, CarbonImmutable $now, array $people): ?array
+    {
+        $start = $j;
+        if (in_array(mb_strtolower(rtrim($words[$j] ?? '', ',.:')), ['for', 'on'], true)) {
+            $j++;
+        }
+        $bare = fn (string $w) => mb_strtolower(trim(preg_replace('/[.,:;]+/u', ' ', $w)));
+        $rest = array_slice($words, $j);
+        if (! $rest) {
+            return null;
+        }
+        $best = null;
+        foreach ($people as $p) {
+            foreach (array_filter([$p['name'], $p['nickname'] ?? null]) as $name) {
+                $parts = preg_split('/\s+/u', $bare($name)) ?: [];
+                $n = count($parts);
+                if ($n && $n <= count($rest) && ($best === null || $n > $best['words'])
+                    && preg_split('/\s+/u', $bare(implode(' ', array_slice($rest, 0, $n)))) === $parts) {
+                    $best = ['who' => $p['name'], 'words' => $n];
+                }
+            }
+        }
+        if ($best) {
+            return ['who' => $best['who'], 'n' => $j - $start + $best['words']];
+        }
+        $isDay = fn (int $k) => $this->dateAt($words, $k, $now) !== null || preg_match('/^[#!~]/u', $words[$k] ?? '') === 1;
+        if ($isDay($j)) {
+            return null;
+        }
+        $take = [rtrim($words[$j], ',.:;')];
+        // "the bank", "my landlord": the word after a little one too.
+        if (in_array(mb_strtolower($take[0]), ['the', 'a', 'an', 'my', 'our'], true) && isset($words[$j + 1]) && ! $isDay($j + 1)) {
+            $take[] = rtrim($words[$j + 1], ',.:;');
+        }
+        for ($k = $j + count($take); $k < count($words) && count($take) < 4; $k++) {
+            $w = $words[$k];
+            $lw = mb_strtolower(rtrim($w, ',.'));
+            if ($isDay($k) || in_array($lw, ['follow', 'f/u', 'followup', 'remind', 'from', 'every'], true) || ! preg_match('/^\p{Lu}/u', $w)) {
+                break;
+            }
+            $take[] = rtrim($w, ',.:;');
+            if (preg_match('/[,;:]$/u', $w)) {
+                break;
+            }
+        }
+
+        return ['who' => implode(' ', $take), 'n' => $j - $start + count($take)];
     }
 
     /**

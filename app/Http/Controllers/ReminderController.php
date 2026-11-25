@@ -71,7 +71,28 @@ class ReminderController extends Controller
             ]);
         }
 
+        // Follow-ups: once for each follow-up day, from the time picked on (one gone by while Velocity was closed: once, late).
+        $followUps = collect();
+        if ($user->follow_up_remind_at && ! $user->fyp_mode) {
+            $day = $today->toDateString();
+            $followUps = $user->tasks()->open()->whereNotNull('follow_up_on')->whereDate('follow_up_on', '<=', $day)
+                ->whereDate('follow_up_on', '>=', $today->subDays(14)->toDateString())
+                ->where(fn ($q) => $q->whereNull('follow_up_reminded_on')->orWhereColumn('follow_up_reminded_on', '!=', 'follow_up_on'))
+                ->orderBy('follow_up_on')->limit(20)->get()
+                ->filter(fn (Task $t) => $t->follow_up_on->toDateString() < $day || $now >= CarbonImmutable::parse("{$day} {$user->follow_up_remind_at}", $tz))
+                ->values();
+            foreach ($followUps as $t) {
+                $t->update(['follow_up_reminded_on' => $t->follow_up_on]);
+            }
+        }
+
         return response()->json([
+            'followUps' => $followUps->map(fn (Task $t) => [
+                'taskId' => $t->id,
+                'title' => $t->title,
+                'who' => $t->waiting_for,
+                'late' => (int) round(CarbonImmutable::parse($t->follow_up_on->toDateString(), $tz)->diffInDays($today, false)),
+            ])->values(),
             'reminders' => $due->map(fn (TaskReminder $r) => [
                 'id' => $r->id,
                 'taskId' => $r->task_id,

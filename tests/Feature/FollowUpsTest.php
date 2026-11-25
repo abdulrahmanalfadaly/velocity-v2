@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Task;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -142,5 +143,79 @@ class FollowUpsTest extends TestCase
         $this->assertSame(['Quiz marks', Task::WAITING, 'Dr. Lim Wei', '2026-11-12'], [$made->title, $made->status, $made->waiting_for, $made->follow_up_on->toDateString()]);
         $this->assertTrue($lim->tasks()->whereKey($made->id)->exists());
         $this->post(route('follow-ups.store'), ['title' => 'Old', 'on' => '2026-11-10'])->assertSessionHasErrors('on');
+    }
+
+    public function test_quick_add_reads_waiting_and_follow_up_words(): void
+    {
+        $lim = $this->user->people()->create(['name' => 'Dr. Lim Wei', 'nickname' => 'Dr. Lim']);
+
+        $this->postJson(route('tasks.preview'), ['text' => 'Email Dr Lim about the form waiting Dr Lim follow up fri'])->assertOk()
+            ->assertJsonPath('parsed.title', 'Email Dr Lim about the form')
+            ->assertJsonPath('parsed.waiting', 'Dr. Lim Wei')->assertJsonPath('parsed.followUp', '2026-11-13')
+            ->assertJsonPath('preview', null);
+        $this->post(route('tasks.store'), ['text' => 'Email Dr Lim about the form waiting Dr Lim follow up fri'])->assertSessionHasNoErrors();
+        $t = Task::latest('id')->first();
+        $this->assertSame(['Email Dr Lim about the form', Task::WAITING, 'Dr. Lim Wei', '2026-11-13'], [$t->title, $t->status, $t->waiting_for, $t->follow_up_on->toDateString()]);
+        $this->assertNotNull($t->waiting_since);
+        $this->assertTrue($lim->tasks()->whereKey($t->id)->exists());
+
+        // Someone not in People: the next word and the capitalised ones after it; the day by itself (3 days on).
+        $this->post(route('tasks.store'), ['text' => 'Ask about the offer waiting for HR']);
+        $t = Task::latest('id')->first();
+        $this->assertSame(['Ask about the offer', 'HR', '2026-11-14'], [$t->title, $t->waiting_for, $t->follow_up_on->toDateString()]);
+        $this->post(route('tasks.store'), ['text' => 'Loan papers wait on the bank f/u tomorrow']);
+        $t = Task::latest('id')->first();
+        $this->assertSame(['Loan papers', 'the bank', '2026-11-12'], [$t->title, $t->waiting_for, $t->follow_up_on->toDateString()]);
+
+        // Only a follow-up day: still a ranked To do; "follow up" with no day stays in the title.
+        $this->post(route('tasks.store'), ['text' => 'Plan the trip follow up tomorrow']);
+        $t = Task::latest('id')->first();
+        $this->assertSame(['Plan the trip', Task::TODO, '2026-11-12'], [$t->title, $t->status, $t->follow_up_on->toDateString()]);
+        $this->post(route('tasks.store'), ['text' => 'Follow up with the club']);
+        $this->assertSame(['Follow up with the club', null], [Task::latest('id')->first()->title, Task::latest('id')->first()->follow_up_on]);
+    }
+
+    public function test_a_reminder_comes_once_on_each_follow_up_day_at_the_time_picked(): void
+    {
+        $today = $this->task(['title' => 'Ethics form', 'status' => Task::WAITING, 'waiting_for' => 'Dr. Lim', 'follow_up_on' => '2026-11-11']);
+        $late = $this->task(['title' => 'Survey', 'follow_up_on' => '2026-11-09']);
+        $this->task(['title' => 'Later', 'follow_up_on' => '2026-11-12']);
+        $due = fn () => $this->getJson(route('reminders.due'))->assertOk()->json('followUps');
+
+        // 10:00, after 9:00: today's and the late one, once each.
+        $this->assertSame([[$late->id, 2], [$today->id, 0]], array_map(fn ($f) => [$f['taskId'], $f['late']], $due()));
+        $this->assertSame([], $due());
+        // Moved to another day: it reminds again when that day comes.
+        $today->update(['follow_up_on' => '2026-11-12']);
+        config(['velocity.fixed_now' => '2026-11-12 08:00']);
+        $this->assertSame([], $due());
+        config(['velocity.fixed_now' => '2026-11-12 09:30']);
+        $this->assertSame(['Ethics form', 'Later'], array_column($due(), 'title'));
+
+        // Off: none.
+        $this->patch(route('task-settings.update'), ['follow_up_remind_at' => null])->assertSessionHasNoErrors();
+        $this->task(['title' => 'Quiet', 'follow_up_on' => '2026-11-12']);
+        $this->assertSame([], $due());
+        $this->patch(route('task-settings.update'), ['follow_up_remind_at' => '09:30'])->assertSessionHasErrors('follow_up_remind_at');
+    }
+
+    public function test_review_counts_the_follow_ups_and_the_replies(): void
+    {
+        // The events' own times are the clock's: the same Wednesday.
+        $this->travelTo(CarbonImmutable::parse('2026-11-11 10:00', 'Asia/Kuala_Lumpur'));
+        $a = $this->task(['title' => 'Ethics form', 'status' => Task::WAITING, 'waiting_since' => '2026-11-07 02:00', 'follow_up_on' => '2026-11-10']);
+        $b = $this->task(['title' => 'Grant letter', 'status' => Task::WAITING, 'waiting_for' => 'HR', 'waiting_since' => '2026-11-01 02:00', 'follow_up_on' => '2026-11-11']);
+        $this->post(route('follow-ups.done', $b), ['again' => '2026-11-13']);
+        $this->post(route('follow-ups.done', $a), ['again' => '2026-11-12']);
+        $this->post(route('follow-ups.replied', $a));
+
+        $report = null;
+        $this->get(route('review.index'))->assertOk()->assertInertia(function ($page) use (&$report) {
+            $report = $page->toArray()['props']['report'];
+        });
+        $f = $report['followUps'];
+        $this->assertSame([2, 1, 1, 0], [$f['nudges'], $f['replies'], $f['waiting'], $f['late']]);
+        $this->assertEquals(4.0, $f['avgWait']); // waiting since 7 Nov 10:00, the reply on 11 Nov 10:00
+        $this->assertSame(['Grant letter', 'HR', 10], [$f['longest']['title'], $f['longest']['who'], $f['longest']['days']]);
     }
 }

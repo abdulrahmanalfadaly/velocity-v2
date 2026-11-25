@@ -2,6 +2,7 @@ import { Clock } from '@/lib/velocity';
 import { router } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
+import { copyText, nudgeText } from './follow-ups';
 import { Icon } from './icon';
 import { Select } from './select';
 
@@ -26,6 +27,20 @@ interface DateReminder {
     days: number;
     turns: number | null;
 }
+
+/** A follow-up whose day has come (Settings → Tasks → Follow-ups: "Remind me on the day"). */
+interface FollowUpReminder {
+    taskId: number;
+    title: string;
+    who: string | null;
+    /** Days past its follow-up day (0 = today). */
+    late: number;
+}
+
+const followWhen = (f: FollowUpReminder) =>
+    [f.late > 0 ? (f.late === 1 ? '1 day late' : `${f.late} days late`) : 'Follow up today', f.who ? `waiting for ${f.who}` : null]
+        .filter(Boolean)
+        .join(' · ');
 
 const when = (d: DateReminder) =>
     `${d.days === 0 ? 'Today' : d.days === 1 ? 'Tomorrow' : `In ${d.days} days`}${d.turns ? ` · turns ${d.turns}` : ''}`;
@@ -52,6 +67,8 @@ export const askToNotify = () => (typeof Notification !== 'undefined' ? Notifica
 export function Reminders({ clock, onOpen }: { clock: Clock; onOpen: (taskId: number) => void }) {
     const [shown, setShown] = useState<Reminder[]>([]);
     const [dates, setDates] = useState<DateReminder[]>([]);
+    const [follow, setFollow] = useState<FollowUpReminder[]>([]);
+    const [copied, setCopied] = useState<number | null>(null);
     const busy = useRef(false);
     // The latest clock and handler, without restarting the 30-second check whenever the page updates.
     const latest = useRef({ clock, onOpen });
@@ -63,7 +80,24 @@ export function Reminders({ clock, onOpen }: { clock: Clock; onOpen: (taskId: nu
         try {
             const res = await fetch(route('reminders.due'), { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
             if (!res.ok) return;
-            const { reminders, dates: due = [] } = (await res.json()) as { reminders: Reminder[]; dates?: DateReminder[] };
+            const {
+                reminders,
+                dates: due = [],
+                followUps = [],
+            } = (await res.json()) as { reminders: Reminder[]; dates?: DateReminder[]; followUps?: FollowUpReminder[] };
+            if (followUps.length) {
+                setFollow((now) => [...now.filter((f) => !followUps.some((x) => x.taskId === f.taskId)), ...followUps]);
+                if (notifyState() === 'on') {
+                    followUps.forEach((f) => {
+                        const n = new Notification(`Follow up: ${f.title}`, { body: followWhen(f), tag: `velocity-follow-${f.taskId}` });
+                        n.onclick = () => {
+                            window.focus();
+                            latest.current.onOpen(f.taskId);
+                            n.close();
+                        };
+                    });
+                }
+            }
             if (due.length) {
                 setDates((now) => [...now.filter((d) => !due.some((x) => x.id === d.id)), ...due]);
                 if (notifyState() === 'on') {
@@ -115,10 +149,47 @@ export function Reminders({ clock, onOpen }: { clock: Clock; onOpen: (taskId: nu
 
     const drop = (id: number) => setShown((now) => now.filter((r) => r.id !== id));
     const dropDate = (id: number) => setDates((now) => now.filter((d) => d.id !== id));
-    if (!shown.length && !dates.length) return null;
+    const dropFollow = (id: number) => setFollow((now) => now.filter((f) => f.taskId !== id));
+    if (!shown.length && !dates.length && !follow.length) return null;
 
     return (
         <div className="reminders" role="region" aria-label="Reminders">
+            {follow.map((f) => (
+                <div className="reminder" key={`f${f.taskId}`} role="alert">
+                    <span className="reminder-ic">
+                        <Icon name="followUp" />
+                    </span>
+                    <div className="reminder-main">
+                        <b>Follow up: {f.title}</b>
+                        <span>{followWhen(f)}</span>
+                        <div className="reminder-actions">
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => {
+                                    dropFollow(f.taskId);
+                                    onOpen(f.taskId);
+                                }}
+                            >
+                                Open
+                            </button>
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={async () => {
+                                    await copyText(nudgeText(f.title, f.who));
+                                    setCopied(f.taskId);
+                                    setTimeout(() => setCopied(null), 2000);
+                                }}
+                            >
+                                <Icon name={copied === f.taskId ? 'check' : 'copy'} className="ic-sm" />
+                                {copied === f.taskId ? 'Copied' : 'Copy message'}
+                            </button>
+                        </div>
+                    </div>
+                    <button className="icon-btn reminder-close" aria-label="Dismiss" title="Dismiss" onClick={() => dropFollow(f.taskId)}>
+                        <Icon name="x" />
+                    </button>
+                </div>
+            ))}
             {dates.map((d) => (
                 <div className="reminder" key={`d${d.id}`} role="alert">
                     <span className="reminder-ic">

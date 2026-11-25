@@ -23,7 +23,7 @@ class AccountTransfer
     public const VERSION = 1;
 
     /** The account's own settings that travel along (not its name, email or password). */
-    private const USER_SETTINGS = ['timezone', 'planner_hours', 'planner_settings', 'auto_archive_days', 'focus_settings', 'wallpaper', 'card_clear', 'card_blur', 'follow_up_days'];
+    private const USER_SETTINGS = ['timezone', 'planner_hours', 'planner_settings', 'auto_archive_days', 'focus_settings', 'wallpaper', 'card_clear', 'card_blur', 'follow_up_days', 'follow_up_remind_at'];
 
     /** Limits on what an upload may unpack to. */
     private const MAX_ENTRIES = 20000;

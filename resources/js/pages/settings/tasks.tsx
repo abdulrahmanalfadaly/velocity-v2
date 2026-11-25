@@ -22,9 +22,22 @@ const FOLLOW = [
     { value: '14', label: 'After 2 weeks' },
 ];
 
+const REMIND = [
+    { value: '', label: 'Off' },
+    { value: '07:00', label: 'At 7:00 am' },
+    { value: '08:00', label: 'At 8:00 am' },
+    { value: '09:00', label: 'At 9:00 am' },
+    { value: '10:00', label: 'At 10:00 am' },
+    { value: '12:00', label: 'At 12:00 pm' },
+    { value: '14:00', label: 'At 2:00 pm' },
+    { value: '17:00', label: 'At 5:00 pm' },
+    { value: '19:00', label: 'At 7:00 pm' },
+];
+
 type Props = {
     autoArchiveDays: number | null;
     followUpDays: number;
+    followUpRemindAt: string | null;
     weights: WeightSet;
     isDefault: boolean;
     horizonDays: number;
@@ -53,6 +66,19 @@ export default function TaskSettings() {
                                 value={String(props.followUpDays)}
                                 options={FOLLOW}
                                 onChange={(v) => router.patch(route('task-settings.update'), { follow_up_days: Number(v) }, { preserveScroll: true })}
+                            />
+                        </div>
+                        <div className="field">
+                            <div className="field-label">
+                                <label htmlFor="follow-up-remind">Remind me on the day</label>
+                            </div>
+                            <Select
+                                id="follow-up-remind"
+                                value={props.followUpRemindAt ?? ''}
+                                options={REMIND}
+                                onChange={(v) =>
+                                    router.patch(route('task-settings.update'), { follow_up_remind_at: v || null }, { preserveScroll: true })
+                                }
                             />
                         </div>
                     </div>

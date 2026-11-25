@@ -5,6 +5,7 @@ import { router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
 import { CALENDARS, type CalendarKey } from './event-dialog';
+import { dayLabel, localToday } from './follow-ups';
 import { Icon } from './icon';
 import { Dots } from './ui';
 
@@ -23,6 +24,10 @@ interface Preview {
         importance?: number | null;
         /** "~low" / "~normal" / "~high". */
         energy?: 'low' | 'normal' | 'high' | null;
+        /** "waiting Dr Lim": who it waits on. */
+        waiting?: string | null;
+        /** "follow up fri": the follow-up day ("2026-11-27"). */
+        followUp?: string | null;
         picked: { kind: string; text: string }[];
     };
     preview: { rank: number; total: number; score: number; contrib: Record<CriterionKey, number>; above: string | null } | null;
@@ -323,6 +328,14 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
             chips.push({ key: 'imp', icon: 'flag', label: `${LEVEL[p.importance]} importance`, words: wordsOf(['importance']) });
         if (p.energy) chips.push({ key: 'energy', icon: 'flame', label: `${ENERGY_WORD[p.energy]} energy`, words: wordsOf(['energy']) });
         if (p.project) chips.push({ key: 'project', icon: 'folder', label: p.project.name, words: wordsOf(['project']) });
+        if (p.waiting) chips.push({ key: 'waiting', icon: 'hourglass', label: `Waiting for ${p.waiting}`, words: wordsOf(['waiting']) });
+        if (p.followUp)
+            chips.push({
+                key: 'followUp',
+                icon: 'followUp',
+                label: `Follow up ${dayLabel(p.followUp, localToday(clock))}`,
+                words: wordsOf(['followUp']),
+            });
     }
     const tab = (m: Mode, icon: string, label: string) => (
         <button

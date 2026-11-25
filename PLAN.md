@@ -466,7 +466,15 @@ leave Up next; only finished or cancelled tasks can be archived.
       moves the day. Starting to wait sets a follow-up day by itself
       (Settings → Tasks → Follow-ups, 3 days at first, can be off). Waiting
       for someone in People links them; their row says "2 waiting" and their
-      panel each one's follow-up day. `FollowUpController`, `FollowUps`
+      panel each one's follow-up day. `FollowUpController`, `FollowUps`.
+      Then (25 Nov) the other four: a reminder card on each follow-up day at
+      a time picked (Settings → Tasks → Follow-ups, 9:00 am at first, can be
+      off; once per day, a late one at once); quick add reads "waiting Dr
+      Lim" / "waiting for HR" / "wait on the bank" and "follow up fri" /
+      "f/u tomorrow"; "Copy a check-in message" (Done menu and the reminder
+      card: "Hi Dr. Lim, just following up on the ethics form…"); Review's
+      Follow-ups card (times followed up, replies and their average wait,
+      still waiting and late, the longest wait)
       Waiting tasks remember since when ("Waiting for Dr. Lim · 3 days";
       personal mode only). Cancel task (panel ⊘, selection bar): optional
       reason, shown in the panel and the project's Finished list; its focus

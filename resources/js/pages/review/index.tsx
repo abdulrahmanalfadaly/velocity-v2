@@ -58,6 +58,15 @@ interface Report {
     activity: Record<ActivityKey, { count: number; items: ActivityItem[]; blocks?: number }>;
     activityBefore: Record<ActivityKey, number>;
     events: { class: number; work: number; personal: number; allDay: number; count: number; cancelled?: number };
+    /** Follow-ups: times followed up and replies in these days; what still waits now. */
+    followUps?: {
+        nudges: number;
+        replies: number;
+        avgWait: number | null;
+        waiting: number;
+        late: number;
+        longest: { id: number; title: string; who: string | null; days: number | null } | null;
+    };
 }
 
 interface Weekly {
@@ -500,6 +509,8 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                 </section>
             )}
 
+            {r.followUps && r.followUps.nudges + r.followUps.replies + r.followUps.waiting > 0 && <FollowUpsReview f={r.followUps} />}
+
             {r.estimates.length > 0 && (
                 <section className="card rv-card">
                     <h2 className="rv-title">First guess and time focused</h2>
@@ -557,6 +568,43 @@ function LookBack({ r, clock }: { r: Report; clock: Clock }) {
                 )}
             </section>
         </>
+    );
+}
+
+/** Follow-ups in these days: how often you followed up, the replies and how long they took, what still waits. */
+function FollowUpsReview({ f }: { f: NonNullable<Report['followUps']> }) {
+    const avg =
+        f.avgWait === null ? null : f.avgWait < 1 ? 'under a day' : `${Math.round(f.avgWait)} ${Math.round(f.avgWait) === 1 ? 'day' : 'days'}`;
+    return (
+        <section className="card rv-card">
+            <h2 className="rv-title">Follow-ups</h2>
+            <ul className="rv-fu">
+                <li>
+                    <b>{f.nudges}</b>
+                    <span>{f.nudges === 1 ? 'time followed up' : 'times followed up'}</span>
+                </li>
+                <li>
+                    <b>{f.replies}</b>
+                    <span>
+                        {f.replies === 1 ? 'reply' : 'replies'}
+                        {avg && ` · ${avg} on average`}
+                    </span>
+                </li>
+                <li>
+                    <b>{f.waiting}</b>
+                    <span>
+                        still waiting
+                        {f.late > 0 && ` · ${f.late} late`}
+                    </span>
+                </li>
+            </ul>
+            {f.longest && f.longest.days !== null && f.longest.days > 0 && (
+                <p className="rv-note">
+                    Longest wait: <Link href={`/tasks?task=${f.longest.id}`}>{f.longest.title}</Link>
+                    {f.longest.who ? ` · ${f.longest.who}` : ''}, {f.longest.days} {f.longest.days === 1 ? 'day' : 'days'}
+                </p>
+            )}
+        </section>
     );
 }
 

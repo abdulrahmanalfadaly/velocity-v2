@@ -85,7 +85,10 @@ class TaskActions
             'available_from' => $parsed['start']?->utc(),
             'energy' => $parsed['energy'] ?? null,
             'captured_at' => $capture ? $this->ranking->now() : null,
-        ]);
+        ] + $this->followUpFields($user, $parsed));
+        if ($parsed['waiting'] ?? null) {
+            FollowUps::linkPerson($task, $user, $parsed['waiting']);
+        }
         if ($parsed['remind']) {
             Reminders::add($task, $parsed['remind']['kind'] === 'at' ? ['kind' => 'at', 'at' => $parsed['remind']['at']->utc()] : $parsed['remind'], $this->ranking->now());
         }
@@ -93,12 +96,31 @@ class TaskActions
         return $task;
     }
 
-    /** What quick add makes of the words: title, due, hours, project, repeat, start, reminder, importance. */
+    /**
+     * "waiting Dr Lim": waiting on them from now, with a follow-up day ("follow up fri", or the
+     * automatic one from Settings → Tasks); "follow up fri" alone: just the day.
+     */
+    private function followUpFields(User $user, array $parsed): array
+    {
+        $on = ($parsed['followUp'] ?? null)?->toDateString();
+        if (! empty($parsed['waiting'])) {
+            $on ??= $user->follow_up_days > 0 ? $this->ranking->now()->timezone($user->timezone)->addDays($user->follow_up_days)->toDateString() : null;
+
+            return ['status' => Task::WAITING, 'waiting_for' => $parsed['waiting'], 'waiting_since' => $this->ranking->now(), 'follow_up_on' => $on];
+        }
+
+        return $on ? ['follow_up_on' => $on] : [];
+    }
+
+    /** What quick add makes of the words: title, due, hours, project, repeat, start, reminder, importance, waiting, follow-up. */
     public function parse(User $user, string $text, array $plain = []): array
     {
         $plain = array_values(array_filter(array_map(fn ($w) => mb_strtolower(rtrim(trim((string) $w), ',.')), $plain)));
 
-        return $this->parser->parse($text, $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all(), $plain);
+        $people = $user->fyp_mode ? [] : $user->people()->whereNull('archived_at')->get(['name', 'nickname'])
+            ->map(fn ($p) => ['name' => $p->name, 'nickname' => $p->nickname])->all();
+
+        return $this->parser->parse($text, $this->ranking->now()->timezone($user->timezone), $user->projects()->pluck('name', 'id')->all(), $plain, $people);
     }
 
     public function create(User $user, array $fields): Task

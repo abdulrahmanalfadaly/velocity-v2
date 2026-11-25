@@ -304,10 +304,12 @@ class TaskController extends Controller
                 'remind' => $remind ? ($remind['kind'] === 'at' ? ['kind' => 'at', 'at' => $remind['at']->utc()->toIso8601ZuluString()] : $remind) : null,
                 'importance' => $parsed['importance'],
                 'energy' => $parsed['energy'] ?? null,
+                'waiting' => $parsed['waiting'],
+                'followUp' => $parsed['followUp']?->toDateString(),
                 'picked' => $parsed['picked'],
             ],
-            // A task that starts later isn't ranked until then.
-            'preview' => $parsed['start'] && $parsed['start']->greaterThan($this->ranking->now()) ? null : $this->actions->place($input, $user),
+            // A task that starts later, or waits on someone, isn't ranked until then.
+            'preview' => ($parsed['start'] && $parsed['start']->greaterThan($this->ranking->now())) || $parsed['waiting'] ? null : $this->actions->place($input, $user),
         ]);
     }
 

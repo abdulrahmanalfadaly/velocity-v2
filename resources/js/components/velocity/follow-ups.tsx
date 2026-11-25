@@ -41,6 +41,40 @@ function usePop() {
     return { at, open, close: () => setAt(null) };
 }
 
+const TITLES = ['dr', 'prof', 'professor', 'mr', 'mrs', 'ms', 'miss', 'mx', 'sir', 'madam', 'puan', 'encik', 'cik', 'tuan', 'en', 'pn'];
+
+/** What to call them in a message: "Dr. Lim Wei" → "Dr. Lim", "Aisha Rahman" → "Aisha", "HR" → "HR". */
+function callName(who: string) {
+    const words = who.trim().split(/\s+/);
+    return words.length > 1 && TITLES.includes(words[0].toLowerCase().replace(/\.$/, '')) ? `${words[0]} ${words[1]}` : words[0];
+}
+
+/**
+ * A short, polite check-in to paste into WhatsApp or an email (no AI: a fixed wording around the task):
+ * "Hi Dr. Lim, just following up on the ethics form. Is there any update? Thank you!"
+ */
+export function nudgeText(title: string, who: string | null | undefined) {
+    const t = title.trim().replace(/[.!?]+$/, '');
+    // "Email Dr. Lim about the ethics form" → "the ethics form"; "Follow up: the grant" → "the grant".
+    const about = t.match(/\b(?:about|regarding|re:?|on)\s+(.+)$/i)?.[1] ?? t.match(/^follow[ -]?up:\s*(.+)$/i)?.[1] ?? null;
+    const what = about ?? (/^follow[ -]?up with\b/i.test(t) ? 'my last message' : `“${t}”`);
+    return `Hi${who ? ` ${callName(who)}` : ''}, just following up on ${what}. Is there any update? Thank you!`;
+}
+
+/** Copies text; the old way when the browser won't let the page use the clipboard. */
+export async function copyText(text: string) {
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch {
+        const box = document.createElement('textarea');
+        box.value = text;
+        document.body.appendChild(box);
+        box.select();
+        document.execCommand('copy');
+        box.remove();
+    }
+}
+
 function Item({ icon, children, onClick }: { icon: string; children: ReactNode; onClick: () => void }) {
     return (
         <button type="button" className="bmenu-item" onClick={onClick}>
@@ -51,9 +85,18 @@ function Item({ icon, children, onClick }: { icon: string; children: ReactNode; 
 }
 
 /** "Done": you followed up. Check again in 2 days, a week, on a day, or not; or the reply came. */
-export function FollowedUp({ task, clock, small = true }: { task: Pick<FollowUpTask, 'id' | 'title' | 'status'>; clock: Clock; small?: boolean }) {
+export function FollowedUp({
+    task,
+    clock,
+    small = true,
+}: {
+    task: Pick<FollowUpTask, 'id' | 'title' | 'status'> & { who?: string | null; waitingFor?: string | null };
+    clock: Clock;
+    small?: boolean;
+}) {
     const pop = usePop();
     const today = localToday(clock);
+    const [copied, setCopied] = useState(false);
     const done = (again: string | null) => {
         pop.close();
         router.post(route('follow-ups.done', task.id), { again }, keep);
@@ -107,6 +150,17 @@ export function FollowedUp({ task, clock, small = true }: { task: Pick<FollowUpT
                         }}
                     >
                         {task.status === 'waiting' ? 'Got a reply · stop waiting' : 'Got a reply'}
+                    </Item>
+                    <div className="bmenu-sep" />
+                    <Item
+                        icon={copied ? 'check' : 'copy'}
+                        onClick={async () => {
+                            await copyText(nudgeText(task.title, task.who ?? task.waitingFor));
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                        }}
+                    >
+                        {copied ? 'Copied' : 'Copy a check-in message'}
                     </Item>
                 </Pop>
             )}
