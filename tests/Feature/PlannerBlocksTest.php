@@ -272,4 +272,22 @@ class PlannerBlocksTest extends TestCase
         $other = User::factory()->create();
         $this->actingAs($other)->delete(route('blocks.destroy', $block))->assertNotFound();
     }
+
+    public function test_planning_again_leaves_locked_blocks_where_they_are_and_the_page_knows_the_longest_block(): void
+    {
+        $essay = $this->task('Essay', ['importance' => 5, 'est_hours' => 1]);
+        $this->plan();
+        $block = PlannerBlock::firstOrFail();
+        $this->assertFalse($block->pinned);
+        // Locked by hand, but still the planner's own block: planning again doesn't move or rebook it.
+        $block->update(['locked' => true]);
+        $at = $block->starts_at->toIso8601String();
+        $this->plan();
+        $this->assertSame(1, PlannerBlock::count());
+        $kept = PlannerBlock::firstOrFail();
+        $this->assertSame([$block->id, $at, $essay->id], [$kept->id, $kept->starts_at->toIso8601String(), $kept->task_id]);
+
+        // "Not booked yet" dragged onto the grid books at most the Longest block (Settings → Planner).
+        $this->get(route('planner.index'))->assertInertia(fn ($page) => $page->where('longest', 120));
+    }
 }

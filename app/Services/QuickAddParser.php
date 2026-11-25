@@ -226,6 +226,21 @@ class QuickAddParser
                     $picked[] = ['kind' => 'hours', 'text' => $w];
                 }
                 $hoursAt = null;
+            } elseif (preg_match('/^\d+(?:\.\d+)?$/', $lw) && in_array($w1, ['h', 'hr', 'hrs', 'hour', 'hours'], true) && (float) $lw >= 0.05 && (float) $lw <= 500) {
+                // "2 hours", "1.5 hr": the number and its unit as two words.
+                $hours = (float) $lw;
+                $picked[] = ['kind' => 'hours', 'text' => $w.' '.$words[++$i]];
+                $hoursAt = $i;
+            } elseif (preg_match('/^\d+$/', $lw) && in_array($w1, ['min', 'mins', 'minute', 'minutes'], true) && (int) $lw >= 3 && (int) $lw <= 30000) {
+                // "30 min", "45 minutes"; after "1 hour" it adds up ("1 hour 30 min").
+                if ($hoursAt === $i - 1 && (int) $lw < 60) {
+                    $hours = round($hours + ((int) $lw) / 60, 2);
+                    $picked[count($picked) - 1]['text'] .= ' '.$w.' '.$words[++$i];
+                } else {
+                    $hours = round(((int) $lw) / 60, 2);
+                    $picked[] = ['kind' => 'hours', 'text' => $w.' '.$words[++$i]];
+                }
+                $hoursAt = null;
             } elseif (in_array($lw, ['today', 'tonight'], true)) {
                 $day = $nowLocal->startOfDay();
                 $picked[] = ['kind' => 'due', 'text' => $w];

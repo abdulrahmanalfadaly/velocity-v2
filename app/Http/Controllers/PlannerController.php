@@ -91,6 +91,8 @@ class PlannerController extends Controller
             'hours' => PlanBuilder::hours($user),
             // Hours of task work "Plan" books a day at most: H when Settings → Planner says so; null = fill the working hours.
             'dayLimit' => PlannerSettings::of($user)['cap'] ? (float) $user->weights()->hours_per_day : null,
+            // A task dragged in from "Not booked yet" gets at most this many minutes (Settings → Planner → Longest block).
+            'longest' => PlannerSettings::of($user)['longest'],
             'busy' => $busy,
             'dueTasks' => $user->tasks()->open()->whereBetween('due_at', [$first->utc(), $first->addDays($count)->utc()])
                 ->get(['id', 'title', 'due_at'])->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'dueAt' => $t->due_at->toIso8601ZuluString()])->values(),

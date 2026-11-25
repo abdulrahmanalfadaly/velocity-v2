@@ -55,8 +55,10 @@ class PlanBuilder
         $now = $this->ranking->now();
         [$start, $end] = self::period($days, $tz);
 
-        // Planning again: the planner's own blocks still ahead in this period make way.
-        $old = $only ? collect() : $user->plannerBlocks()->where('pinned', false)->where('starts_at', '>=', $start->max($now))->where('starts_at', '<', $end)->get();
+        // Planning again: the planner's own blocks still ahead in this period make way; locked ones stay
+        // where they are (as with Clear plan), so they never move without asking.
+        $old = $only ? collect() : $user->plannerBlocks()->where('pinned', false)->where('locked', false)
+            ->where('starts_at', '>=', $start->max($now))->where('starts_at', '<', $end)->get();
         $old->each->delete();
 
         $blocks = $user->plannerBlocks()->active()->get();

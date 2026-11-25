@@ -206,4 +206,18 @@ class NotesTest extends TestCase
         $this->assertFalse($note->fresh()->trashed());
         $this->get(route('tasks.archive'))->assertInertia(fn ($page) => $page->has('notes', 0));
     }
+
+    public function test_a_note_made_while_looking_at_an_area_goes_in_that_area(): void
+    {
+        $area = $this->user->areas()->create(['name' => 'University']);
+        $res = $this->post(route('notes.store'), ['in' => "a{$area->id}"]);
+        // It opens in that area's list.
+        $this->assertStringContainsString("in=a{$area->id}", $res->headers->get('Location'));
+        $this->assertSame($area->id, Note::latest('id')->first()->area_id);
+
+        // Someone else's area is ignored.
+        $other = User::factory()->create()->areas()->create(['name' => 'Theirs']);
+        $this->post(route('notes.store'), ['in' => "a{$other->id}"]);
+        $this->assertNull(Note::latest('id')->first()->area_id);
+    }
 }

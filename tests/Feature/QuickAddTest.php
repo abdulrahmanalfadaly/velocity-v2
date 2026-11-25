@@ -126,4 +126,16 @@ Ask about the budget', $note->body_text);
         $this->post(route('people.store'), ['name' => 'Adam', 'contacts' => [], 'group_ids' => []])->assertRedirect();
         $this->assertStringContainsString('person=', $this->post(route('people.store'), ['name' => 'Ali', 'contacts' => [], 'group_ids' => []])->headers->get('Location'));
     }
+
+    public function test_hours_and_minutes_written_as_two_words(): void
+    {
+        $this->assertSame(['Read chapter 4', 2], array_values(array_intersect_key($this->task('Read chapter 4 2 hours'), ['title' => 1, 'hours' => 1])));
+        $this->assertSame(0.5, $this->task('Call the bank 30 min')['hours']);
+        $this->assertSame(1.5, $this->task('Write 1 hour 30 min')['hours']);
+        $this->assertSame(1.5, $this->task('Write 1.5 hrs')['hours']);
+        $this->assertSame(1.75, $this->task('Write 1h 45 minutes')['hours']);
+        // Kept as words when the chip was taken off; a number alone stays a word.
+        $this->assertSame('Read 2 hours', $this->postJson(route('tasks.preview'), ['text' => 'Read 2 hours', 'plain' => ['2', 'hours']])->json('parsed.title'));
+        $this->assertSame('Chapter 2 notes', $this->task('Chapter 2 notes')['title']);
+    }
 }

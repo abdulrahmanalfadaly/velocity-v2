@@ -102,6 +102,10 @@ const wordsIn = (text: string) =>
 export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectId?: number }) {
     useReturnFocus();
     const { props } = usePage<VelocityShared>();
+    // The project of the page it was opened on (its tasks go there).
+    const here = projectId
+        ? [...(props.nav?.areas.flatMap((a) => a.projects) ?? []), ...(props.nav?.loose ?? [])].find((pr) => pr.id === projectId)
+        : undefined;
     const clock = Clock.from(props.clock);
     const today = clock.localInput(clock.now.toISOString()).slice(0, 10);
     const [mode, setMode] = useState<Mode>('task');
@@ -424,9 +428,10 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                         </span>
                     ))}
                     {!p?.project && (
+                        // Opened on a project's page: it goes into that project (unless a #project says otherwise).
                         <span className="qa-chip is-plain">
-                            <Icon name="inbox" />
-                            Inbox
+                            <Icon name={projectId ? 'folder' : 'inbox'} />
+                            {projectId ? (here?.name ?? 'This project') : 'Inbox'}
                         </span>
                     )}
                 </div>

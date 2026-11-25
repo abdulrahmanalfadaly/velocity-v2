@@ -61,6 +61,8 @@ interface Props extends VelocityShared {
     hours: Hours;
     /** Hours of task work "Plan" books a day at most (Settings → Planner); null = all the working hours. */
     dayLimit: number | null;
+    /** Settings → Planner → Longest block, in minutes. */
+    longest?: number;
     busy: string[];
     dueTasks: { id: number; title: string; dueAt: string }[];
     habitTimes: PlanHabit[];
@@ -597,7 +599,7 @@ export default function Planner() {
     };
     const grabUnbooked = (e: ReactPointerEvent<HTMLElement>, u: Unbooked) => {
         if ((e.target as HTMLElement).closest('button')) return;
-        begin(e, { kind: 'new', taskId: u.taskId, title: u.title, rank: u.rank, minutes: Math.min(u.minutes, 120), grab: 15 });
+        begin(e, { kind: 'new', taskId: u.taskId, title: u.title, rank: u.rank, minutes: Math.min(u.minutes, props.longest ?? 120), grab: 15 });
     };
     const openBlock = (e: MouseEvent<HTMLElement>, bl: PlanBlock, s: Spot, end: Spot) => {
         if (justDragged.current || bl.id < 0) return;

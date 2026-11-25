@@ -155,7 +155,8 @@ export function SearchPalette({ onClose, onAdd }: { onClose: () => void; onAdd: 
                 title: 'Start focus on #1',
                 sub: top.title,
                 words: 'focus timer start work',
-                run: post('focus.start', { task_id: top.id, minutes: 50 }),
+                // No length: it starts the way Settings → Focus says (timer length or Pomodoro), like every Start focus.
+                run: post('focus.start', { task_id: top.id }),
                 usual: true,
             });
         const places: [string, string, string, string][] = [

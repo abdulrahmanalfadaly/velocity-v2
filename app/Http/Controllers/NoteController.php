@@ -88,8 +88,11 @@ class NoteController extends Controller
         }
         $task = isset($data['task_id']) ? Task::find($data['task_id']) : null;
         $person = isset($data['person_id']) ? Person::find($data['person_id']) : null;
+        // Made while looking at an area's notes: it goes in that area.
+        $area = preg_match('/^a(\d+)$/', $data['in'] ?? '', $m) ? $user->areas()->find((int) $m[1]) : null;
         $note = $user->notes()->create([
             'project_id' => $data['project_id'] ?? $task?->project_id,
+            'area_id' => $area?->id,
             'title' => $data['title'] ?? Str::limit($task->title ?? $person->name ?? '', 200, ''),
             'body_text' => $text,
         ] + ($text !== '' ? ['body' => json_encode(Note::docFromText($text), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)] : []));
@@ -104,7 +107,7 @@ class NoteController extends Controller
                 ->with('undo', $this->undo('delete-note', $note->id))
                 ->with('toastOpen', route('notes.index', ['note' => $note->id], false));
         }
-        $in = $note->project_id ? "p{$note->project_id}" : (($data['in'] ?? null) === 'loose' ? 'loose' : 'all');
+        $in = $note->project_id ? "p{$note->project_id}" : ($area ? "a{$area->id}" : (($data['in'] ?? null) === 'loose' ? 'loose' : 'all'));
 
         return redirect()->route('notes.index', ['in' => $in, 'note' => $note->id]);
     }

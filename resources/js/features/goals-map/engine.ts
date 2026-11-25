@@ -348,9 +348,19 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
     function tally(n: MapNode) {
         let done = 0;
         let total = 0;
-        // A goal counts the projects it shares with another goal too; each task once.
+        // A goal counts the projects it shares with another goal too; each project and each task once.
+        // A project counts ALL its tasks (its stats), not only those drawn (open ones and the few finished lately),
+        // so a goal's % matches its projects' bars.
         const seen = new Set<number>();
+        const seenProjects = new Set<string>();
         const walk = (m: MapNode) => {
+            if (m.type === 'project') {
+                if (seenProjects.has(m.id)) return;
+                seenProjects.add(m.id);
+                done += m.stats.done;
+                total += m.stats.total;
+                return;
+            }
             if (m.type === 'task' && !seen.has(m.task.id)) {
                 seen.add(m.task.id);
                 total += 1;
@@ -360,10 +370,6 @@ export function mountGoalsMap(mount: HTMLElement, data: MapData, ctx: MapContext
         };
         walk(n);
         if (n.type === 'goal') shared.get(n.id)?.forEach(walk);
-        if (n.type === 'project' && n.stats) {
-            done = n.stats.done;
-            total = n.stats.total;
-        }
         if (n.type === 'goal' && n.goal.progressPct != null) return { done, total, pct: n.goal.progressPct };
         return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
     }
