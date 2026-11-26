@@ -57,7 +57,13 @@ interface Report {
     highlights: string[];
     activity: Record<ActivityKey, { count: number; items: ActivityItem[]; blocks?: number }>;
     activityBefore: Record<ActivityKey, number>;
-    events: { class: number; work: number; personal: number; allDay: number; count: number; cancelled?: number };
+    /** Time in classes and events by your areas ("No area" last), all-day ones, cancelled ones. */
+    events: {
+        byArea?: { id: number | null; name: string; icon: string | null; minutes: number }[];
+        allDay: number;
+        count: number;
+        cancelled?: number;
+    };
     /** Follow-ups: times followed up and replies in these days; what still waits now. */
     followUps?: {
         nudges: number;
@@ -201,9 +207,7 @@ function Activity({ r, clock, compareOn }: { r: Report; clock: Clock; compareOn:
     const shown = ACTIVITY.filter(([k]) => r.activity[k].count > 0 || (compareOn && r.activityBefore[k] > 0));
     const e = r.events;
     const eventText = [
-        e.class ? `Classes ${hm(e.class)}` : null,
-        e.work ? `Work ${hm(e.work)}` : null,
-        e.personal ? `Personal ${hm(e.personal)}` : null,
+        ...(e.byArea ?? []).filter((a) => a.minutes > 0).map((a) => `${a.name} ${hm(a.minutes)}`),
         e.allDay ? `${e.allDay} all-day` : null,
         e.cancelled ? `${e.cancelled} cancelled` : null,
     ].filter(Boolean);

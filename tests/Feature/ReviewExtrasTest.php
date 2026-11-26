@@ -155,21 +155,24 @@ class ReviewExtrasTest extends TestCase
 
     public function test_the_day_view_compares_with_the_day_before_and_counts_event_time(): void
     {
+        $uni = $this->user->areas()->create(['name' => 'University', 'icon' => 'cap']);
+        $work = $this->user->areas()->create(['name' => 'Work', 'icon' => 'briefcase']);
         $this->post(route('events.store'), [
-            'title' => 'Lecture', 'calendar' => 'class', 'all_day' => false, 'repeat_weekly' => true, 'date' => '2026-11-10', 'start_time' => '09:00', 'end_time' => '11:00',
+            'title' => 'Lecture', 'area_id' => $uni->id, 'all_day' => false, 'repeat_weekly' => true, 'date' => '2026-11-10', 'start_time' => '09:00', 'end_time' => '11:00',
         ]);
         $this->post(route('events.store'), [
-            'title' => 'Stand-up', 'calendar' => 'work', 'all_day' => false, 'repeat_weekly' => false, 'date' => '2026-11-11', 'start_time' => '10:00', 'end_time' => '10:30',
+            'title' => 'Stand-up', 'area_id' => $work->id, 'all_day' => false, 'repeat_weekly' => false, 'date' => '2026-11-11', 'start_time' => '10:00', 'end_time' => '10:30',
         ]);
-        $this->post(route('events.store'), ['title' => 'Holiday', 'calendar' => 'personal', 'all_day' => true, 'repeat_weekly' => false, 'date' => '2026-11-11']);
+        $this->post(route('events.store'), ['title' => 'Holiday', 'all_day' => true, 'repeat_weekly' => false, 'date' => '2026-11-11']);
         $this->user->tasks()->create(['title' => 'Yesterday', 'importance' => 3, 'urgency' => 3, 'est_hours' => 1, 'status' => Task::DONE, 'completed_at' => $this->local('2026-11-10 15:00')]);
 
         $r = $this->report(['view' => 'day']);
         $this->assertSame(['day', '2026-11-11', '2026-11-11', '2026-11-10', 0, 1], [$r['kind'], $r['start'], $r['last'], $r['prev']['start'], $r['now']['tasks'], $r['before']['tasks']]);
-        $this->assertSame(['class' => 0, 'work' => 30, 'personal' => 0, 'allDay' => 1, 'count' => 1, 'cancelled' => 0], $r['events']);
+        // Time by your areas, most first ("No area" would come last).
+        $this->assertSame(['allDay' => 1, 'count' => 1, 'cancelled' => 0, 'byArea' => [['id' => $work->id, 'name' => 'Work', 'icon' => 'briefcase', 'minutes' => 30]]], $r['events']);
 
         $week = $this->report(['view' => 'week']);
-        $this->assertSame([120, 30], [$week['events']['class'], $week['events']['work']]);
+        $this->assertSame([['University', 120], ['Work', 30]], array_map(fn ($a) => [$a['name'], $a['minutes']], $week['events']['byArea']));
         $this->assertSame([], $this->report(['view' => 'day', 'date' => '2026-11-10'])['highlights']);
     }
 }

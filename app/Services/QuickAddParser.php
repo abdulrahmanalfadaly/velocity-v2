@@ -71,11 +71,11 @@ class QuickAddParser
      * An event from one line: "Dentist tomorrow 3pm 1h", "Quiz fri 9-10am #class", "Gym every mon 6pm".
      * No time means all day; a start with no end lasts the hours given, or an hour.
      *
-     * @return array{title: string, date: string, start: ?string, end: ?string, allDay: bool, calendar: ?string, weekly: bool, picked: list<array{kind: string, text: string}>}
+     * @return array{title: string, date: string, start: ?string, end: ?string, allDay: bool, areaId: ?int, weekly: bool, picked: list<array{kind: string, text: string}>}
      */
-    public function parseEvent(string $text, CarbonImmutable $nowLocal): array
+    public function parseEvent(string $text, CarbonImmutable $nowLocal, array $areas = []): array
     {
-        $s = $this->scan($text, $nowLocal, [], true);
+        $s = $this->scan($text, $nowLocal, $areas, true);
         $day = $s['day'] ?? ($s['repeatDay'] !== null ? $this->nextWeekday($nowLocal, $s['repeatDay']) : null);
         $start = $s['time'];
         $end = $s['end'];
@@ -99,7 +99,7 @@ class QuickAddParser
             'start' => $start,
             'end' => $start === null ? null : $end,
             'allDay' => $start === null,
-            'calendar' => $s['calendar'],
+            'areaId' => $s['areaId'],
             'weekly' => $s['repeat'] !== null,
             'until' => $s['repeat']['until'] ?? null,
             'picked' => $s['picked'],
@@ -108,13 +108,13 @@ class QuickAddParser
 
     /**
      * The words, one by one: what each recognised word means, and the rest as the title.
-     * In event mode "#class / #work / #personal" pick the calendar and only weekly repeats count.
+     * In event mode "#uni" picks the area (its names come in as $projects) and only weekly repeats count.
      *
      * Tasks also take "from mon" (the start date), "remind …" and "!" / "!!" (importance).
      *
      * @param  array<int, string>  $projects
      * @param  list<string>  $plain
-     * @return array{title: string, day: ?CarbonImmutable, time: ?string, end: ?string, hours: ?float, projectId: ?int, calendar: ?string, repeat: ?array{unit: string, every: int}, repeatDay: ?int, start: ?CarbonImmutable, remind: ?array, importance: ?int, picked: list<array{kind: string, text: string}>}
+     * @return array{title: string, day: ?CarbonImmutable, time: ?string, end: ?string, hours: ?float, projectId: ?int, areaId: ?int, repeat: ?array{unit: string, every: int}, repeatDay: ?int, start: ?CarbonImmutable, remind: ?array, importance: ?int, picked: list<array{kind: string, text: string}>}
      */
     private function scan(string $text, CarbonImmutable $nowLocal, array $projects, bool $event, array $plain = [], array $people = []): array
     {
@@ -126,7 +126,7 @@ class QuickAddParser
         $hours = null;
         $hoursAt = null; // where the last "2h" was, so "1h 30m" adds up
         $projectId = null;
-        $calendar = null;
+        $areaId = null;
         $until = null;
         $repeat = null;
         $repeatDay = null;
@@ -296,9 +296,9 @@ class QuickAddParser
                 }
                 $picked[] = ['kind' => 'time', 'text' => implode(' ', array_slice($words, $i, $used))];
                 $i += $used - 1;
-            } elseif ($event && str_starts_with($lw, '#') && ($cal = $this->calendarFrom(mb_substr($lw, 1))) !== null) {
-                $calendar = $cal;
-                $picked[] = ['kind' => 'calendar', 'text' => $w];
+            } elseif ($event && str_starts_with($lw, '#') && ($cal = $this->areaFrom(mb_substr($lw, 1), $projects)) !== null) {
+                $areaId = $cal;
+                $picked[] = ['kind' => 'area', 'text' => $w];
             } elseif (str_starts_with($lw, '#') && mb_strlen($lw) > 1) {
                 $needle = mb_substr($lw, 1);
                 foreach ($projects as $id => $name) {
@@ -320,7 +320,7 @@ class QuickAddParser
         }
 
         return ['title' => trim(implode(' ', $keep)), 'day' => $day, 'time' => $time, 'end' => $end, 'hours' => $hours, 'projectId' => $projectId,
-            'calendar' => $calendar, 'repeat' => $repeat && $until ? $repeat + ['until' => $until->toDateString()] : $repeat, 'repeatDay' => $repeatDay,
+            'areaId' => $areaId, 'repeat' => $repeat && $until ? $repeat + ['until' => $until->toDateString()] : $repeat, 'repeatDay' => $repeatDay,
             'start' => $start, 'remind' => $remind, 'importance' => $importance, 'energy' => $energy,
             'waiting' => $waiting, 'followUp' => $followUp, 'picked' => $picked];
     }
@@ -559,15 +559,23 @@ class QuickAddParser
         return $start === $end ? null : [$start, $end];
     }
 
-    /** "#class", "#c", "#work", "#personal" → that calendar. */
-    private function calendarFrom(string $needle): ?string
+    /**
+     * "#uni", "#work" → the area whose name starts with those letters (spaces and signs ignored), or whose
+     * capitals spell them; null when none does (then the word stays in the title).
+     *
+     * @param  array<int, string>  $areas  id => name
+     */
+    private function areaFrom(string $needle, array $areas): ?int
     {
+        $needle = mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', '', $needle) ?? '');
         if ($needle === '') {
             return null;
         }
-        foreach (['class' => 'class', 'classes' => 'class', 'work' => 'work', 'personal' => 'personal'] as $word => $calendar) {
-            if (str_starts_with($word, $needle)) {
-                return $calendar;
+        foreach ($areas as $id => $name) {
+            $slug = mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', '', $name) ?? '');
+            $initials = mb_strtolower(preg_replace('/[^\p{Lu}]/u', '', $name) ?? '');
+            if (str_starts_with($slug, $needle) || ($initials !== '' && $initials === $needle)) {
+                return (int) $id;
             }
         }
 

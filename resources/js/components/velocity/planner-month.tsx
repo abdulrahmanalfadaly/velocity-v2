@@ -5,8 +5,7 @@ import { Pop } from './habit-parts';
 import { Icon } from './icon';
 import type { PlanBlock } from './planner-parts';
 
-type CalendarKey = 'class' | 'work' | 'personal';
-const ICON: Record<CalendarKey, string> = { class: 'cap', work: 'briefcase', personal: 'heart' };
+type EventArea = { id: number; name: string; icon: string | null } | null;
 
 /** What a month box needs of a class or event. */
 export interface MonthEvent {
@@ -14,7 +13,7 @@ export interface MonthEvent {
     start: string;
     end: string;
     title: string;
-    calendar: CalendarKey;
+    area: EventArea;
     allDay: boolean;
     cancelled?: boolean;
 }
@@ -99,11 +98,11 @@ export function MonthGrid<E extends MonthEvent>({
         const s = local(ev.start);
         const node = (time: string | null) => (
             <button
-                className={`mg-item is-event is-${ev.calendar}${ev.cancelled ? ' is-cancelled' : ''}`}
+                className={`mg-item is-event${ev.cancelled ? ' is-cancelled' : ''}`}
                 onClick={() => onEvent(ev)}
                 title={ev.cancelled ? `${ev.title} (cancelled)` : ev.title}
             >
-                <Icon name={ICON[ev.calendar]} className="ic-xs" />
+                <Icon name={ev.area?.icon ?? 'calendar'} className="ic-xs" />
                 {time && <span className="mg-time">{time}</span>}
                 <span className="mg-t">{ev.title}</span>
             </button>

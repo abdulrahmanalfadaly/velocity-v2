@@ -4,7 +4,7 @@ import type { CriterionKey, RepeatRule, VelocityShared } from '@/types/velocity'
 import { router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { DatePick } from './date-pick';
-import { CALENDARS, type CalendarKey } from './event-dialog';
+import { AreaPicker, lastEventArea, rememberEventArea } from './event-dialog';
 import { dayLabel, localToday } from './follow-ups';
 import { Icon } from './icon';
 import { Dots } from './ui';
@@ -42,7 +42,8 @@ interface EventParse {
     start: string | null;
     end: string | null;
     allDay: boolean;
-    calendar: CalendarKey | null;
+    /** "#uni": one of your areas. */
+    areaId: number | null;
     weekly: boolean;
     until: string | null;
 }
@@ -52,7 +53,7 @@ interface EventFields {
     all_day: boolean;
     start_time: string;
     end_time: string;
-    calendar: CalendarKey;
+    area_id: number | null;
     repeat_weekly: boolean;
     repeat_until: string | null;
 }
@@ -118,7 +119,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         all_day: true,
         start_time: '',
         end_time: '',
-        calendar: 'personal',
+        area_id: lastEventArea(),
         repeat_weekly: false,
         repeat_until: null,
     });
@@ -135,7 +136,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
     };
     const [noteText, setNoteText] = useState('');
     const [evParsed, setEvParsed] = useState<{ text: string; parse: EventParse } | null>(null);
-    const touched = useRef<Set<'date' | 'time' | 'calendar' | 'weekly'>>(new Set());
+    const touched = useRef<Set<'date' | 'time' | 'area' | 'weekly'>>(new Set());
     const [who, setWho] = useState('');
     const [errors, setErrors] = useState<Errors>({});
     const [overlap, setOverlap] = useState('');
@@ -164,7 +165,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         };
     }, [mode, text, importance, urgency, plain, impPicked]);
 
-    // Event: the typed day, times and calendar fill the fields (unless you set them yourself).
+    // Event: the typed day, times and area ("#uni") fill the fields (unless you set them yourself).
     const applyEvent = (t: string, parse: EventParse) => {
         setEvParsed({ text: t, parse });
         const own = touched.current;
@@ -172,7 +173,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
             ...f,
             ...(own.has('date') ? {} : { date: parse.date }),
             ...(own.has('time') ? {} : { all_day: parse.allDay, start_time: parse.start ?? '', end_time: parse.end ?? '' }),
-            ...(own.has('calendar') || !parse.calendar ? {} : { calendar: parse.calendar }),
+            ...(own.has('area') || !parse.areaId ? {} : { area_id: parse.areaId }),
             ...(own.has('weekly') ? {} : { repeat_weekly: parse.weekly, repeat_until: parse.until }),
         }));
     };
@@ -206,7 +207,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
         };
     }, [mode, ev.date, ev.start_time, ev.end_time, ev.all_day]);
 
-    const setEvField = (key: 'date' | 'time' | 'calendar' | 'weekly', patch: Partial<EventFields>) => {
+    const setEvField = (key: 'date' | 'time' | 'area' | 'weekly', patch: Partial<EventFields>) => {
         touched.current.add(key);
         setEv((f) => ({ ...f, ...patch }));
     };
@@ -280,14 +281,15 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                         ...ev,
                         ...(own.has('date') ? {} : { date: parse.date }),
                         ...(own.has('time') ? {} : { all_day: parse.allDay, start_time: parse.start ?? '', end_time: parse.end ?? '' }),
-                        ...(own.has('calendar') || !parse.calendar ? {} : { calendar: parse.calendar }),
+                        ...(own.has('area') || !parse.areaId ? {} : { area_id: parse.areaId }),
                         ...(own.has('weekly') ? {} : { repeat_weekly: parse.weekly, repeat_until: parse.until }),
                     };
                 }
             }
+            rememberEventArea(fields.area_id);
             post('events.store', {
                 title: (parse?.title || text).trim(),
-                calendar: fields.calendar,
+                area_id: fields.area_id,
                 date: fields.date,
                 all_day: fields.all_day,
                 start_time: fields.all_day ? null : fields.start_time || null,
@@ -486,20 +488,7 @@ export function QuickAdd({ onClose, projectId }: { onClose: () => void; projectI
                         </label>
                     </div>
                     <div className="qa-row">
-                        <div className="seg ev-seg" role="radiogroup" aria-label="Calendar">
-                            {CALENDARS.map(([k, label, icon]) => (
-                                <button
-                                    key={k}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={ev.calendar === k}
-                                    onClick={() => setEvField('calendar', { calendar: k })}
-                                >
-                                    <Icon name={icon} className="ic-sm" />
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
+                        <AreaPicker value={ev.area_id} onChange={(v) => setEvField('area', { area_id: v })} />
                         <label className="auth-check">
                             <input
                                 type="checkbox"

@@ -135,7 +135,7 @@ answers have `goalIds` (the old `goal_id` still sets just the main one) ·
 |---|---|
 | `GET /planner?from=2026-11-16&to=2026-11-22` | events (each time a weekly class happens, with `locked` and `cancelled`), booked time (`kind`: task / project / reserved; `locked`; a project's `next` task; `blocked` with why when a booked task can't be worked on now), habit times, people's dates, `markers` (project and milestone due dates, goal target dates, habits with no set time, catch-ups), tasks due. Default: the next 7 days; at most 62. |
 | `POST /planner/plan` | `{"span": "day"}` or `"week"`, optional `date`, `task_id`: books free time in rank order → `bookedMinutes`, `didNotFit` |
-| `POST /events` | `{"title", "calendar": "class"/"work"/"personal", "date", "start_time", "end_time"}` or `"all_day": true`; `location`, `notes`, `repeat_weekly`, `repeat_until` |
+| `POST /events` | `{"title", "area_id" (one of your areas, or null), "date", "start_time", "end_time"}` or `"all_day": true`; `location`, `notes`, `repeat_weekly`, `repeat_until` |
 | `PATCH /events/{id}` | any of the same fields |
 | `DELETE /events/{id}` | the whole event; with `{"date"}` only that week of a weekly one |
 | `PATCH /events/{id}/move` | `{"occurrence": "2026-11-19", "date", "start", "minutes", "scope": "all"/"one"}`: a weekly event moves every week, or only that week (a one-off `copy` takes its place). Locked (`"locked": true` on the event): needs `{"anyway": true}` |
@@ -205,7 +205,7 @@ can't be reached).
 `from` and `to` (YYYY-MM-DD, up to a year), compared with the same number of days before; the numbers,
 compared with the same days before, and `activity`: tasks added, cancelled,
 reopened, postponed, projects completed, goals achieved, milestones reached,
-blocks moved, each with its items; `events`: minutes by calendar, as on the
+blocks moved, each with its items; `events`: minutes by area (`byArea`: id, name, icon, minutes; "No area" last), as on the
 Review page) · `GET /review/weekly` (the weekly review's list for this week)
 
 ## Example

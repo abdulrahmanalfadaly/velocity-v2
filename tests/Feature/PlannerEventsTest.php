@@ -27,7 +27,7 @@ class PlannerEventsTest extends TestCase
 
     private function add(array $fields): Event
     {
-        $this->post(route('events.store'), $fields + ['calendar' => 'class', 'all_day' => false, 'repeat_weekly' => false])->assertSessionHasNoErrors();
+        $this->post(route('events.store'), $fields + ['all_day' => false, 'repeat_weekly' => false])->assertSessionHasNoErrors();
 
         return Event::latest('id')->firstOrFail();
     }
@@ -120,7 +120,9 @@ class PlannerEventsTest extends TestCase
         $base = ['title' => 'X', 'calendar' => 'class', 'date' => '2026-11-12', 'all_day' => false];
         $this->post(route('events.store'), $base)->assertSessionHasErrors('start_time');
         $this->post(route('events.store'), $base + ['start_time' => '10:00', 'end_time' => '10:00'])->assertSessionHasErrors('end_time');
-        $this->post(route('events.store'), ['calendar' => 'party'] + $base + ['start_time' => '10:00', 'end_time' => '11:00'])->assertSessionHasErrors('calendar');
+        // An area must be one of yours.
+        $theirs = User::factory()->create()->areas()->create(['name' => 'Theirs']);
+        $this->post(route('events.store'), ['area_id' => $theirs->id] + $base + ['start_time' => '10:00', 'end_time' => '11:00'])->assertSessionHasErrors('area_id');
         $this->post(route('events.store'), $base + ['start_time' => '10:00', 'end_time' => '11:00', 'repeat_weekly' => true, 'repeat_until' => '2026-11-01'])->assertSessionHasErrors('repeat_until');
     }
 
@@ -133,5 +135,24 @@ class PlannerEventsTest extends TestCase
         $this->delete(route('events.destroy', $e))->assertNotFound();
         $this->post(route('events.restore', $e->id))->assertNotFound();
         $this->assertSame('Mine', $e->fresh()->title);
+    }
+
+    public function test_an_event_belongs_to_one_of_your_areas_or_none(): void
+    {
+        $uni = $this->user->areas()->create(['name' => 'University', 'icon' => 'cap']);
+        $e = $this->add(['title' => 'Lecture', 'area_id' => $uni->id, 'date' => '2026-11-12', 'start_time' => '09:00', 'end_time' => '11:00']);
+        $this->assertSame($uni->id, $e->area_id);
+        $this->get(route('planner.index', ['view' => 'week', 'date' => '2026-11-09']))->assertInertia(fn ($page) => $page
+            ->where('events.0.area', ['id' => $uni->id, 'name' => 'University', 'icon' => 'cap'])
+            ->where('events.0.form.area_id', $uni->id));
+
+        $none = $this->add(['title' => 'Dentist', 'date' => '2026-11-13', 'start_time' => '15:00', 'end_time' => '16:00']);
+        $this->assertNull($none->area_id);
+
+        // The area removed: the event shows no area until Undo brings the area back.
+        $this->delete(route('areas.destroy', $uni));
+        $this->get(route('planner.index', ['view' => 'week', 'date' => '2026-11-09']))->assertInertia(fn ($page) => $page->where('events.0.area', null));
+        $this->post(route('areas.restore', $uni->id));
+        $this->get(route('planner.index', ['view' => 'week', 'date' => '2026-11-09']))->assertInertia(fn ($page) => $page->where('events.0.area.name', 'University'));
     }
 }

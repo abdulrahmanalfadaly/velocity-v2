@@ -48,7 +48,7 @@ class PlannerController extends Controller
         $from = $first->utc();
         $to = $first->addDays($count)->utc();
         $list = $this->ranking->rank($user);
-        $events = $user->events()->get();
+        $events = $user->events()->with('area')->get();
         // Cancelled days too: the grid shows them crossed out.
         $occ = fn (CarbonImmutable $from, CarbonImmutable $to) => $events
             ->flatMap(fn (Event $e) => array_map(fn ($o) => ['event' => $e] + $o, $e->occurrences($from->utc(), $to->utc(), $tz, true)));
@@ -176,7 +176,7 @@ class PlannerController extends Controller
             'start' => $o['start']->toIso8601ZuluString(),
             'end' => $o['end']->toIso8601ZuluString(),
             'title' => $e->title,
-            'calendar' => $e->calendar,
+            'area' => $e->areaInfo(),
             'location' => $e->location,
             'allDay' => $e->all_day,
             'repeats' => $e->repeat_weekly,

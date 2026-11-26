@@ -1,4 +1,4 @@
-import { type CalendarKey, EventDialog, type EventForm } from '@/components/velocity/event-dialog';
+import { type EventArea, EventDialog, type EventForm, lastEventArea } from '@/components/velocity/event-dialog';
 import { Modal } from '@/components/velocity/forms';
 import { DayEditor, Pop } from '@/components/velocity/habit-parts';
 import { Icon } from '@/components/velocity/icon';
@@ -26,7 +26,8 @@ interface Occurrence {
     start: string;
     end: string;
     title: string;
-    calendar: CalendarKey;
+    /** Its area (University, Work…), or none. */
+    area: EventArea;
     location: string | null;
     allDay: boolean;
     repeats: boolean;
@@ -110,8 +111,9 @@ const HOUR_MIN = 60;
 const HOUR_MAX = 76;
 const toMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 const SNAP = 15; // minutes a dragged block snaps to
-const ICON: Record<CalendarKey, string> = { class: 'cap', work: 'briefcase', personal: 'heart' };
-const LABEL: Record<CalendarKey, string> = { class: 'Class', work: 'Work', personal: 'Personal' };
+// An event shows its area's icon (a plain calendar with none) and says its area's name to screen readers.
+const evIcon = (a: EventArea) => a?.icon ?? 'calendar';
+const evLabel = (a: EventArea) => a?.name ?? 'Event';
 const keep = { preserveScroll: true, preserveState: true };
 
 /** "2026-11-13" ± n days. */
@@ -212,7 +214,7 @@ function layoutDay(items: Item[], day: string): Piece[] {
 
 const blank = (date: string, start = 9 * 60): EventForm => ({
     title: '',
-    calendar: 'class',
+    area_id: lastEventArea(),
     location: null,
     notes: null,
     all_day: false,
@@ -756,8 +758,8 @@ export default function Planner() {
                                                 return s <= d && d <= end;
                                             })
                                             .map((e) => (
-                                                <button key={e.key} className={`pev is-${e.calendar}`} onClick={() => openEvent(e)}>
-                                                    <Icon name={ICON[e.calendar]} className="ic-xs" />
+                                                <button key={e.key} className="pev" onClick={() => openEvent(e)}>
+                                                    <Icon name={evIcon(e.area)} className="ic-xs" />
                                                     <span className="pev-title">{e.title}</span>
                                                 </button>
                                             ))}
@@ -946,16 +948,16 @@ export default function Planner() {
                                             return (
                                                 <button
                                                     key={p.it.key}
-                                                    className={`pev is-${ev.calendar}${short ? ' is-short' : ''}${tiny ? ' is-tiny' : ''}${ev.cancelled ? ' is-cancelled' : ''}${movable ? ' is-movable' : ''}${drag?.eventKey === ev.key ? ' is-moving' : ''}`}
+                                                    className={`pev${short ? ' is-short' : ''}${tiny ? ' is-tiny' : ''}${ev.cancelled ? ' is-cancelled' : ''}${movable ? ' is-movable' : ''}${drag?.eventKey === ev.key ? ' is-moving' : ''}`}
                                                     style={style}
                                                     onPointerDown={(e2) => movable && grabEvent(e2, ev, evS, evE)}
                                                     onClick={() => !justDragged.current && openEvent(ev)}
                                                     onContextMenu={(e2) => movable && e2.preventDefault()}
                                                     title={`${ev.title} · ${minLabel(evS.min)}–${minLabel(evE.min)}`}
-                                                    aria-label={`${LABEL[ev.calendar]}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}${ev.cancelled ? ', cancelled' : ''}${ev.locked ? ', locked' : ''}`}
+                                                    aria-label={`${evLabel(ev.area)}: ${ev.title}, ${hhmm(p.top)} to ${hhmm(p.bottom)}${ev.cancelled ? ', cancelled' : ''}${ev.locked ? ', locked' : ''}`}
                                                 >
                                                     <span className="pev-title">
-                                                        <Icon name={ICON[ev.calendar]} className="ic-xs" />
+                                                        <Icon name={evIcon(ev.area)} className="ic-xs" />
                                                         {ev.title}
                                                         {ev.locked && <Icon name="lock" className="ic-xs pev-lock" label="Locked" />}
                                                     </span>

@@ -52,7 +52,7 @@ class AccountTransfer
         'task_templates' => ['own' => 'user', 'refs' => ['project_id' => 'projects']],
         'github_links' => ['own' => 'user', 'refs' => ['task_id' => 'tasks']],
         'project_files' => ['own' => 'user', 'refs' => ['project_id' => 'projects'], 'file' => 'project-files'],
-        'events' => ['own' => 'user'],
+        'events' => ['own' => 'user', 'refs' => ['area_id' => 'areas']],
         'notes' => ['own' => 'user', 'refs' => ['project_id' => 'projects', 'area_id' => 'areas', 'event_id' => 'events']],
         'note_files' => ['own' => 'user', 'refs' => ['note_id' => 'notes'], 'file' => 'note-files'],
         'note_project' => ['pivot' => ['note_id' => 'notes', 'project_id' => 'projects']],

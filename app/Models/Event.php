@@ -16,9 +16,7 @@ class Event extends Model
 {
     use SoftDeletes;
 
-    public const CALENDARS = ['class', 'work', 'personal'];
-
-    protected $fillable = ['calendar', 'title', 'location', 'notes', 'all_day', 'starts_at', 'ends_at', 'repeat_weekly', 'repeat_until', 'skipped', 'cancelled', 'locked'];
+    protected $fillable = ['area_id', 'title', 'location', 'notes', 'all_day', 'starts_at', 'ends_at', 'repeat_weekly', 'repeat_until', 'skipped', 'cancelled', 'locked'];
 
     protected function casts(): array
     {
@@ -48,7 +46,7 @@ class Event extends Model
 
         return [
             'title' => $this->title,
-            'calendar' => $this->calendar,
+            'area_id' => $this->area_id,
             'location' => $this->location,
             'notes' => $this->notes,
             'all_day' => $this->all_day,
@@ -115,5 +113,17 @@ class Event extends Model
         }
 
         return $out;
+    }
+
+    /** The user's area it belongs to (University, Work…); none when not set, or when the area was removed. */
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
+    }
+
+    /** How lists show its area: id, name, icon; null for none. */
+    public function areaInfo(): ?array
+    {
+        return $this->area ? ['id' => $this->area->id, 'name' => $this->area->name, 'icon' => $this->area->icon] : null;
     }
 }

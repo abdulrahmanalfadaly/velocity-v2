@@ -247,11 +247,15 @@ class ReviewService
         ];
     }
 
-    /** Time in classes and events in [from, to), by calendar (minutes), how many all-day ones, and how many were cancelled. */
+    /**
+     * Time in classes and events in [from, to): minutes by area (your own areas, then "No area"), how many
+     * all-day ones, and how many were cancelled.
+     */
     private function eventTime(User $user, CarbonImmutable $from, CarbonImmutable $to): array
     {
-        $out = ['class' => 0, 'work' => 0, 'personal' => 0, 'allDay' => 0, 'count' => 0, 'cancelled' => 0];
-        foreach ($user->events()->get() as $e) {
+        $out = ['allDay' => 0, 'count' => 0, 'cancelled' => 0];
+        $by = [];
+        foreach ($user->events()->with('area')->get() as $e) {
             foreach ($e->occurrences($from->utc(), $to->utc(), $user->timezone, true) as $o) {
                 if ($o['cancelled']) {
                     $out['cancelled']++;
@@ -266,11 +270,15 @@ class ReviewService
                 $s = $o['start']->max($from);
                 $end = $o['end']->min($to);
                 if ($end > $s) {
-                    $out[$e->calendar] = ($out[$e->calendar] ?? 0) + intdiv($end->getTimestamp() - $s->getTimestamp(), 60);
+                    $key = $e->area ? $e->area->id : 0;
+                    $by[$key] ??= ['id' => $e->area?->id, 'name' => $e->area?->name ?? 'No area', 'icon' => $e->area?->icon, 'minutes' => 0];
+                    $by[$key]['minutes'] += intdiv($end->getTimestamp() - $s->getTimestamp(), 60);
                     $out['count']++;
                 }
             }
         }
+        // Most time first; "No area" last.
+        $out['byArea'] = collect($by)->sortBy(fn ($a) => [$a['id'] === null ? 1 : 0, -$a['minutes']])->values()->all();
 
         return $out;
     }

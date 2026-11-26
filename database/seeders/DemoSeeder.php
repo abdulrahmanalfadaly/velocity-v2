@@ -190,14 +190,14 @@ class DemoSeeder extends Seeder
         // Weekly classes and a work stand-up, from the week before this one.
         $monday = $now->startOfWeek(CarbonImmutable::MONDAY)->subWeek();
         foreach ([
-            ['Data Mining lecture', 'class', 0, '09:00', '11:00', 'Lab 3'],
-            ['Data Mining lecture', 'class', 2, '09:00', '11:00', 'Lab 3'],
-            ['Software Testing tutorial', 'class', 1, '14:00', '16:00', 'Room B2-04'],
-            ['Internship stand-up', 'work', 3, '10:00', '10:30', 'Online'],
-        ] as [$title, $calendar, $day, $from, $to, $where]) {
+            ['Data Mining lecture', 'University', 0, '09:00', '11:00', 'Lab 3'],
+            ['Data Mining lecture', 'University', 2, '09:00', '11:00', 'Lab 3'],
+            ['Software Testing tutorial', 'University', 1, '14:00', '16:00', 'Room B2-04'],
+            ['Internship stand-up', 'Work', 3, '10:00', '10:30', 'Online'],
+        ] as [$title, $area, $day, $from, $to, $where]) {
             $date = $monday->addDays($day)->toDateString();
             $user->events()->create([
-                'title' => $title, 'calendar' => $calendar, 'location' => $where, 'all_day' => false, 'repeat_weekly' => true,
+                'title' => $title, 'area_id' => $areas[$area]->id, 'location' => $where, 'all_day' => false, 'repeat_weekly' => true,
                 'starts_at' => CarbonImmutable::parse("{$date} {$from}", $tz)->utc(), 'ends_at' => CarbonImmutable::parse("{$date} {$to}", $tz)->utc(),
             ]);
         }

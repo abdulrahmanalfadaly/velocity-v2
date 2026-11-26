@@ -56,7 +56,7 @@ type PlanItem =
           kind: 'event';
           key: string;
           title: string;
-          calendar: 'class' | 'work' | 'personal';
+          area: { id: number; name: string; icon: string | null } | null;
           allDay: boolean;
           location: string | null;
           start: string;
@@ -345,8 +345,6 @@ function EmptyHero() {
     );
 }
 
-const PLAN_ICON = { class: 'cap', work: 'briefcase', personal: 'heart' };
-
 /** Today on the Planner: classes, events and booked work, with where "now" is. */
 function TodayPlan({ plan, clock, hasTasks }: { plan: Props['plan']; clock: Clock; hasTasks: boolean }) {
     const now = clock.now.getTime();
@@ -389,7 +387,7 @@ function TodayPlan({ plan, clock, hasTasks }: { plan: Props['plan']; clock: Cloc
                             </>
                         ) : (
                             <>
-                                <Icon name={PLAN_ICON[i.calendar]} className="ic-xs" />
+                                <Icon name={i.area?.icon ?? 'calendar'} className="ic-xs" />
                                 {timed && `${clock.time(i.start)}–${clock.time(i.end)}`}
                                 {i.location && ` · ${i.location}`}
                             </>

@@ -6660,13 +6660,6 @@ a.row-title:hover {
     outline: 2px solid var(--violet);
     outline-offset: 1px;
 }
-.pev.is-work {
-    border-left-style: double;
-    border-left-width: 4px;
-}
-.pev.is-personal {
-    border-left-style: dashed;
-}
 .pev-title {
     display: flex;
     align-items: center;
@@ -7162,13 +7155,6 @@ button.nav-item {
 }
 .mg-item.is-event {
     border-left: 3px solid var(--line-strong);
-}
-.mg-item.is-event.is-work {
-    border-left-style: double;
-    border-left-width: 4px;
-}
-.mg-item.is-event.is-personal {
-    border-left-style: dashed;
 }
 .mg-item.is-block {
     background: var(--violet-soft);

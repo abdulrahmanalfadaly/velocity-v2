@@ -108,7 +108,7 @@ class SearchController extends Controller
 
                 return [
                     'kind' => 'event', 'id' => $e->id, 'title' => $e->title,
-                    'sub' => collect([ucfirst($e->calendar), $next ? 'next '.$local->format('D j M') : $local->format('j M Y'), $e->location])->filter()->join(' · '),
+                    'sub' => collect([$e->area?->name, $next ? 'next '.$local->format('D j M') : $local->format('j M Y'), $e->location])->filter()->join(' · '),
                     'url' => route('planner.index', ['date' => $local->toDateString(), 'view' => 'day']),
                 ];
             })->values()->all();

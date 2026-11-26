@@ -227,7 +227,7 @@ class PlannerApiController extends ApiController
         return [
             'id' => $e->id,
             'title' => $e->title,
-            'calendar' => $e->calendar,
+            'area' => $e->areaInfo(),
             'location' => $e->location,
             'allDay' => $e->all_day,
             'locked' => $e->locked,

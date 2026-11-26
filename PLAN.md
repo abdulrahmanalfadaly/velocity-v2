@@ -228,7 +228,9 @@ huge screens, tangled timer), never a source of code or design.
       and stop. `FocusController`, `FocusSession`
 - [x] Classes and events, and the Planner page: Day / Week grid (phones: Day),
       side menu with New event, a month calendar (dots on busy days), Day / Week
-      and the Classes / Work / Personal calendars (click to hide). Click an empty
+      and the Classes / Work / Personal calendars (click to hide; since 26 Nov
+      events belong to the user's own areas instead, with each area's icon, "#uni"
+      in Add something, Review's time by area; old events matched by name). Click an empty
       slot to add an event there. Events can be all day (one or more days), run
       past midnight, or repeat weekly until a last week; one week can be removed
       (a holiday). Weekly repeats are worked out in the user's time zone, so a

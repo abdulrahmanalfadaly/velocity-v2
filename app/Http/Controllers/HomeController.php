@@ -53,7 +53,7 @@ class HomeController extends Controller
         $from = $today->utc();
         $to = $today->addDay()->utc();
         $events = $user->events()->get()->flatMap(fn (Event $e) => array_map(fn ($o) => [
-            'kind' => 'event', 'key' => "e{$e->id}:{$o['date']}", 'title' => $e->title, 'calendar' => $e->calendar, 'allDay' => $e->all_day, 'location' => $e->location,
+            'kind' => 'event', 'key' => "e{$e->id}:{$o['date']}", 'title' => $e->title, 'area' => $e->areaInfo(), 'allDay' => $e->all_day, 'location' => $e->location,
             'start' => $o['start']->toIso8601ZuluString(), 'end' => $o['end']->toIso8601ZuluString(),
         ], $e->occurrences($from, $to, $tz)));
         $habits = $user->habits()->whereNull('archived_at')->with(['entries' => fn ($q) => $q->where('day', '>=', $today->subDays(400)->toDateString()), 'project'])->get()

@@ -1,20 +1,54 @@
-import { router, useForm } from '@inertiajs/react';
+import type { VelocityShared } from '@/types/velocity';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { type FormEvent, type ReactNode } from 'react';
 import { DatePick } from './date-pick';
 import { Field, TextField } from './field';
 import { Modal } from './forms';
 import { Icon } from './icon';
 
-export type CalendarKey = 'class' | 'work' | 'personal';
-export const CALENDARS: [CalendarKey, string, string][] = [
-    ['class', 'Classes', 'cap'],
-    ['work', 'Work', 'briefcase'],
-    ['personal', 'Personal', 'heart'],
-];
+/** An event's area, as lists show it. */
+export type EventArea = { id: number; name: string; icon: string | null } | null;
+
+/*
+ * Events belong to the user's own areas (user, 26 Nov 2026), not the fixed Classes / Work / Personal they started
+ * with. The last area picked is remembered on this device for the next new event.
+ */
+const LAST_AREA = 'velocity.eventArea';
+export const lastEventArea = (): number | null => {
+    const v = Number(typeof window === 'undefined' ? '' : (localStorage.getItem(LAST_AREA) ?? ''));
+    return v > 0 ? v : null;
+};
+export const rememberEventArea = (id: number | null) => localStorage.setItem(LAST_AREA, id ? String(id) : '');
+
+/** The user's areas (from the Tasks menu's data), in their order. */
+export function useAreas() {
+    const { props } = usePage<VelocityShared>();
+    return (props.nav?.areas ?? []).map((a) => ({ id: a.id, name: a.name, icon: a.icon }));
+}
+
+/** Your areas as a row of choices, plus "No area". */
+export function AreaPicker({ id, value, onChange }: { id?: string; value: number | null; onChange: (id: number | null) => void }) {
+    const areas = useAreas();
+    // An area that was removed since: shown as none.
+    const current = areas.some((a) => a.id === value) ? value : null;
+    return (
+        <div className="seg ev-seg" role="radiogroup" id={id} aria-label="Area">
+            {areas.map((a) => (
+                <button key={a.id} type="button" role="radio" aria-checked={current === a.id} onClick={() => onChange(a.id)}>
+                    <Icon name={a.icon ?? 'folder'} className="ic-sm" />
+                    {a.name}
+                </button>
+            ))}
+            <button type="button" role="radio" aria-checked={current === null} onClick={() => onChange(null)}>
+                No area
+            </button>
+        </div>
+    );
+}
 
 export interface EventForm {
     title: string;
-    calendar: CalendarKey;
+    area_id: number | null;
     location: string | null;
     notes: string | null;
     all_day: boolean;
@@ -57,7 +91,7 @@ export function EventDialog({
 }) {
     const form = useForm({
         title: initial.title,
-        calendar: initial.calendar,
+        area_id: initial.area_id,
         location: initial.location ?? '',
         notes: initial.notes ?? '',
         all_day: initial.all_day,
@@ -82,7 +116,13 @@ export function EventDialog({
             end_time: d.all_day ? null : d.end_time,
             repeat_until: d.repeat_weekly && d.repeat_until ? d.repeat_until : null,
         }));
-        const opts = { ...keep, onSuccess: onClose };
+        const opts = {
+            ...keep,
+            onSuccess: () => {
+                if (!eventId) rememberEventArea(data.area_id);
+                onClose();
+            },
+        };
         if (eventId) form.patch(route('events.update', eventId), opts);
         else form.post(route('events.store'), opts);
     };
@@ -116,15 +156,8 @@ export function EventDialog({
                     maxLength={160}
                     placeholder="Data Mining lecture"
                 />
-                <Field id="ev-cal" label="Calendar" error={errors.calendar}>
-                    <div className="seg ev-seg" role="radiogroup" id="ev-cal">
-                        {CALENDARS.map(([k, label, icon]) => (
-                            <button key={k} type="button" role="radio" aria-checked={data.calendar === k} onClick={() => setData('calendar', k)}>
-                                <Icon name={icon} className="ic-sm" />
-                                {label}
-                            </button>
-                        ))}
-                    </div>
+                <Field id="ev-area" label="Area" error={errors.area_id}>
+                    <AreaPicker id="ev-area" value={data.area_id} onChange={(v) => setData('area_id', v)} />
                 </Field>
                 <div className="vform-row">
                     <Field id="ev-date" label={data.repeat_weekly ? 'First week' : data.all_day ? 'First day' : 'Date'} error={errors.date}>

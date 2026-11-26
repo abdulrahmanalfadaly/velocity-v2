@@ -34,7 +34,7 @@ export interface NoteDetail {
     projectIds?: number[];
     areaId?: number | null;
     journalDate: string | null;
-    event: { id: number; title: string; calendar: 'class' | 'work' | 'personal'; date: string; gone: boolean } | null;
+    event: { id: number; title: string; area: { id: number; name: string; icon: string | null } | null; date: string; gone: boolean } | null;
     tasks: { id: number; title: string; status: string; rank: number | null }[];
     files: NoteFileInfo[];
     people: { id: number; name: string }[];
@@ -62,7 +62,6 @@ type Status = 'idle' | 'typing' | 'saving' | 'saved' | 'error';
 const keep = { preserveScroll: true, preserveState: true };
 const MAX = 20 * 1024 * 1024;
 const PICTURE = /^image\/(png|jpeg|gif|webp)$/;
-const CAL_ICON = { class: 'cap', work: 'briefcase', personal: 'heart' } as const;
 const LINK_ICON: Record<LinkType, string> = { note: 'notes', goal: 'target', habit: 'habits' };
 const LINK_NAME: Record<LinkType, string> = { note: 'Note', goal: 'Goal', habit: 'Habit' };
 const at = (d: string) => new Date(`${d}T12:00:00Z`);
@@ -440,13 +439,13 @@ export function NoteEditor({
                 {note.event &&
                     (note.event.gone ? (
                         <span className="chip">
-                            <Icon name={CAL_ICON[note.event.calendar]} />
+                            <Icon name={note.event.area?.icon ?? 'calendar'} />
                             {note.event.title} ·{' '}
                             {clock.date(at(note.event.date), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}
                         </span>
                     ) : (
                         <Link className="chip chip-link" href={`/planner?date=${note.event.date}&view=day`}>
-                            <Icon name={CAL_ICON[note.event.calendar]} />
+                            <Icon name={note.event.area?.icon ?? 'calendar'} />
                             {note.event.title} ·{' '}
                             {clock.date(at(note.event.date), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}
                         </Link>

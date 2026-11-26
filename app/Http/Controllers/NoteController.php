@@ -45,7 +45,7 @@ class NoteController extends Controller
             $like = '%'.addcslashes($q, '%_\\').'%';
             $list->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('body_text', 'like', $like));
         }
-        $notes = $list->with(['project.goal:id,color', 'event:id,title,calendar'])->limit(300)->get();
+        $notes = $list->with(['project.goal:id,color', 'event:id,title,area_id', 'event.area'])->limit(300)->get();
 
         return Inertia::render('notes/index', [
             'in' => $in,
@@ -372,8 +372,8 @@ class NoteController extends Controller
                 ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'count' => $p->notes_count + $p->shared_notes_count])->values(),
             'areas' => $user->areas()->withCount(['notes' => fn ($q) => $q->whereNull('archived_at')])->orderBy('position')->get()
                 ->filter(fn ($a) => $a->notes_count > 0)->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'icon' => $a->icon, 'count' => $a->notes_count])->values(),
-            'events' => Event::withTrashed()->where('user_id', $user->id)->whereHas('notes')->withCount('notes')->orderBy('title')->get()
-                ->map(fn ($e) => ['id' => $e->id, 'title' => $e->title, 'calendar' => $e->calendar, 'count' => $e->notes_count])->values(),
+            'events' => Event::withTrashed()->where('user_id', $user->id)->whereHas('notes')->with('area')->withCount('notes')->orderBy('title')->get()
+                ->map(fn ($e) => ['id' => $e->id, 'title' => $e->title, 'area' => $e->areaInfo(), 'count' => $e->notes_count])->values(),
         ];
     }
 
@@ -390,7 +390,7 @@ class NoteController extends Controller
             'project' => $n->project ? ['id' => $n->project->id, 'name' => $n->project->name, 'color' => $n->project->goal?->color] : null,
             'journalDate' => $n->journal_date?->toDateString(),
             'eventDate' => $n->event_date?->toDateString(),
-            'calendar' => $n->event?->calendar,
+            'eventArea' => $n->event?->areaInfo(),
         ];
     }
 
@@ -411,7 +411,7 @@ class NoteController extends Controller
             'areaId' => $n->area_id,
             'journalDate' => $n->journal_date?->toDateString(),
             'event' => $n->event_date ? [
-                'id' => $n->event_id, 'title' => $n->event?->title ?? 'Class', 'calendar' => $n->event?->calendar ?? 'class',
+                'id' => $n->event_id, 'title' => $n->event?->title ?? 'Event', 'area' => $n->event?->areaInfo(),
                 'date' => $n->event_date->toDateString(), 'gone' => ! $n->event || $n->event->trashed(),
             ] : null,
             'tasks' => $n->tasks->map(fn (Task $t) => ['id' => $t->id, 'title' => $t->title, 'status' => $t->status, 'rank' => $list->rankOf($t->id)])->values(),

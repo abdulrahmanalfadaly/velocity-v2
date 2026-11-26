@@ -71,7 +71,7 @@ class OverviewController extends ApiController
         $plan = null;
         if ($this->can($request, 'planner:read')) {
             $events = $user->events()->get()->flatMap(fn (Event $e) => array_map(fn ($o) => [
-                'id' => $e->id, 'title' => $e->title, 'calendar' => $e->calendar, 'location' => $e->location, 'allDay' => $e->all_day,
+                'id' => $e->id, 'title' => $e->title, 'area' => $e->areaInfo(), 'location' => $e->location, 'allDay' => $e->all_day,
                 'start' => $o['start']->toIso8601ZuluString(), 'end' => $o['end']->toIso8601ZuluString(),
             ], $e->occurrences($today->utc(), $tomorrow->utc(), $user->timezone)))->sortBy('start')->values();
             $blocks = $user->plannerBlocks()->active()->with(['task:id,title,due_at', 'project:id,name'])->where('ends_at', '>', $today->utc())->where('starts_at', '<', $tomorrow->utc())

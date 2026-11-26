@@ -80,19 +80,25 @@ Ask about the budget', $note->body_text);
         $this->post(route('notes.store'), ['stay' => true])->assertSessionHasErrors('title');
     }
 
-    public function test_an_event_line_gives_its_day_times_and_calendar(): void
+    public function test_an_event_line_gives_its_day_times_and_area(): void
     {
+        $uni = $this->user->areas()->create(['name' => 'University', 'position' => 0]);
+        $work = $this->user->areas()->create(['name' => 'Part-time Work', 'position' => 1]);
+        $personal = $this->user->areas()->create(['name' => 'Personal', 'position' => 2]);
         $this->assertSame(
-            ['title' => 'Dentist', 'date' => '2026-11-12', 'start' => '15:00', 'end' => '16:00', 'allDay' => false, 'calendar' => 'personal', 'weekly' => false, 'until' => null],
+            ['title' => 'Dentist', 'date' => '2026-11-12', 'start' => '15:00', 'end' => '16:00', 'allDay' => false, 'areaId' => $personal->id, 'weekly' => false, 'until' => null],
             array_diff_key($this->event('Dentist tomorrow 3-4pm #personal'), ['picked' => 1]),
         );
-        $quiz = $this->event('Quiz fri 9-10am #class');
-        $this->assertSame(['Quiz', '2026-11-13', '09:00', '10:00', 'class'], [$quiz['title'], $quiz['date'], $quiz['start'], $quiz['end'], $quiz['calendar']]);
+        // "#uni": the start of an area's name; "#pw": its capitals; an unknown one stays in the title.
+        $quiz = $this->event('Quiz fri 9-10am #uni');
+        $this->assertSame(['Quiz', '2026-11-13', '09:00', '10:00', $uni->id], [$quiz['title'], $quiz['date'], $quiz['start'], $quiz['end'], $quiz['areaId']]);
+        $this->assertSame($work->id, $this->event('Shift sat 9am-1pm #pw')['areaId']);
+        $this->assertSame(['Party #club', null], array_values(array_intersect_key($this->event('Party sat 8pm #club'), ['title' => 1, 'areaId' => 1])));
 
         // A side without am / pm takes the other's; "11-1pm" is 11 am to 1 pm, later today.
         $lecture = $this->event('Lecture 11-1pm');
         $this->assertSame(['2026-11-11', '11:00', '13:00'], [$lecture['date'], $lecture['start'], $lecture['end']]);
-        $this->assertSame(['22:00', '02:00', 'work'], array_values(array_intersect_key($this->event('Night shift 10pm-2am #w'), ['start' => 1, 'end' => 1, 'calendar' => 1])));
+        $this->assertSame(['22:00', '02:00', $work->id], array_values(array_intersect_key($this->event('Night shift 10pm-2am #part'), ['start' => 1, 'end' => 1, 'areaId' => 1])));
         $this->assertSame(['Meeting', '15:00', '16:30'], array_values(array_intersect_key($this->event('Meeting 3pm to 4:30pm'), ['title' => 1, 'start' => 1, 'end' => 1])));
         $this->assertSame(['Talk', '14:30', '16:00'], array_values(array_intersect_key($this->event('Talk from 2:30 - 4pm'), ['title' => 1, 'start' => 1, 'end' => 1])));
 

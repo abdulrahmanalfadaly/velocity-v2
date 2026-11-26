@@ -17,7 +17,8 @@ interface NoteItem {
     project: { id: number; name: string; color: number | null } | null;
     journalDate: string | null;
     eventDate: string | null;
-    calendar: 'class' | 'work' | 'personal' | null;
+    /** A class or event's note: that event's area. */
+    eventArea?: { id: number; name: string; icon: string | null } | null;
 }
 
 interface Props extends VelocityShared {
@@ -34,7 +35,7 @@ interface Props extends VelocityShared {
         archived?: number;
         areas?: { id: number; name: string; icon: string | null; count: number }[];
         projects: { id: number; name: string; count: number }[];
-        events: { id: number; title: string; calendar: 'class' | 'work' | 'personal'; count: number }[];
+        events: { id: number; title: string; area: { id: number; name: string; icon: string | null } | null; count: number }[];
     };
     projects: { id: number; name: string }[];
     taskOptions: { id: number; title: string }[];
@@ -44,7 +45,6 @@ interface Props extends VelocityShared {
 }
 
 const keep = { preserveScroll: true, preserveState: true };
-const CAL_ICON = { class: 'cap', work: 'briefcase', personal: 'heart' } as const;
 const at = (d: string) => new Date(`${d}T12:00:00Z`);
 
 export default function Notes() {
@@ -161,7 +161,7 @@ export default function Notes() {
                                             {n.pinned && <Icon name="pin" className="ic-xs ni-pin" />}
                                         </span>
                                         <span className="ni-meta">
-                                            {n.calendar && <Icon name={CAL_ICON[n.calendar]} className="ic-xs" />}
+                                            {n.eventDate && <Icon name={n.eventArea?.icon ?? 'calendar'} className="ic-xs" />}
                                             <span>{itemDate(n, clock)}</span>
                                             {n.project && !project && (
                                                 <span className="ni-proj" style={{ '--g': `var(--goal-${n.project.color ?? 0})` } as CSSProperties}>
@@ -300,8 +300,8 @@ function NotesMenu({
                 {item('pinned', 'pin', 'Pinned', m.pinned)}
                 {item('journal', 'journal', 'Journal', m.journal)}
                 {item('loose', 'file', 'Not in a project', m.loose)}
-                {m.events.length > 0 && <div className="nav-label">Classes and events</div>}
-                {m.events.map((e) => item(`e${e.id}`, CAL_ICON[e.calendar], e.title, e.count))}
+                {m.events.length > 0 && <div className="nav-label">Events</div>}
+                {m.events.map((e) => item(`e${e.id}`, e.area?.icon ?? 'calendar', e.title, e.count))}
                 {m.projects.length > 0 && <div className="nav-label">Projects</div>}
                 {m.projects.map((p) => item(`p${p.id}`, 'folder', p.name, p.count))}
                 {(m.areas ?? []).length > 0 && <div className="nav-label">Areas</div>}

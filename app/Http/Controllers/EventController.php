@@ -52,7 +52,9 @@ class EventController extends Controller
     {
         $text = $request->validate(['text' => ['required', 'string', 'max:255']])['text'];
 
-        return response()->json($parser->parseEvent($text, $ranking->now()->timezone($request->user()->timezone)));
+        $user = $request->user();
+
+        return response()->json($parser->parseEvent($text, $ranking->now()->timezone($user->timezone), $user->areas()->orderBy('position')->pluck('name', 'id')->all()));
     }
 
     public function update(Request $request, Event $event): RedirectResponse
@@ -105,7 +107,8 @@ class EventController extends Controller
     {
         $d = $request->validate([
             'title' => ['required', 'string', 'max:160'],
-            'calendar' => ['required', Rule::in(Event::CALENDARS)],
+            // One of the user's areas (University, Work…), or none.
+            'area_id' => ['nullable', 'integer', Rule::exists('areas', 'id')->where('user_id', $user->id)->whereNull('deleted_at')],
             'location' => ['nullable', 'string', 'max:160'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'all_day' => ['boolean'],
@@ -139,7 +142,7 @@ class EventController extends Controller
 
         return [
             'title' => $d['title'],
-            'calendar' => $d['calendar'],
+            'area_id' => $d['area_id'] ?? null,
             'location' => $d['location'] ?? null,
             'notes' => $d['notes'] ?? null,
             'all_day' => $allDay,
@@ -199,7 +202,7 @@ class EventController extends Controller
 
         if ($event->repeat_weekly && ($d['scope'] ?? 'all') === 'one') {
             $copy = $user->events()->create([
-                ...$event->only(['calendar', 'title', 'location', 'notes', 'locked']),
+                ...$event->only(['area_id', 'title', 'location', 'notes', 'locked']),
                 'all_day' => false, 'repeat_weekly' => false,
                 'starts_at' => $newStart->utc(), 'ends_at' => $newStart->addMinutes($d['minutes'])->utc(),
             ]);
